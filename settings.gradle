@@ -1,4 +1,4 @@
-rootProject.name = 'corporate-travel-identity'
+rootProject.name = 'corporate-travel-portal'
 
 // Shared libraries
 include 'services:shared:security-commons'
