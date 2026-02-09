@@ -1,0 +1,40 @@
+# Docker-specific configuration
+# Activated with SPRING_PROFILES_ACTIVE=docker
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/corporate_travel
+    username: admin
+    password: admin123
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+
+# OPA Configuration for Docker
+opa:
+  url: http://opa:8181
+
+# Logging (less verbose in Docker)
+logging:
+  level:
+    root: INFO
+    com.corporate.travel: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: INFO
+
+# Swagger/OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none
+  show-actuator: true

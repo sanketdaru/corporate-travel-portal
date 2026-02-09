@@ -1,0 +1,15 @@
+rootProject.name = 'corporate-travel-identity'
+
+// Shared libraries
+include 'services:shared:security-commons'
+include 'services:shared:domain-models'
+include 'services:shared:observability'
+
+// Microservices
+include 'services:api-gateway'
+include 'services:travel-service'
+include 'services:expense-service'
+include 'services:approval-service'
+include 'services:consent-service'
+include 'services:delegation-service'
+include 'services:employee-bff'

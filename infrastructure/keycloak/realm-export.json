@@ -1,0 +1,305 @@
+{
+  "realm": "corporate-travel",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "groups": [
+    {
+      "name": "TenantA",
+      "path": "/TenantA",
+      "attributes": {
+        "tenant_id": ["tenant-a"]
+      }
+    },
+    {
+      "name": "TenantB",
+      "path": "/TenantB",
+      "attributes": {
+        "tenant_id": ["tenant-b"]
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "employee",
+        "description": "Standard employee role"
+      },
+      {
+        "name": "manager",
+        "description": "Manager role with approval capabilities"
+      },
+      {
+        "name": "executive",
+        "description": "Executive role"
+      },
+      {
+        "name": "assistant",
+        "description": "Executive assistant role"
+      },
+      {
+        "name": "admin",
+        "description": "Administrator role"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice.employee",
+      "email": "alice@tenant-a.com",
+      "firstName": "Alice",
+      "lastName": "Employee",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee"],
+      "groups": ["/TenantA"],
+      "attributes": {
+        "tenant_id": ["tenant-a"],
+        "employee_id": ["emp-001"]
+      }
+    },
+    {
+      "username": "bob.manager",
+      "email": "bob@tenant-a.com",
+      "firstName": "Bob",
+      "lastName": "Manager",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee", "manager"],
+      "groups": ["/TenantA"],
+      "attributes": {
+        "tenant_id": ["tenant-a"],
+        "employee_id": ["emp-002"],
+        "reports_to": [""]
+      }
+    },
+    {
+      "username": "carol.executive",
+      "email": "carol@tenant-a.com",
+      "firstName": "Carol",
+      "lastName": "Executive",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee", "executive"],
+      "groups": ["/TenantA"],
+      "attributes": {
+        "tenant_id": ["tenant-a"],
+        "employee_id": ["emp-003"],
+        "reports_to": ["emp-002"]
+      }
+    },
+    {
+      "username": "dave.assistant",
+      "email": "dave@tenant-a.com",
+      "firstName": "Dave",
+      "lastName": "Assistant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee", "assistant"],
+      "groups": ["/TenantA"],
+      "attributes": {
+        "tenant_id": ["tenant-a"],
+        "employee_id": ["emp-004"],
+        "assists": ["emp-003"]
+      }
+    },
+    {
+      "username": "eve.employee",
+      "email": "eve@tenant-b.com",
+      "firstName": "Eve",
+      "lastName": "Employee",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee"],
+      "groups": ["/TenantB"],
+      "attributes": {
+        "tenant_id": ["tenant-b"],
+        "employee_id": ["emp-101"]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "employee-portal",
+      "name": "Employee Portal",
+      "description": "Web portal for employees",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3000/api/auth/callback/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "employee-bff",
+      "name": "Employee BFF Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "secret": "bff-service-secret-change-in-production",
+      "redirectUris": ["http://localhost:3001/*"],
+      "webOrigins": ["+"]
+    },
+    {
+      "clientId": "travel-service",
+      "name": "Travel Booking Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "serviceAccountsEnabled": true,
+      "secret": "travel-service-secret-change-in-production",
+      "attributes": {
+        "token-exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "expense-service",
+      "name": "Expense Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "serviceAccountsEnabled": true,
+      "secret": "expense-service-secret-change-in-production",
+      "attributes": {
+        "token-exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "approval-service",
+      "name": "Approval Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "serviceAccountsEnabled": true,
+      "secret": "approval-service-secret-change-in-production"
+    },
+    {
+      "clientId": "consent-service",
+      "name": "Consent Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "serviceAccountsEnabled": true,
+      "secret": "consent-service-secret-change-in-production"
+    },
+    {
+      "clientId": "delegation-service",
+      "name": "Delegation Service",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "serviceAccountsEnabled": true,
+      "secret": "delegation-service-secret-change-in-production"
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "travel-booking",
+      "description": "Travel booking operations",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "expense-management",
+      "description": "Expense management operations",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "approval",
+      "description": "Approval operations",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "delegation",
+      "description": "Delegation operations",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    }
+  ],
+  "attributes": {
+    "frontendUrl": "http://localhost:8080"
+  }
+}
