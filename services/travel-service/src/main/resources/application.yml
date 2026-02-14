@@ -22,7 +22,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8080/realms/corporate-travel
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
 
 server:
   port: 8081
@@ -34,7 +34,7 @@ server:
 
 # OPA Configuration
 opa:
-  url: http://localhost:8181
+  url: http://opa:8181
 
 # Logging
 logging:

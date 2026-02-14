@@ -22,7 +22,7 @@ public class OpaClient {
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
 
-    @Value("${opa.url:http://localhost:8181}")
+    @Value("${opa.url:http://opa:8181}")
     private String opaUrl;
 
     /**
