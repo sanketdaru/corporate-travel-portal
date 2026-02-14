@@ -38,7 +38,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
 
     public static SecurityContext extractSecurityContext(Jwt jwt) {
         SecurityContext.SecurityContextBuilder builder = SecurityContext.builder()
-                .userId(jwt.getSubject())
+                .userId(jwt.getClaimAsString("preferred_username"))
                 .username(jwt.getClaimAsString("preferred_username"))
                 .tenantId(jwt.getClaimAsString("tenant_id"))
                 .roles(extractRoles(jwt));
