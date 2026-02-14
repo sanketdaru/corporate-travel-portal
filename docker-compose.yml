@@ -61,6 +61,7 @@ services:
       KC_HOSTNAME_STRICT: false
       KC_HOSTNAME_STRICT_HTTPS: false
       KC_HTTP_ENABLED: true
+      KC_HEALTH_ENABLED: true
     ports:
       - "8080:8080"
     volumes:
@@ -71,12 +72,11 @@ services:
     networks:
       - corporate-travel-network
     healthcheck:
-      #test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
-      test: > 
-        wget -q --spider http://localhost:8080/health/ready || exit 1
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/corporate-travel HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
 
   # Open Policy Agent - Authorization
   opa:
@@ -94,11 +94,11 @@ services:
     networks:
       - corporate-travel-network
     healthcheck:
-      #test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8181/health"]
+      test: ["CMD", "/opa", "version"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
   # API Gateway
   # api-gateway:
