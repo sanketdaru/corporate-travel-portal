@@ -115,6 +115,8 @@ public class BookingServiceImpl implements BookingService {
         // In delegation scenarios, fetch the subject's bookings
         String targetUserId = context.getSubjectId() != null ? 
             context.getSubjectId() : context.getUserId();
+        log.debug("context: {}", context);
+        log.debug("targetUserId: {}", targetUserId);
         
         // Authorization check - can user list bookings?
         Map<String, Object> resource = Map.of(
@@ -123,7 +125,7 @@ public class BookingServiceImpl implements BookingService {
             "user_id", targetUserId
         );
         
-        if (!opaClient.authorize(context, "list_bookings", resource)) {
+        if (!opaClient.authorize(context, "view_booking", resource)) {
             log.warn("Authorization denied for user {} to list bookings", context.getUserId());
             throw new AccessDeniedException("Not authorized to list bookings");
         }
