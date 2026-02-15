@@ -57,9 +57,63 @@ echo "💾 Token saved to: /tmp/keycloak-token.txt"
 echo ""
 
 # Decode and display token claims (if jq is available)
-if command -v jq > /dev/null 2>&1; then
+decode_jwt_payload() {
+  local payload
+  payload=$(printf '%s' "$ACCESS_TOKEN" | cut -d'.' -f2)
+
+  # Convert Base64URL → Base64
+  payload=$(printf '%s' "$payload" | tr '_-' '/+')
+
+  # Fix padding
+  local pad=$((4 - ${#payload} % 4))
+  if [ $pad -lt 4 ]; then
+    payload="${payload}$(printf '=%.0s' $(seq 1 $pad))"
+  fi
+
+  # Decode JSON payload
+  local json
+  json=$(printf '%s' "$payload" | base64 --decode 2>/dev/null)
+
+  if [ -z "$json" ]; then
+    echo "❌ Unable to decode JWT payload"
+    return 1
+  fi
+
+  echo "$json" | jq .
+
+  # ---- Extract exp & iat ----
+  local exp iat
+  exp=$(echo "$json" | jq -r '.exp // empty')
+  iat=$(echo "$json" | jq -r '.iat // empty')
+
+  convert_epoch() {
+    local epoch="$1"
+
+    if [ -z "$epoch" ]; then
+      return
+    fi
+
+    if date --version >/dev/null 2>&1; then
+      # GNU date
+      date -d "@$epoch" +"%Y-%m-%d %H:%M:%S %Z"
+    else
+      # BSD date (macOS)
+      date -r "$epoch" +"%Y-%m-%d %H:%M:%S %Z"
+    fi
+  }
+
+  if [ -n "$iat" ]; then
+    echo "🕒 Issued At (iat) : $(convert_epoch "$iat")"
+  fi
+
+  if [ -n "$exp" ]; then
+    echo "⏳ Expires At (exp): $(convert_epoch "$exp")"
+  fi
+}
+
+if command -v jq >/dev/null 2>&1; then
     echo "📄 Token Claims:"
-    echo $ACCESS_TOKEN | cut -d'.' -f2 | base64 -d 2>/dev/null | jq '.' || true
+    decode_jwt_payload || true
 fi
 
 echo ""
