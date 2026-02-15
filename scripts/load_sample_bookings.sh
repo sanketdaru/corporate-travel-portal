@@ -92,13 +92,27 @@ rand_element() {
 
 rand_date() {
   local offset=$((RANDOM % 150 - 30))
-  date -d "$offset day" +"%Y-%m-%d"
+
+  if date --version >/dev/null 2>&1; then
+    date -d "$offset day" +"%Y-%m-%d"
+  else
+    if (( offset >= 0 )); then
+      date -v+"${offset}"d +"%Y-%m-%d"
+    else
+      date -v"${offset}"d +"%Y-%m-%d"
+    fi
+  fi
 }
 
 calc_end_date() {
   local start="$1"
   local duration=$((RANDOM % 10 + 1))
-  date -d "$start + $duration day" +"%Y-%m-%d"
+
+  if date --version >/dev/null 2>&1; then
+    date -d "$start + $duration day" +"%Y-%m-%d"
+  else
+    date -j -f "%Y-%m-%d" "$start" -v+"${duration}"d +"%Y-%m-%d"
+  fi
 }
 
 amount_for_type() {
