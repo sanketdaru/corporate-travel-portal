@@ -74,7 +74,8 @@
 - IMPLEMENTATION.md - Detailed implementation patterns
 
 **Architecture Documentation**
-- 22 ADRs documenting all major decisions
+- 23 ADRs documenting all major decisions
+  - **ADR-023 (NEW)**: Flyway for Database Schema Migration Management
 - Architecture diagrams in README
 - Service interaction patterns documented
 
@@ -108,15 +109,18 @@
 - [x] README documentation
 - [x] Built successfully - JAR ready
 
-**Expense Service** (Priority 1)
-- [ ] Spring Boot application setup
-- [ ] Expense entity and repository
-- [ ] ExpenseService with OPA integration
-- [ ] ExpenseController REST API
-- [ ] Link to bookings
-- [ ] Audit logging
-- [ ] Integration tests
-- [ ] Dockerfile
+**Expense Service** (Priority 1) ✅ **COMPLETE**
+- [x] Spring Boot application setup
+- [x] Expense and ExpenseItem entities with repositories
+- [x] ExpenseService with OPA integration
+- [x] ExpenseController REST API with full workflow
+- [x] Link to bookings (booking_id field)
+- [x] Approval workflow (submit, approve, reject)
+- [x] OpenAPI/Swagger documentation
+- [ ] Audit logging implementation (deferred)
+- [ ] Integration tests (deferred)
+- [x] Dockerfile
+- [x] Built successfully - JAR ready
 
 **Approval Service** (Priority 2)
 - [ ] Spring Boot application setup
@@ -217,6 +221,7 @@
 - Neo4j: ✅
 - Keycloak: ✅
 - OPA: ✅
+- **Database Migration Strategy**: ✅ (ADR-023 Flyway)
 
 ### Foundation Layer: 100% Complete ✅
 - Build system: ✅
@@ -225,16 +230,17 @@
 - Documentation: ✅
 - Developer tools: ✅
 - Memory bank: ✅
+- **Data Storage Architecture**: ✅ (ADR-023)
 
-### Application Layer: 20% Complete 🔨
-- Domain services: 1/5 (Travel Service ✅)
+### Application Layer: 40% Complete 🔨
+- Domain services: 2/5 (Travel Service ✅, Expense Service ✅)
 - API layer: 0/2
 - Frontend: 0/1
 
-### Overall Progress: ~50% Complete
+### Overall Progress: ~60% Complete
 
 **Phase 1 (Foundation)**: ✅ Complete
-**Phase 2 (Services)**: 🔨 In Progress (1/5 complete)
+**Phase 2 (Services)**: 🔨 In Progress (2/5 complete - 40%)
 **Phase 3 (Integration)**: ⏳ Pending
 **Phase 4 (Frontend)**: ⏳ Pending
 
@@ -294,24 +300,27 @@ All infrastructure and services are working correctly.
 
 ## Next Milestone
 
-**Goal**: Test Travel Service and Implement Expense Service
+**Goal**: Test Both Services and Implement Approval Service
 
 **Deliverables**:
-1. Travel Service tested end-to-end with infrastructure
-2. Expense Service implemented using Travel Service as template
-3. Both services working with OPA authorization
-4. Multi-tenant isolation verified
-5. Basic delegation scenarios tested
+1. ✅ Travel Service implemented with full CRUD + OpenAPI
+2. ✅ Expense Service implemented with workflow + OpenAPI
+3. Test both services end-to-end with infrastructure
+4. Implement Approval Service with workflow state machine
+5. Integration testing with OPA authorization
+6. Multi-tenant isolation verification
 
-**Estimated Effort**: 2-3 hours
+**Estimated Effort**: 3-4 hours for testing + Approval Service
 
 **Success Criteria**:
-- Can create/read/update/delete bookings via REST API
-- Can create/read/update/delete expenses via REST API
-- Cross-tenant access blocked by OPA
-- Delegation flow works (Dave books for Carol)
-- Expenses can reference bookings
-- Both services running in Docker Compose
+- ✅ Can create/read/update/delete bookings via REST API
+- ✅ Can create/read/update/delete expenses via REST API
+- ✅ Expense workflow (submit, approve, reject) implemented
+- ✅ Both services have OpenAPI/Swagger documentation
+- Cross-tenant access blocked by OPA (needs testing)
+- Delegation flow works (Dave books for Carol) (needs testing)
+- ✅ Expenses can reference bookings
+- Both services running in Docker Compose (ready to test)
 
 ## Future Enhancements
 
@@ -337,13 +346,13 @@ All infrastructure and services are working correctly.
 ## Metrics
 
 ### Code Statistics
-- Infrastructure files: 15+
-- Gradle build files: 7 (root + 2 shared + travel-service + 3 others)
-- Java classes: 18 (9 in shared libraries + 9 in travel-service)
+- Infrastructure files: 20+
+- Gradle build files: 9 (root + 2 shared + travel-service + expense-service + 3 others)
+- Java classes: 30+ (9 in shared libraries + 9 in travel-service + 12 in expense-service)
 - TypeScript files: 0
-- Total lines of code: ~2,500
-- Total lines of configuration: ~2,500
-- Total lines of documentation: ~10,000+
+- Total lines of code: ~5,000+
+- Total lines of configuration: ~3,000+
+- Total lines of documentation: ~12,000+
 
 ### Test Coverage
 - Unit tests: 0 (services not yet implemented)
@@ -358,6 +367,6 @@ All infrastructure and services are working correctly.
 
 ---
 
-**Last Updated**: 2026-02-07
-**Current Phase**: First Service Complete (Travel Service ✅)
-**Next Session**: Test Travel Service or implement Expense Service
+**Last Updated**: 2026-02-18
+**Current Phase**: Two Core Services Complete (Travel ✅, Expense ✅) + Database Migration Strategy Defined (ADR-023)
+**Next Session**: Test both services end-to-end, then implement Approval Service with Flyway migrations
