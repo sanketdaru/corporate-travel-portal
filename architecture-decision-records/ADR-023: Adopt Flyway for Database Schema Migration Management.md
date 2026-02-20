@@ -1,7 +1,14 @@
 # ADR-023: Adopt Flyway for Database Schema Migration Management
 
 ## Status
-Proposed
+Accepted - Implementation In Progress
+
+**Implementation Status**:
+- ✅ Travel Service: Flyway implemented (2026-02-18)
+- ✅ Expense Service: Flyway implemented (2026-02-20)
+- ⏳ Approval Service: Pending
+- ⏳ Consent Service: Pending
+- ⏳ Delegation Service: Pending
 
 ## Context
 
@@ -287,11 +294,17 @@ Spring Boot will auto-configure Flyway when dependencies are present.
 4. Test baseline process in local environment
 
 ### Phase 2: Service Migration (Week 2)
-1. **Travel Service**: Convert to Flyway, test thoroughly
-2. **Expense Service**: Convert to Flyway, test thoroughly
-3. **Approval Service**: Implement with Flyway from start
-4. **Consent Service**: Implement with Flyway from start
-5. **Delegation Service**: Implement with Flyway from start
+1. ✅ **Travel Service**: Converted to Flyway (2026-02-18)
+   - Baseline migration created
+   - Configuration complete
+   - Documentation added
+2. ✅ **Expense Service**: Converted to Flyway (2026-02-20)
+   - Baseline migration created with 3 tables
+   - Configuration complete
+   - Documentation added
+3. ⏳ **Approval Service**: Implement with Flyway from start
+4. ⏳ **Consent Service**: Implement with Flyway from start
+5. ⏳ **Delegation Service**: Implement with Flyway from start
 
 ### Phase 3: Documentation (Week 2)
 1. Update developer onboarding guide

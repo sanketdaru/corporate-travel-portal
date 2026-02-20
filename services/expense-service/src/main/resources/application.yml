@@ -8,6 +8,14 @@ spring:
     password: admin123
     driver-class-name: org.postgresql.Driver
     
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+    locations: classpath:db/migration
+    schemas: expense
+    
   jpa:
     hibernate:
       ddl-auto: validate
