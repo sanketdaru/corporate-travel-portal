@@ -2,13 +2,12 @@
 # Best practices: multi-platform support, layer caching, minimal image size, security
 
 # Stage 1: Build dependencies (cached layer)
-FROM gradle:8.6-jdk17 AS dependencies
+FROM gradle:9.3-jdk17 AS dependencies
 
 WORKDIR /app
 
 # Copy only build files first for dependency caching
 COPY build.gradle settings.gradle gradle.properties ./
-COPY gradle gradle/
 
 # Copy shared libraries for dependency resolution
 COPY services/shared/security-commons/build.gradle services/shared/security-commons/build.gradle
@@ -18,16 +17,15 @@ COPY services/shared/domain-models/build.gradle services/shared/domain-models/bu
 RUN gradle dependencies --no-daemon || return 0
 
 # Stage 2: Build application
-FROM gradle:8.6-jdk17 AS builder
+FROM gradle:9.3-jdk17 AS builder
 
 WORKDIR /app
 
 # Copy dependency layer from previous stage
-COPY --from=dependencies /root/.gradle /root/.gradle
+COPY --from=dependencies /home/gradle/.gradle /home/gradle/.gradle
 
 # Copy build configuration
-COPY build.gradle settings.gradle gradle.properties gradlew ./
-COPY gradle gradle/
+COPY build.gradle settings.gradle gradle.properties ./
 
 # Copy shared libraries source
 COPY services/shared services/shared
@@ -35,8 +33,8 @@ COPY services/shared services/shared
 # Copy expense service source
 COPY services/expense-service services/expense-service
 
-# Build the application (skip tests for faster builds)
-RUN ./gradlew :services:expense-service:build -x test --no-daemon
+# Build using pre-installed gradle (NO DOWNLOAD!)
+RUN gradle :services:expense-service:build -x test --no-daemon
 
 # Stage 3: Runtime (minimal multi-platform image)
 FROM eclipse-temurin:17-jre-jammy
