@@ -71,13 +71,6 @@ allow if {
 
 # Expense Authorization
 
-# Allow user to view their own expenses
-allow if {
-    input.action == "view_expense"
-    is_same_tenant
-    is_resource_owner
-}
-
 # Allow user to create expense
 allow if {
     input.action == "create_expense"
@@ -85,11 +78,18 @@ allow if {
     has_role("employee")
 }
 
-# Allow user to submit expense for approval
+# Allow user to view their own expenses
 allow if {
-    input.action == "submit_expense"
+    input.action == "view_expense"
     is_same_tenant
     is_resource_owner
+}
+
+# Allow delegate to view expenses they created on behalf of another
+allow if {
+    input.action == "view_expense"
+    is_same_tenant
+    has_active_delegation
 }
 
 # Allow manager to view team expenses
@@ -99,22 +99,56 @@ allow if {
     is_manager_of_user
 }
 
-# Allow manager to approve expenses
+# Allow user to update/delete their own expenses (DRAFT only)
 allow if {
-    input.action == "approve_expense"
+    input.action in ["update_expense", "delete_expense"]
+    is_same_tenant
+    is_resource_owner
+    input.resource.status == "DRAFT"
+}
+
+# Allow delegate to update/delete expenses on behalf of another (DRAFT only, with consent)
+allow if {
+    input.action in ["update_expense", "delete_expense"]
+    is_same_tenant
+    has_active_delegation
+    input.consent.valid == true
+    "manage_expenses" in input.consent.scopes
+    input.resource.status == "DRAFT"
+}
+
+# Allow user to submit their own expense for approval
+allow if {
+    input.action == "submit_expense"
+    is_same_tenant
+    is_resource_owner
+    input.resource.status == "DRAFT"
+}
+
+# Allow manager to approve/reject expenses
+allow if {
+    input.action in ["approve_expense", "reject_expense"]
     is_same_tenant
     has_role("manager")
     is_manager_of_user
     input.resource.status == "SUBMITTED"
 }
 
-# Allow manager to approve on behalf of another manager (with delegation)
+# Allow manager to approve/reject on behalf of another manager (with delegation)
 allow if {
-    input.action == "approve_expense"
+    input.action in ["approve_expense", "reject_expense"]
     is_same_tenant
     has_active_delegation
     input.consent.valid == true
     "approve_expenses" in input.consent.scopes
+    input.resource.status == "SUBMITTED"
+}
+
+# Allow admin to perform any expense action within their tenant
+allow if {
+    input.action in ["view_expense", "update_expense", "delete_expense", "approve_expense", "reject_expense"]
+    has_role("admin")
+    is_same_tenant
 }
 
 # Approval Workflow Authorization
