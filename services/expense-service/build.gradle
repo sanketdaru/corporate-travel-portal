@@ -1,16 +1,16 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.2'
-    id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.springframework.boot'
 }
 
 group = 'com.corporate.travel'
 version = '1.0.0'
 
 java {
-    sourceCompatibility = '17'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
-
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
@@ -43,7 +43,7 @@ dependencies {
     implementation 'org.flywaydb:flyway-database-postgresql'
     
     // OpenAPI/Swagger
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15'
     
     // Lombok
     compileOnly 'org.projectlombok:lombok'
@@ -56,4 +56,9 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+bootJar {
+    archiveFileName = 'expense-service.jar'
+    mainClass = 'com.corporate.travel.expense.ExpenseServiceApplication'
 }

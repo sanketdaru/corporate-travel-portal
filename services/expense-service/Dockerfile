@@ -6,12 +6,16 @@ FROM gradle:9.3-jdk17 AS dependencies
 
 WORKDIR /app
 
-# Copy only build files first for dependency caching
-COPY build.gradle settings.gradle gradle.properties ./
+# Copy Docker-specific settings file
+COPY services/expense-service/settings-docker.gradle settings.gradle
+COPY build.gradle gradle.properties ./
 
-# Copy shared libraries for dependency resolution
+# Copy shared libraries build files for dependency resolution
 COPY services/shared/security-commons/build.gradle services/shared/security-commons/build.gradle
 COPY services/shared/domain-models/build.gradle services/shared/domain-models/build.gradle
+
+# Copy service build file
+COPY services/expense-service/build.gradle services/expense-service/build.gradle
 
 # Download dependencies (this layer will be cached)
 RUN gradle dependencies --no-daemon || return 0
@@ -24,14 +28,15 @@ WORKDIR /app
 # Copy dependency layer from previous stage
 COPY --from=dependencies /home/gradle/.gradle /home/gradle/.gradle
 
-# Copy build configuration
-COPY build.gradle settings.gradle gradle.properties ./
+# Copy Docker-specific settings file
+COPY services/expense-service/settings-docker.gradle settings.gradle
+COPY build.gradle gradle.properties ./
 
-# Copy shared libraries source
-COPY services/shared services/shared
+# Copy shared libraries source (needed for compilation)
+COPY services/shared ./services/shared
 
-# Copy expense service source
-COPY services/expense-service services/expense-service
+# Copy ONLY expense service source
+COPY services/expense-service ./services/expense-service
 
 # Build using pre-installed gradle (NO DOWNLOAD!)
 RUN gradle :services:expense-service:build -x test --no-daemon
