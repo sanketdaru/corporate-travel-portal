@@ -253,6 +253,12 @@
    - **Impact**: All future builds will work correctly
    - **Status**: ✅ Resolved
 
+2. **Flyway PostgreSQL Dependency Missing Version**: Flyway database-specific module not in Spring Boot BOM
+   - **Reason**: Spring Boot 3.2.2 BOM includes flyway-core but not flyway-database-postgresql
+   - **Impact**: Build failures in expense-service and travel-service compilation
+   - **Resolution**: Added explicit version to root build.gradle dependency management
+   - **Status**: ✅ Resolved (2026-02-21)
+
 ### Shared Libraries
 
 1. **Lombok Configuration**: Initially missing annotation processor
@@ -271,7 +277,7 @@
 
 ### None Currently Outstanding
 
-All infrastructure and services are working correctly.
+All infrastructure and services are building and running correctly.
 
 ## Evolution of Project Decisions
 
