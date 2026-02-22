@@ -76,11 +76,8 @@ public class OpenApiConfig {
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
                         new Server()
-                                .url("http://localhost:8081")
-                                .description("Local Development Server"),
-                        new Server()
-                                .url("http://travel-service:8081")
-                                .description("Docker Environment")
+                                .url("http://localhost:8000/api/travel")
+                                .description("API Gateway (Local)")
                 ))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth", securityScheme))

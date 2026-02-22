@@ -68,7 +68,8 @@ logging:
     root: INFO
     com.corporate.travel.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
-    org.springframework.security: INFO
+    org.springframework.security: DEBUG
+    org.springframework.security.web: DEBUG
     org.springframework.web: INFO
     reactor.netty: INFO
   pattern:
@@ -83,7 +84,10 @@ springdoc:
     enabled: true
     path: /swagger-ui.html
     urls:
+      - name: API Gateway
+        url: /api-docs
       - name: Travel Service
-        url: http://localhost:8081/api-docs
+        url: /travel-service-docs
       - name: Expense Service
-        url: http://localhost:8082/api-docs
+        url: /expense-service-docs
+    urls-primary-name: Travel Service

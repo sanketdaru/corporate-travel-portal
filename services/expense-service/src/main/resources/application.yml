@@ -71,10 +71,5 @@ springdoc:
     path: /api-docs
     enabled: true
   swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-    tags-sorter: alpha
-    operations-sorter: alpha
-    display-request-duration: true
-    doc-expansion: none
+    enabled: false  # Disabled - use API Gateway Swagger UI instead
   show-actuator: true

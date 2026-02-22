@@ -32,12 +32,33 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
+            .cors(cors -> cors.disable())  // Disable Spring Security CORS - Gateway handles it
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(exchanges -> exchanges
-                // Public endpoints
-                .pathMatchers("/actuator/health").permitAll()
-                .pathMatchers("/actuator/info").permitAll()
+                // Public health and info endpoints
+                .pathMatchers("/actuator/health", "/actuator/info").permitAll()
                 
+                // Allow all actuator endpoints (for monitoring/operations)
+                .pathMatchers("/actuator/**").permitAll()
+                
+                // Gateway's own OpenAPI/Swagger documentation endpoints
+                .pathMatchers(
+                    "/v3/api-docs/**",
+                    "/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/webjars/**"
+                ).permitAll()
+                
+                // Downstream service OpenAPI documentation endpoints (proxied through gateway)
+                // Include both with and without trailing slash/segments
+                .pathMatchers(
+                    "/travel-service-docs",
+                    "/travel-service-docs/**",
+                    "/expense-service-docs",
+                    "/expense-service-docs/**"
+                ).permitAll()
+
                 // All other requests require authentication
                 .anyExchange().authenticated()
             )
