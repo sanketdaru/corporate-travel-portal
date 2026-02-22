@@ -6,7 +6,7 @@ include 'services:shared:domain-models'
 //include 'services:shared:observability'
 
 // Microservices
-//include 'services:api-gateway'
+include 'services:api-gateway'
 include 'services:travel-service'
 include 'services:expense-service'
 //include 'services:approval-service'

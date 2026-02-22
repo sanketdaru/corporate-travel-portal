@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: api-gateway
+  
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Route discovery (programmatic routes defined in GatewayConfig.java)
+          discovery:
+            locator:
+              enabled: false  # Disable automatic service discovery
+          
+          # Global CORS Configuration
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins:
+                  - "http://localhost:3000"  # Next.js frontend
+                  - "http://localhost:3001"  # BFF service
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - PATCH
+                  - OPTIONS
+                allowed-headers: "*"
+                allow-credentials: true
+                max-age: 3600
+          
+          # HTTP Client Configuration
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+
+server:
+  port: 8000
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    gateway:
+      access: READ_ONLY
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.corporate.travel.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    reactor.netty: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Springdoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls:
+      - name: Travel Service
+        url: http://localhost:8081/api-docs
+      - name: Expense Service
+        url: http://localhost:8082/api-docs
