@@ -25,7 +25,7 @@ repositories {
 
 dependencies {
     // Spring Cloud Gateway (version managed by BOM)
-    implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
     
     // Security (versions managed by BOM)
     implementation 'org.springframework.boot:spring-boot-starter-security'
