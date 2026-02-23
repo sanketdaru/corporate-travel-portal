@@ -1,0 +1,16 @@
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "tenantId": "tenant-a",
+  "userId": "alice.employee",
+  "bookingType": "FLIGHT",
+  "destination": "New York",
+  "startDate": "2026-03-15",
+  "endDate": "2026-03-20",
+  "status": "PENDING",
+  "totalAmount": 1500.00,
+  "details": "{\"airline\":\"UA\",\"flightNumber\":\"UA123\",\"class\":\"economy\"}",
+  "createdAt": "2026-02-23T11:00:00",
+  "updatedAt": "2026-02-23T11:00:00",
+  "createdBy": "alice.employee",
+  "updatedBy": "alice.employee"
+}

@@ -1,0 +1,8 @@
+{
+  "bookingType": "FLIGHT",
+  "destination": "New York",
+  "startDate": "2026-03-15",
+  "endDate": "2026-03-20",
+  "totalAmount": 1500.00,
+  "details": "{\"airline\":\"UA\",\"flightNumber\":\"UA123\",\"class\":\"economy\"}"
+}

@@ -27,6 +27,8 @@ import java.util.UUID;
  * 4. Call OPA for authorization
  * 5. Execute business logic if authorized
  * 6. (Audit logging would go here)
+ * 
+ * Note: Uses Lombok @RequiredArgsConstructor for constructor injection (better testability).
  */
 @Service
 @RequiredArgsConstructor
