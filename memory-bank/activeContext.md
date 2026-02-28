@@ -2,7 +2,7 @@
 
 ## Current Work Focus
 
-**Phase**: Two Core Domain Services Complete + Database Migration Strategy Defined
+**Phase**: Two Core Domain Services Complete + Unit Testing In Progress
 
 Both Travel Service and Expense Service are now fully implemented with comprehensive features:
 - Complete CRUD operations with OPA authorization
@@ -11,12 +11,44 @@ Both Travel Service and Expense Service are now fully implemented with comprehen
 - Approval workflow (Expense Service)
 - OpenAPI/Swagger documentation
 - Docker containerization ready
+- **Unit testing framework established** (Expense Service)
 
-**NEW**: ADR-023 created for database schema migration management using Flyway.
+**NEW**: Comprehensive unit testing patterns documented and 68+ tests completed for Expense Service.
 
 ## Recent Changes
 
-### Completed (Current Session - 2026-02-18)
+### Completed (Current Session - 2026-02-28)
+
+1. **Unit Testing Status Verified and Documented** ✅
+   - **Travel Service**: 20 tests complete (5/5 operations - 100%) ✅
+     - BookingServiceImplTest with all CRUD operations covered
+     - Create Booking: 4 tests ✅
+     - Get Booking: 3 tests ✅
+     - Get User Bookings: 3 tests ✅
+     - Update Booking Status: 3 tests (+ parameterized) ✅
+     - Delete Booking: 3 tests ✅
+   - **Expense Service**: 68+ tests complete (6/11 operations - ~55%)
+     - ExpenseServiceImplTest partially complete
+     - Create (8), Get (5), GetUserExpenses (5), Update (11), Delete (9), AddItem (11) ✅
+     - Remaining: UpdateItem, DeleteItem, Submit, Approve, Reject (TODO)
+   - **Total**: 88+ unit tests across both services
+   - All tests passing with BUILD SUCCESSFUL
+   - **Framework**: JUnit 5 + Mockito + AssertJ
+   - **Target**: 80%+ line coverage, 100% branch coverage
+
+2. **Testing Patterns Documented** ✅
+   - Comprehensive testing section added to systemPatterns.md
+   - Test organization using @Nested classes
+   - Naming convention: should_expectedBehavior_when_condition
+   - AAA pattern (Given-When-Then) with comments
+   - Test utilities: TestDataBuilder, TestFixtures, SecurityContextTestUtil
+   - Parameterized tests for enum coverage (@ParameterizedTest + @EnumSource)
+   - Security testing pattern for OPA integration
+   - Mock strategy and verification patterns
+   - Examples and code snippets for future reference
+   - Updated memory bank with comprehensive testing documentation
+
+### Completed (Previous Session - 2026-02-18)
 
 1. **ADR-023: Database Schema Migration Strategy** ✅
    - Identified gaps in architecture from data storage perspective

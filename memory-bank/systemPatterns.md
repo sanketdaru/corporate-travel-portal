@@ -276,6 +276,256 @@ CREATE TABLE booking_audit (
 6. Approval Service triggers state transition
 7. Expense status updates to "APPROVED"
 
+## Testing Patterns
+
+### Unit Testing Strategy
+
+**Framework**: JUnit 5 + Mockito + AssertJ
+
+**Coverage Goals**:
+- 80%+ line coverage
+- 100% branch coverage
+- All business logic paths tested
+- Security integration points verified
+
+### Test Organization
+
+```java
+@ExtendWith(MockitoExtension.class)
+@DisplayName("ServiceImpl Tests")
+class ServiceImplTest {
+    
+    @Mock
+    private Repository repository;
+    
+    @Mock
+    private OpaClient opaClient;
+    
+    @InjectMocks
+    private ServiceImpl service;
+    
+    @Nested
+    @DisplayName("Operation Name Tests")
+    class OperationNameTests {
+        
+        @Test
+        @DisplayName("should_expectedBehavior_when_condition")
+        void should_expectedBehavior_when_condition() {
+            // Given - Setup test data
+            // When - Execute operation
+            // Then - Verify results
+        }
+    }
+}
+```
+
+### Naming Conventions
+
+**Test Class**: `{ServiceName}Test`
+**Nested Class**: `{OperationName}Tests`
+**Test Method**: `should_{expectedBehavior}_when_{condition}`
+
+**Examples**:
+- `should_createExpenseSuccessfully_when_validDataProvided`
+- `should_throwAccessDenied_when_opaReturnsFalse`
+- `should_useSubjectIdAsOwner_when_delegationPresent`
+
+### Test Structure (AAA Pattern)
+
+```java
+@Test
+void should_createResource_when_validInput() {
+    // Given - Arrange: Set up test data and mocks
+    Entity input = TestDataBuilder.anEntity().build();
+    SecurityContext context = SecurityContextTestUtil.userContext();
+    when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+    when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    
+    // When - Act: Execute the operation
+    Entity result = service.createResource(input, context);
+    
+    // Then - Assert: Verify results and interactions
+    assertThat(result).isNotNull();
+    assertThat(result.getTenantId()).isEqualTo(context.getTenantId());
+    verify(opaClient).authorize(eq(context), eq("create_resource"), anyMap());
+    verify(repository).save(any(Entity.class));
+}
+```
+
+### Test Utilities Pattern
+
+**Builder Pattern** for test 
+```java
+public class ExpenseTestDataBuilder {
+    public static ExpenseBuilder anExpense() {
+        return new ExpenseBuilder()
+            .withId(UUID.randomUUID())
+            .withTenantId("tenant-a")
+            .withUserId("user-1")
+            .withStatus(ExpenseStatus.DRAFT);
+    }
+}
+```
+
+**Fixtures** for common test data:
+```java
+public class ExpenseTestFixtures {
+    public static final String ALICE_USER_ID = "alice-emp";
+    public static final String TENANT_A = "tenant-a";
+    
+    public static Expense draftExpenseForAlice() {
+        return ExpenseTestDataBuilder.anExpense()
+            .withUserId(ALICE_USER_ID)
+            .withTenantId(TENANT_A)
+            .withStatus(ExpenseStatus.DRAFT)
+            .build();
+    }
+}
+```
+
+**SecurityContext Utilities**:
+```java
+public class SecurityContextTestUtil {
+    public static SecurityContext aliceContext() {
+        return SecurityContext.builder()
+            .userId("alice-emp")
+            .tenantId("tenant-a")
+            .roles(Set.of("employee"))
+            .build();
+    }
+    
+    public static SecurityContext createDelegatedContext(
+            String actorId, String subjectId, String tenantId) {
+        return SecurityContext.builder()
+            .userId(actorId)
+            .subjectId(subjectId)
+            .tenantId(tenantId)
+            .build();
+    }
+}
+```
+
+### Parameterized Tests
+
+For testing all enum values or multiple scenarios:
+
+```java
+@ParameterizedTest
+@EnumSource(ExpenseStatus.class)
+@DisplayName("should_createWithAllStatuses_when_validStatus")
+void should_createWithAllStatuses_when_validStatus(ExpenseStatus status) {
+    // Given
+    Expense input = ExpenseTestDataBuilder.anExpense()
+        .withStatus(status)
+        .build();
+    
+    // When
+    Expense result = service.createExpense(input, context);
+    
+    // Then
+    assertThat(result.getStatus()).isEqualTo(status);
+}
+```
+
+### Mocking Strategy
+
+**Mock Dependencies**: Repositories, OpaClient, external services
+**Don't Mock**: Entities, DTOs, value objects
+**Inject Mocks**: Service under test uses @InjectMocks
+
+```java
+@Mock
+private ExpenseRepository expenseRepository;
+
+@Mock
+private OpaClient opaClient;
+
+@InjectMocks
+private ExpenseServiceImpl expenseService;
+```
+
+### AssertJ Fluent Assertions
+
+```java
+// Single assertion
+assertThat(result).isNotNull();
+assertThat(result.getStatus()).isEqualTo(ExpenseStatus.DRAFT);
+
+// BigDecimal comparison
+assertThat(result.getAmount()).isEqualByComparingTo(new BigDecimal("100.00"));
+
+// Collection assertions
+assertThat(result.getItems()).hasSize(3);
+assertThat(result.getItems()).contains(newItem);
+assertThat(results).allMatch(e -> e.getTenantId().equals("tenant-a"));
+
+// Exception assertions
+assertThatThrownBy(() -> service.operation(invalid))
+    .isInstanceOf(NotFoundException.class)
+    .hasMessageContaining("not found");
+```
+
+### Verification Pattern
+
+```java
+// Verify method was called
+verify(repository).save(any(Expense.class));
+
+// Verify with specific arguments
+verify(opaClient).authorize(eq(context), eq("create_expense"), anyMap());
+
+// Verify method was NOT called
+verify(repository, never()).delete(any());
+
+// Verify call count
+verify(repository, times(2)).findById(any());
+```
+
+### Test Coverage by Operation Type
+
+**CRUD Operations** (per operation):
+1. Happy path - successful operation
+2. Authorization denied - OPA returns false
+3. Not found - resource doesn't exist
+4. Tenant isolation - cross-tenant access blocked
+5. Delegation - actor/subject handling
+6. Field validation - all fields tested
+7. Status validation - workflow states enforced
+
+**Example - Create Operation Tests**:
+- should_createSuccessfully_when_validDataProvided
+- should_setDefaultValues_when_notProvided
+- should_setTenantIdFromContext_when_creating
+- should_useSubjectIdAsOwner_when_delegationPresent
+- should_useUserIdAsOwner_when_noDelegation
+- should_throwAccessDenied_when_opaReturnsFalse
+- should_setAuditFields_when_creating
+- should_createWithAllStatuses_when_validStatus (parameterized)
+
+### Security Testing Pattern
+
+Every operation tests:
+1. **OPA Authorization**: Call to OPA with correct action/resource
+2. **Tenant Isolation**: Cross-tenant access blocked
+3. **Delegation Handling**: Actor vs subject correctly assigned
+4. **Audit Fields**: Created_by/updated_by set to actor
+
+```java
+@Test
+void should_throwAccessDenied_when_opaReturnsFalse() {
+    // Given
+    when(opaClient.authorize(any(), any(), anyMap())).thenReturn(false);
+    
+    // When / Then
+    assertThatThrownBy(() -> service.operation(input, context))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("Not authorized");
+    
+    verify(opaClient).authorize(eq(context), eq("operation_name"), anyMap());
+    verify(repository, never()).save(any());
+}
+```
+
 ## Design Principles
 
 1. **Security by Default**: Deny unless explicitly allowed

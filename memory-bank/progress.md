@@ -361,9 +361,29 @@ All infrastructure and services are building and running correctly.
 - Total lines of documentation: ~12,000+
 
 ### Test Coverage
-- Unit tests: 0 (services not yet implemented)
-- Integration tests: 0
-- OPA policy tests: 5 scenarios automated
+- **Unit tests**: 
+  - **Travel Service**: 20 tests completed (5/5 operations complete - 100%) ✅
+    - Create Booking: 4 tests ✅
+    - Get Booking: 3 tests ✅
+    - Get User Bookings: 3 tests ✅
+    - Update Booking Status: 3 tests (+ parameterized) ✅
+    - Delete Booking: 3 tests ✅
+  - **Expense Service**: 68+ tests completed (6/11 operation suites complete - ~55%)
+    - Create Expense: 8 tests ✅
+    - Get Expense: 5 tests ✅
+    - Get User Expenses: 5 tests ✅
+    - Update Expense: 11 tests ✅
+    - Delete Expense: 9 tests ✅
+    - Add Expense Item: 11 tests ✅
+    - Update Expense Item: 0 tests (TODO)
+    - Delete Expense Item: 0 tests (TODO)
+    - Submit Expense: 0 tests (TODO)
+    - Approve Expense: 0 tests (TODO)
+    - Reject Expense: 0 tests (TODO)
+  - **Target**: 80%+ line coverage, 100% branch coverage
+  - **Total**: 88+ tests across both services
+- **Integration tests**: 0 (deferred)
+- **OPA policy tests**: 5 scenarios automated
 
 ### Documentation Coverage
 - Architecture: ✅ Complete
