@@ -112,4 +112,147 @@ flowchart TD
 
 Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
 
-REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy.
+## Automatic Memory Bank Update Protocol
+
+### End of Session Protocol (MANDATORY)
+
+BEFORE calling attempt_completion for ANY task, I MUST:
+
+1. **Self-Check**: Ask "Did I change ANYTHING in this session?"
+   - Production code (services, controllers, repositories, entities, models)?
+   - Test code (unit tests, integration tests, test utilities, fixtures)?
+   - Interfaces (endpoints, APIs, DTOs, contracts)?
+   - Documentation (README, API docs, ADRs, comments)?
+   - Configuration (application.yml, build files, docker-compose)?
+   - Infrastructure (database schemas, migrations, Dockerfiles)?
+   - Bug fixes (any error fixed - logic, runtime, compilation)?
+   - Dependencies (added, updated, or resolved conflicts)?
+   - Debugging (fixed execution errors, resolved issues)?
+
+2. **If YES to ANY** → Update Memory Bank:
+   - activeContext.md: Add current session date + what was accomplished
+   - progress.md: Update metrics, status, test counts, completion %
+   - Other files as needed (systemPatterns.md, techContext.md)
+
+3. **Verification Checklist**:
+   - [ ] activeContext.md has today's date in "Recent Changes"
+   - [ ] progress.md metrics match actual code state (test counts, % complete)
+   - [ ] progress.md "What Works" reflects completed features
+   - [ ] No contradictions between memory bank and actual code
+   - [ ] All completion percentages are accurate
+
+4. **Only Then** → Proceed with attempt_completion
+
+### Comprehensive Update Triggers
+
+Update Memory Bank when ANY of these occur:
+
+**Production Code**
+- New services, repositories, controllers, entities created
+- Business logic implemented or modified
+- New endpoints/APIs added
+- Refactoring or code improvements
+- Performance optimizations
+
+**Test Code**
+- Unit tests written or fixed
+- Integration tests added
+- Test utilities created (builders, fixtures, helpers)
+- Test coverage improved
+- Test patterns established
+
+**Interfaces**
+- REST API endpoints added/modified
+- Request/Response DTOs created/changed
+- GraphQL/gRPC interfaces updated
+- API contracts changed
+
+**Documentation**
+- README files written/updated
+- API documentation added (OpenAPI/Swagger)
+- ADRs created
+- Setup guides or runbooks created
+- Code comments added
+
+**Configuration**
+- application.yml/properties modified
+- Build files updated (gradle, maven, npm)
+- Environment configs changed
+- Docker compose updated
+- CI/CD configs modified
+
+**Infrastructure & Database**
+- Database schemas created/modified
+- Migration scripts added (Flyway, Liquibase)
+- Dockerfiles created/updated
+- Kubernetes manifests added
+
+**Bug Fixes & Errors**
+- Any bug fixed (logic, runtime, compilation)
+- Exception handling improved
+- Validation logic added/fixed
+- Error messages clarified
+- Execution errors resolved
+
+**Dependencies & Build**
+- Dependencies added/updated
+- Dependency conflicts resolved
+- Build configuration fixed
+- Gradle/Maven wrapper updated
+
+**Architecture & Patterns**
+- Design patterns implemented
+- Architectural decisions made
+- Security patterns applied
+- Testing approaches established
+
+### Which Memory Bank Files to Update
+
+**activeContext.md** - Update for:
+- Current session work (with date: YYYY-MM-DD)
+- Recent changes section
+- Next steps identified
+- Active decisions made
+- New learnings or insights
+
+**progress.md** - Update for:
+- Feature completion status changed
+- Test coverage metrics changed (counts, percentages)
+- New services/components completed
+- Known issues added or resolved
+- Code metrics updated
+- "What Works" and "What's Left" sections
+
+**systemPatterns.md** - Update for:
+- New design patterns used
+- New testing approaches
+- Architectural patterns added
+- Technology integrations
+- Development workflows established
+
+**techContext.md** - Update for:
+- New dependencies added
+- New tools integrated
+- Development setup changed
+- Build configuration updated
+- Technical constraints discovered
+
+### Proactive Memory Bank Maintenance
+
+**When I notice discrepancies:**
+1. **Immediately flag** to user: "I notice the memory bank shows [X], but I see [Y] in the code. Should I update?"
+2. **On task start**: Verify memory bank matches actual code state
+3. **Regular checks**: After 2-3 tool uses, mentally verify memory bank still accurate
+
+**Specific Update Examples:**
+
+- **Fixed a bug** → activeContext.md (bug fix), progress.md (remove from known issues)
+- **Added tests** → activeContext.md (testing work), progress.md (update test counts)
+- **Updated docs** → activeContext.md (doc improvements), progress.md (doc status)
+- **New endpoint** → activeContext.md (API work), progress.md (feature status), systemPatterns.md (if new pattern)
+- **Build error fixed** → activeContext.md (build fix), progress.md (remove from known issues)
+- **Refactored code** → activeContext.md (refactoring), systemPatterns.md (if pattern changed)
+- **Added dependency** → activeContext.md (integration work), techContext.md (new dependency)
+- **Database migration** → activeContext.md (schema work), progress.md (DB status)
+
+REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy. NO development work should complete without updating the memory bank.
