@@ -1,0 +1,21 @@
+{
+  "title": "Business Trip to Mumbai",
+  "description": "Client meeting and project discussion",
+  "currency": "INR",
+  "items": [
+    {
+      "date": "2026-02-20",
+      "category": "MEALS",
+      "description": "Client lunch",
+      "amount": 1500.00,
+      "currency": "INR"
+    },
+    {
+      "date": "2026-02-21",
+      "category": "TRANSPORTATION",
+      "description": "Taxi to client office",
+      "amount": 500.00,
+      "currency": "INR"
+    }
+  ]
+}
