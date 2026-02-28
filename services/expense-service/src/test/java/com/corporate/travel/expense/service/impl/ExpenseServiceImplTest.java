@@ -924,8 +924,299 @@ class ExpenseServiceImplTest {
         }
     }
     
+    // ==========================================================================
+    // ADD EXPENSE ITEM TESTS
+    // ==========================================================================
+    
+    @Nested
+    @DisplayName("Add Expense Item Tests")
+    class AddExpenseItemTests {
+        
+        @Test
+        @DisplayName("should_addExpenseItem_when_expenseInDraftStatus")
+        void should_addExpenseItem_when_expenseInDraftStatus() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            BigDecimal originalTotal = draftExpense.getTotalAmount();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withCategory(ExpenseCategory.MEALS)
+                    .withAmount(new BigDecimal("50.00"))
+                    .withDescription("Team lunch")
+                    .build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            ExpenseItem result = expenseService.addExpenseItem(expenseId, newItem, context);
+            
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getExpense()).isEqualTo(draftExpense);
+            assertThat(result.getCategory()).isEqualTo(ExpenseCategory.MEALS);
+            assertThat(result.getAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
+            assertThat(draftExpense.getItems()).contains(newItem);
+            assertThat(draftExpense.getTotalAmount()).isEqualByComparingTo(originalTotal.add(new BigDecimal("50.00")));
+            
+            verify(expenseRepository).findByIdAndTenantId(expenseId, context.getTenantId());
+            verify(opaClient).authorize(eq(context), eq("update_expense"), anyMap());
+            verify(expenseRepository).save(draftExpense);
+        }
+        
+        @Test
+        @DisplayName("should_addItemWithAllFields_when_allFieldsProvided")
+        void should_addItemWithAllFields_when_allFieldsProvided() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withCategory(ExpenseCategory.ACCOMMODATION)
+                    .withAmount(new BigDecimal("200.00"))
+                    .withDescription("Hotel stay")
+                    .withDate(java.time.LocalDate.now())
+                    .withReceiptUrl("https://receipts.example.com/123.pdf")
+                    .build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            ExpenseItem result = expenseService.addExpenseItem(expenseId, newItem, context);
+            
+            // Then
+            assertThat(result.getCategory()).isEqualTo(ExpenseCategory.ACCOMMODATION);
+            assertThat(result.getAmount()).isEqualByComparingTo(new BigDecimal("200.00"));
+            assertThat(result.getDescription()).isEqualTo("Hotel stay");
+            assertThat(result.getReceiptUrl()).isEqualTo("https://receipts.example.com/123.pdf");
+            assertThat(result.getExpense()).isEqualTo(draftExpense);
+        }
+        
+        @Test
+        @DisplayName("should_recalculateTotalAmount_when_addingItem")
+        void should_recalculateTotalAmount_when_addingItem() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            BigDecimal originalTotal = draftExpense.getTotalAmount();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withAmount(new BigDecimal("75.00"))
+                    .build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            expenseService.addExpenseItem(expenseId, newItem, context);
+            
+            // Then
+            assertThat(draftExpense.getTotalAmount()).isEqualByComparingTo(originalTotal.add(new BigDecimal("75.00")));
+            verify(expenseRepository).save(draftExpense);
+        }
+        
+        @Test
+        @DisplayName("should_throwInvalidStatus_when_expenseNotInDraft")
+        void should_throwInvalidStatus_when_expenseNotInDraft() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_2;
+            Expense submittedExpense = ExpenseTestFixtures.submittedExpenseForBob();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem().build();
+            SecurityContext context = SecurityContextTestUtil.bobContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(submittedExpense));
+            
+            // When / Then
+            assertThatThrownBy(() -> expenseService.addExpenseItem(expenseId, newItem, context))
+                    .isInstanceOf(InvalidExpenseStatusException.class)
+                    .hasMessageContaining("Can only add items to expenses in DRAFT status");
+            
+            verify(expenseRepository).findByIdAndTenantId(expenseId, context.getTenantId());
+            verify(expenseItemRepository, never()).save(any());
+        }
+        
+        @ParameterizedTest
+        @EnumSource(value = ExpenseStatus.class, names = {"SUBMITTED", "APPROVED", "REJECTED", "PAID"})
+        @DisplayName("should_rejectAddItem_when_statusNotDraft")
+        void should_rejectAddItem_when_statusNotDraft(ExpenseStatus status) {
+            // Given
+            UUID expenseId = UUID.randomUUID();
+            Expense expense = ExpenseTestDataBuilder.anExpense()
+                    .withId(expenseId)
+                    .withTenantId(ExpenseTestFixtures.TENANT_A)
+                    .withUserId(ExpenseTestFixtures.ALICE_USER_ID)
+                    .withStatus(status)
+                    .build();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem().build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(expense));
+            
+            // When / Then
+            assertThatThrownBy(() -> expenseService.addExpenseItem(expenseId, newItem, context))
+                    .isInstanceOf(InvalidExpenseStatusException.class)
+                    .hasMessageContaining("Can only add items to expenses in DRAFT status");
+            
+            verify(expenseItemRepository, never()).save(any());
+        }
+        
+        @Test
+        @DisplayName("should_throwExpenseNotFound_when_expenseNotExists")
+        void should_throwExpenseNotFound_when_expenseNotExists() {
+            // Given
+            UUID expenseId = UUID.randomUUID();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem().build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.empty());
+            
+            // When / Then
+            assertThatThrownBy(() -> expenseService.addExpenseItem(expenseId, newItem, context))
+                    .isInstanceOf(ExpenseNotFoundException.class);
+            
+            verify(expenseRepository).findByIdAndTenantId(expenseId, context.getTenantId());
+            verify(expenseItemRepository, never()).save(any());
+        }
+        
+        @Test
+        @DisplayName("should_throwAccessDenied_when_opaReturnsFalse")
+        void should_throwAccessDenied_when_opaReturnsFalseForAddItem() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem().build();
+            SecurityContext bobContext = SecurityContextTestUtil.bobContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, bobContext.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(false);
+            
+            // When / Then
+            assertThatThrownBy(() -> expenseService.addExpenseItem(expenseId, newItem, bobContext))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("Not authorized to add items to this expense");
+            
+            verify(opaClient).authorize(eq(bobContext), eq("update_expense"), anyMap());
+            verify(expenseRepository, never()).save(any());
+        }
+        
+        @Test
+        @DisplayName("should_addItemWithDelegation_when_delegationContextProvided")
+        void should_addItemWithDelegation_when_delegationContextProvided() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_3;
+            Expense delegatedExpense = ExpenseTestFixtures.delegatedExpenseDaveForCarol();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withAmount(new BigDecimal("100.00"))
+                    .build();
+            SecurityContext delegatedContext = SecurityContextTestUtil.daveActingForCarolContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, delegatedContext.getTenantId()))
+                    .thenReturn(Optional.of(delegatedExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            ExpenseItem result = expenseService.addExpenseItem(expenseId, newItem, delegatedContext);
+            
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getExpense()).isEqualTo(delegatedExpense);
+            assertThat(result.getExpense().getUserId()).isEqualTo(ExpenseTestFixtures.CAROL_USER_ID);
+            assertThat(delegatedExpense.getItems()).contains(newItem);
+            
+            verify(expenseRepository).save(delegatedExpense);
+        }
+        
+        @Test
+        @DisplayName("should_throwExpenseNotFound_when_differentTenant")
+        void should_throwExpenseNotFound_when_differentTenant() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem().build();
+            SecurityContext eveContext = SecurityContextTestUtil.eveContext(); // Eve is in Tenant B
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, eveContext.getTenantId()))
+                    .thenReturn(Optional.empty());  // Not found due to tenant isolation
+            
+            // When / Then
+            assertThatThrownBy(() -> expenseService.addExpenseItem(expenseId, newItem, eveContext))
+                    .isInstanceOf(ExpenseNotFoundException.class);
+            
+            verify(expenseRepository).findByIdAndTenantId(expenseId, eveContext.getTenantId());
+            verify(expenseRepository, never()).save(any());
+        }
+        
+        @ParameterizedTest
+        @EnumSource(ExpenseCategory.class)
+        @DisplayName("should_addItemWithAllCategories_when_validCategory")
+        void should_addItemWithAllCategories_when_validCategory(ExpenseCategory category) {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withCategory(category)
+                    .withAmount(new BigDecimal("50.00"))
+                    .build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            ExpenseItem result = expenseService.addExpenseItem(expenseId, newItem, context);
+            
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getCategory()).isEqualTo(category);
+            assertThat(result.getExpense()).isEqualTo(draftExpense);
+        }
+        
+        @Test
+        @DisplayName("should_verifyItemPersisted_when_addSuccessful")
+        void should_verifyItemPersisted_when_addSuccessful() {
+            // Given
+            UUID expenseId = ExpenseTestFixtures.EXPENSE_ID_1;
+            Expense draftExpense = ExpenseTestFixtures.draftExpenseForAlice();
+            BigDecimal originalTotal = draftExpense.getTotalAmount();
+            ExpenseItem newItem = ExpenseItemTestDataBuilder.anExpenseItem()
+                    .withAmount(new BigDecimal("125.00"))
+                    .build();
+            SecurityContext context = SecurityContextTestUtil.aliceContext();
+            
+            when(expenseRepository.findByIdAndTenantId(expenseId, context.getTenantId()))
+                    .thenReturn(Optional.of(draftExpense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+            
+            // When
+            ExpenseItem result = expenseService.addExpenseItem(expenseId, newItem, context);
+            
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getExpense()).isEqualTo(draftExpense);
+            assertThat(result.getAmount()).isEqualByComparingTo(new BigDecimal("125.00"));
+            assertThat(draftExpense.getItems()).contains(newItem);
+            assertThat(draftExpense.getTotalAmount()).isEqualByComparingTo(originalTotal.add(new BigDecimal("125.00")));
+            
+            verify(expenseRepository).save(draftExpense);
+        }
+    }
+    
     // TODO: Complete remaining test suites:
-    // TODO: Complete AddExpenseItemTests (11 tests)
     // TODO: Complete UpdateExpenseItemTests (8 tests)
     // TODO: Complete DeleteExpenseItemTests (7 tests)
     // TODO: Complete SubmitExpenseTests (12 tests)
