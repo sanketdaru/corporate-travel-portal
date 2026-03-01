@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/corporate_travel
+    username: admin
+    password: admin123
+  
+  neo4j:
+    uri: bolt://neo4j:7687
+    authentication:
+      username: neo4j
+      password: password123
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+
+# OPA Configuration
+opa:
+  url: http://opa:8181
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.corporate.travel.delegation: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    org.neo4j.driver: INFO
