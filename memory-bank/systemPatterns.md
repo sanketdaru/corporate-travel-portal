@@ -535,3 +535,206 @@ void should_throwAccessDenied_when_opaReturnsFalse() {
 5. **Policy as Code**: OPA policies versioned in git
 6. **Idempotent Operations**: Safe to retry
 7. **Clear Boundaries**: Tenant isolation strictly enforced
+
+## Docker Best Practices
+
+### Multi-Stage Build Pattern (3 Stages)
+
+All services follow this standardized pattern for optimal image size, security, and build caching:
+
+#### **Stage 1: Dependencies (Cached Layer)**
+- **Purpose**: Download and cache Gradle dependencies separately from source code
+- **Base Image**: `gradle:9.3-jdk17`
+- **Benefits**: Fast rebuilds when only source code changes (dependencies layer cached)
+- **Pattern**: 
+  ```dockerfile
+  FROM gradle:9.3-jdk17 AS dependencies
+  COPY build files → Download dependencies → Cache in /home/gradle/.gradle
+  ```
+
+#### **Stage 2: Builder (Source Compilation)**
+- **Purpose**: Compile application from source inside Docker
+- **Base Image**: `gradle:9.3-jdk17`
+- **Benefits**: Reproducible builds, eliminates "works on my machine" issues
+- **Pattern**: 
+  ```dockerfile
+  FROM gradle:9.3-jdk17 AS builder
+  Copy cached deps → Copy shared libs → Copy service source → Build JAR
+  ```
+
+#### **Stage 3: Runtime (Production Image)**
+- **Purpose**: Minimal, secure production image
+- **Base Image**: `eclipse-temurin:17-jre-jammy` (Ubuntu-based)
+- **Why Jammy, not Alpine**: 
+  - Better compatibility with Spring Boot native libraries
+  - More stable for production workloads
+  - Standard base for all services
+- **Benefits**: Small size (~200MB), security hardened, optimized
+
+### Security Best Practices
+
+#### 1. Non-root User
+**Critical for security** - All services run as non-root user:
+
+```dockerfile
+# Create dedicated user and group
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# Set ownership of application files
+COPY --from=builder --chown=spring:spring /app/service/build/libs/*.jar app.jar
+
+# Switch to non-root user
+USER spring:spring
+```
+
+**Rationale**:
+- Prevents privilege escalation attacks
+- Follows principle of least privilege
+- Required by many Kubernetes security policies
+- Best practice for container security
+
+#### 2. Image Labels
+**Enables tracking and automation**:
+
+```dockerfile
+LABEL maintainer="corporate-travel-platform"
+LABEL service="service-name"
+LABEL version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/corporate-travel-portal"
+```
+
+**Benefits**:
+- Easy identification in container registries
+- Automated scanning and compliance checks
+- Version tracking
+- Source code traceability
+
+### JVM Optimization Flags
+
+**Standard flags for all services** (optimized for container environments):
+
+```bash
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:InitialRAMPercentage=50.0 \
+    -XX:+ExitOnOutOfMemoryError \
+    -XX:+UseG1GC \
+    -XX:+UseStringDeduplication \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Dspring.backgroundpreinitializer.ignore=true"
+```
+
+**Flag Rationale**:
+
+| Flag | Purpose | Benefit |
+|------|---------|---------|
+| `UseContainerSupport` | JVM respects container memory/CPU limits | Prevents OOM in Kubernetes |
+| `MaxRAMPercentage=75.0` | Uses 75% of available RAM | Leaves 25% for OS and buffers |
+| `InitialRAMPercentage=50.0` | Starts with 50% of max heap | Faster startup, gradual growth |
+| `ExitOnOutOfMemoryError` | Terminates JVM on OOM | Orchestrator can restart clean |
+| `UseG1GC` | G1 garbage collector | Better for heap >4GB and low-latency |
+| `UseStringDeduplication` | Deduplicates strings in heap | Reduces memory footprint 10-20% |
+| `java.security.egd` | Use /dev/urandom for random | Faster startup (not /dev/random) |
+| `spring.backgroundpreinitializer.ignore` | Disable background init | Faster startup in containers |
+
+### Health Check Configuration
+
+**Standard pattern for all services**:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:PORT/actuator/health || exit 1
+```
+
+**Parameters explained**:
+- **start-period=60s**: Allows Spring Boot 60 seconds to initialize (not 40s)
+- **interval=30s**: Check every 30 seconds after start period
+- **timeout=3s**: Health check must respond within 3 seconds
+- **retries=3**: Mark unhealthy after 3 consecutive failures
+
+**Why 60s start period?**
+- Spring Boot takes 30-45s to fully initialize
+- Flyway migrations add 5-15s
+- OPA and Keycloak connectivity checks add 5-10s
+- 60s provides buffer for slow startup conditions
+
+### Complete Dockerfile Template
+
+**All services follow this exact pattern**:
+
+```dockerfile
+# Multi-stage build for [Service Name]
+# Best practices: multi-platform support, layer caching, minimal image size, security
+
+# Stage 1: Build dependencies (cached layer)
+FROM gradle:9.3-jdk17 AS dependencies
+WORKDIR /app
+COPY services/[service-name]/settings-docker.gradle settings.gradle
+COPY build.gradle gradle.properties ./
+COPY services/shared/security-commons/build.gradle services/shared/security-commons/build.gradle
+COPY services/shared/domain-models/build.gradle services/shared/domain-models/build.gradle
+COPY services/[service-name]/build.gradle services/[service-name]/build.gradle
+RUN gradle dependencies --no-daemon || return 0
+
+# Stage 2: Build application
+FROM gradle:9.3-jdk17 AS builder
+WORKDIR /app
+COPY --from=dependencies /home/gradle/.gradle /home/gradle/.gradle
+COPY services/[service-name]/settings-docker.gradle settings.gradle
+COPY build.gradle gradle.properties ./
+COPY services/shared ./services/shared
+COPY services/[service-name] ./services/[service-name]
+RUN gradle :services:[service-name]:build -x test --no-daemon
+
+# Stage 3: Runtime (minimal multi-platform image)
+FROM eclipse-temurin:17-jre-jammy
+LABEL maintainer="corporate-travel-platform"
+LABEL service="[service-name]"
+LABEL version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/corporate-travel-portal"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r spring && useradd -r -g spring spring
+WORKDIR /app
+COPY --from=builder --chown=spring:spring \
+    /app/services/[service-name]/build/libs/*.jar app.jar
+
+USER spring:spring
+EXPOSE [port]
+
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:InitialRAMPercentage=50.0 \
+    -XX:+ExitOnOutOfMemoryError \
+    -XX:+UseG1GC \
+    -XX:+UseStringDeduplication \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Dspring.backgroundpreinitializer.ignore=true"
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:[port]/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+```
+
+### Build Context Requirements
+
+**IMPORTANT**: Always build from repository root, not from service directory:
+
+```bash
+# ✅ CORRECT - Build from root
+cd /path/to/corporate-travel-portal
+docker build -t consent-service -f services/consent-service/Dockerfile .
+
+# ❌ WRONG - Will fail (missing shared libraries)
+cd /path/to/corporate-travel-portal/services/consent-service
+docker build -t consent-service .
+```
+
+**Why?** Multi-stage build needs:
+- Access to `services/shared/security-commons`
+- Access to `services/shared/domain-models`
+- Access to root `build.gradle` and `gradle.properties`

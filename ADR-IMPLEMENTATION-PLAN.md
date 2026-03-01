@@ -1052,8 +1052,8 @@ Add these services to `docker-compose.yml`:
 **Next Milestone**: Start Phase 1 - Delegation Service
 
 ### Services Status:
-- [ ] Delegation Service - Not Started
-- [ ] Consent Service - Not Started  
+- [x] Delegation Service - Implemented including unit test coverage. Used travel service as reference for standards.
+- [ ] Consent Service - Core service implemented. Unit testing pending.  
 - [ ] Employee BFF - Not Started
 - [ ] Audit Logging - Not Started
 

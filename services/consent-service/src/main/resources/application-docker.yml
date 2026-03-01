@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/corporate_travel
+    username: admin
+    password: admin123
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+
+# OPA Configuration
+opa:
+  url: http://opa:8181
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.corporate.travel.consent: INFO
+    org.springframework.security: INFO

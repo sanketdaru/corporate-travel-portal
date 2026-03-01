@@ -194,32 +194,44 @@ services:
       retries: 5
       start_period: 60s
 
+  # Consent Service
+  consent-service:
+    build:
+      context: .
+      dockerfile: services/consent-service/Dockerfile
+    container_name: corporate-travel-consent-service
+    platform: linux/amd64
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin123
+      KEYCLOAK_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+    networks:
+      - corporate-travel-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   # # Approval Service
   # approval-service:
   #   build:
   #     context: .
   #     dockerfile: services/approval-service/Dockerfile
   #   container_name: corporate-travel-approval-service
-  #   environment:
-  #     SPRING_PROFILES_ACTIVE: docker
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
-  #     SPRING_DATASOURCE_USERNAME: admin
-  #     SPRING_DATASOURCE_PASSWORD: admin123
-  #     KEYCLOAK_URL: http://keycloak:8080
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     keycloak:
-  #       condition: service_healthy
-  #   networks:
-  #     - corporate-travel-network
-
-  # # Consent Service
-  # consent-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/consent-service/Dockerfile
-  #   container_name: corporate-travel-consent-service
   #   environment:
   #     SPRING_PROFILES_ACTIVE: docker
   #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel

@@ -262,6 +262,43 @@ docker build -t travel-service -f services/travel-service/Dockerfile .
 ./gradlew :services:travel-service:test --tests BookingServiceTest
 ```
 
+### Docker Build Commands
+
+**Standard build pattern for all services** (from repository root):
+
+```bash
+# Build service image (3-stage multi-stage build)
+docker build -t consent-service -f services/consent-service/Dockerfile .
+docker build -t travel-service -f services/travel-service/Dockerfile .
+docker build -t delegation-service -f services/delegation-service/Dockerfile .
+
+# Build with cache optimization (dependencies layer cached)
+docker build --target dependencies -t consent-service:deps \
+    -f services/consent-service/Dockerfile .
+docker build --target builder -t consent-service:builder \
+    -f services/consent-service/Dockerfile .
+docker build -t consent-service -f services/consent-service/Dockerfile .
+
+# Build without cache (clean build)
+docker build --no-cache -t consent-service -f services/consent-service/Dockerfile .
+
+# Run built image locally
+docker run -p 8084:8084 \
+    -e SPRING_PROFILES_ACTIVE=docker \
+    -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/corporate_travel \
+    consent-service
+```
+
+**Why build from root?**
+- Multi-stage build needs access to `services/shared` libraries
+- Context includes all dependencies for proper compilation
+- Dockerfile COPY commands reference files from root
+
+**Build stages**:
+1. **dependencies** - Download and cache Gradle dependencies (~300MB, cached)
+2. **builder** - Compile source code (~500MB, not cached in final image)
+3. **runtime** - Minimal JRE image with application (~200MB, production image)
+
 ### Docker Compose Commands
 ```bash
 # Start all services
@@ -281,6 +318,9 @@ docker-compose down
 
 # Stop and remove volumes
 docker-compose down -v
+
+# Rebuild and restart a service
+docker-compose up -d --build travel-service
 ```
 
 ### Database Access
