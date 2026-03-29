@@ -43,16 +43,24 @@ public class KeycloakTokenExchangeClient {
     }
 
     /**
-     * Exchanges the actor's token for a delegation token scoped to the given audience.
+     * Exchanges the actor's token for an audience-scoped token via Standard Token Exchange V2 (RFC 8693).
      *
-     * @param actorToken             The actor's current access token (e.g. Dave's JWT) — chain of trust, mandatory
-     * @param delegationTargetUserId The user being acted on behalf of (e.g. Carol's user ID)
-     * @param targetAudience         The resource server this token will be used against (e.g. "travel-service")
-     * @return TokenExchangeResponse containing the issued delegation token
+     * <p>Security contract:</p>
+     * <ul>
+     *   <li>actorToken (subject_token) is MANDATORY — proves actor identity and establishes the chain
+     *       of trust. Keycloak rejects requests without it.</li>
+     *   <li>audience scopes the resulting token to a single resource server, preventing replay.</li>
+     *   <li>NO requested_subject — Standard V2 does not support impersonation. The delegation target
+     *       (e.g. Carol) is carried as the X-Delegated-Subject application header, validated against
+     *       the delegation-service before this exchange is invoked (ADR-004).</li>
+     * </ul>
+     *
+     * @param actorToken     The actor's current access token (Dave or AI agent) — chain of trust, mandatory
+     * @param targetAudience The resource server to scope the token to (e.g. "travel-service")
+     * @return TokenExchangeResponse containing the issued audience-scoped token
      */
     public TokenExchangeResponse exchangeToken(
             String actorToken,
-            String delegationTargetUserId,
             String targetAudience) {
 
         if (!StringUtils.hasText(actorToken)) {
@@ -60,8 +68,7 @@ public class KeycloakTokenExchangeClient {
                 "subject_token (actorToken) is mandatory for Standard Token Exchange V2 — chain of trust cannot be established without it");
         }
 
-        log.debug("Performing token exchange: targetAudience={}, delegationTarget={}",
-            targetAudience, delegationTargetUserId);
+        log.debug("Performing token exchange: targetAudience={}", targetAudience);
 
         String tokenUrl = String.format("/realms/%s/protocol/openid-connect/token",
             properties.getKeycloak().getRealm());
@@ -70,14 +77,14 @@ public class KeycloakTokenExchangeClient {
         formData.add("grant_type", GRANT_TYPE);
         formData.add("client_id", properties.getKeycloak().getClientId());
         formData.add("client_secret", properties.getKeycloak().getClientSecret());
-        // subject_token: the actor's existing token — mandatory chain of trust for V2
+        // subject_token: the actor's existing token — mandatory chain of trust for Standard V2
         formData.add("subject_token", actorToken);
         formData.add("subject_token_type", TOKEN_TYPE_ACCESS);
         formData.add("requested_token_type", TOKEN_TYPE_ACCESS);
         // audience: scopes the issued token to the specific downstream resource server
         formData.add("audience", targetAudience);
-        // requested_subject: delegation target — requires Client Policy grant on the realm
-        formData.add("requested_subject", delegationTargetUserId);
+        // Note: NO requested_subject — Standard V2 does not support impersonation.
+        // The delegation target is carried as X-Delegated-Subject header (ADR-004 Layer 2).
 
         return keycloakWebClient.post()
             .uri(tokenUrl)

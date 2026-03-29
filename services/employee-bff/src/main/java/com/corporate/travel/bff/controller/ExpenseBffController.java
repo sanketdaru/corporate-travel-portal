@@ -18,7 +18,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/bff/expenses")
 @RequiredArgsConstructor
-@Tag(name = "Expense BFF", description = "Expense operations with automatic delegation token injection")
+@Tag(name = "Expense BFF", description = "Expense operations with automatic delegation context injection")
 public class ExpenseBffController {
 
     private final ExpenseServiceClient expenseServiceClient;
@@ -26,26 +26,31 @@ public class ExpenseBffController {
 
     @GetMapping
     @Operation(summary = "List expenses",
-        description = "Lists expenses for the current user, or the delegation subject if delegation is active.")
+        description = "Lists expenses for the current user, or the delegation subject if delegation is active. " +
+                      "When delegation is active, X-Delegated-Subject, X-Delegation-Id, and X-Actor-Token " +
+                      "headers are threaded to expense-service (ADR-004, ADR-018).")
     public ResponseEntity<JsonNode> getExpenses(
             @AuthenticationPrincipal Jwt jwt,
             HttpSession session) {
 
-        String token = resolveToken(jwt, session);
-        return ResponseEntity.ok(expenseServiceClient.getExpenses(token));
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(expenseServiceClient.getExpenses(token, ctx));
     }
 
     @PostMapping
     @Operation(summary = "Create expense",
-        description = "Creates an expense. If delegation is active, uses the delegation token " +
-                      "(sub=subject, act.sub=actor) so the expense is attributed to the subject.")
+        description = "Creates an expense. If delegation is active, the audience-scoped delegation token " +
+                      "is used (sub=actor) and X-Delegated-Subject identifies the human principal, " +
+                      "so the expense is attributed to the subject in audit records (ADR-011).")
     public ResponseEntity<JsonNode> createExpense(
             @RequestBody JsonNode requestBody,
             @AuthenticationPrincipal Jwt jwt,
             HttpSession session) {
 
-        String token = resolveToken(jwt, session);
-        return ResponseEntity.ok(expenseServiceClient.createExpense(requestBody, token));
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(expenseServiceClient.createExpense(requestBody, token, ctx));
     }
 
     @GetMapping("/{expenseId}")
@@ -55,17 +60,17 @@ public class ExpenseBffController {
             @AuthenticationPrincipal Jwt jwt,
             HttpSession session) {
 
-        String token = resolveToken(jwt, session);
-        return ResponseEntity.ok(expenseServiceClient.getExpense(expenseId, token));
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(expenseServiceClient.getExpense(expenseId, token, ctx));
     }
 
     /**
-     * If delegation is active and not expired, use the delegation token.
-     * Otherwise fall back to the caller's own token.
+     * Returns the active, non-expired delegation context from the session if one exists.
+     * The full context — not just a token string — is required so that delegation headers
+     * (X-Delegated-Subject, X-Delegation-Id, X-Actor-Token) can be threaded on downstream calls.
      */
-    private String resolveToken(Jwt jwt, HttpSession session) {
-        Optional<DelegationContext> context = delegationContextService.getActiveContext(session);
-        return context.map(DelegationContext::getDelegationToken)
-                      .orElse(jwt.getTokenValue());
+    private Optional<DelegationContext> resolveDelegationContext(HttpSession session) {
+        return delegationContextService.getActiveContext(session);
     }
 }

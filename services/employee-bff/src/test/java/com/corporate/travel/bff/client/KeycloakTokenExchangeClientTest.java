@@ -45,7 +45,7 @@ class KeycloakTokenExchangeClientTest {
     }
 
     @Test
-    void exchangeToken_success_returnsDelegationToken() {
+    void exchangeToken_success_returnsAudienceScopedToken() {
         wireMockServer.stubFor(post(urlPathEqualTo("/realms/corporate-travel/protocol/openid-connect/token"))
             .willReturn(aResponse()
                 .withStatus(200)
@@ -58,16 +58,17 @@ class KeycloakTokenExchangeClientTest {
                     }
                     """)));
 
-        TokenExchangeResponse response = client.exchangeToken("dave-actor-token", "carol-user-id", "travel-service");
+        TokenExchangeResponse response = client.exchangeToken("dave-actor-token", "travel-service");
 
         assertThat(response.getAccessToken()).isEqualTo("delegation-token-xyz");
         assertThat(response.getExpiresIn()).isEqualTo(300L);
 
+        // ADR-004: requested_subject must NOT be sent — Standard V2 is audience-scoping only
         wireMockServer.verify(postRequestedFor(urlPathEqualTo("/realms/corporate-travel/protocol/openid-connect/token"))
             .withRequestBody(containing("subject_token=dave-actor-token"))
-            .withRequestBody(containing("requested_subject=carol-user-id"))
             .withRequestBody(containing("audience=travel-service"))
-            .withRequestBody(containing("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange")));
+            .withRequestBody(containing("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange"))
+            .withRequestBody(notContaining("requested_subject")));
     }
 
     @Test
@@ -80,14 +81,14 @@ class KeycloakTokenExchangeClientTest {
                     {"error":"invalid_request","error_description":"subject_token is required"}
                     """)));
 
-        assertThatThrownBy(() -> client.exchangeToken("dave-token", "carol-id", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeToken("dave-token", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Token exchange rejected by Keycloak");
     }
 
     @Test
     void exchangeToken_missingActorToken_throwsTokenExchangeExceptionBeforeCallingKeycloak() {
-        assertThatThrownBy(() -> client.exchangeToken("", "carol-id", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeToken("", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("subject_token (actorToken) is mandatory");
 
@@ -96,7 +97,7 @@ class KeycloakTokenExchangeClientTest {
 
     @Test
     void exchangeToken_nullActorToken_throwsTokenExchangeExceptionBeforeCallingKeycloak() {
-        assertThatThrownBy(() -> client.exchangeToken(null, "carol-id", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeToken(null, "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("subject_token (actorToken) is mandatory");
 
@@ -111,7 +112,7 @@ class KeycloakTokenExchangeClientTest {
                 .withHeader("Content-Type", "application/json")
                 .withBody("{\"error\":\"server_error\"}")));
 
-        assertThatThrownBy(() -> client.exchangeToken("dave-token", "carol-id", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeToken("dave-token", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Keycloak server error");
     }

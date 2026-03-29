@@ -38,6 +38,8 @@ class DelegationContextServiceTest {
             .subjectId("carol-id")
             .audience("travel-service")
             .delegationToken("delegation-token")
+            .actorToken("dave-original-token")
+            .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))
             .build();
 
@@ -56,6 +58,8 @@ class DelegationContextServiceTest {
         DelegationContext context = DelegationContext.builder()
             .actorId("dave-id")
             .subjectId("carol-id")
+            .actorToken("dave-original-token")
+            .consentId("consent-uuid-abc")
             .build();
         when(session.getAttribute(DelegationContextService.SESSION_KEY)).thenReturn(context);
 
@@ -80,6 +84,8 @@ class DelegationContextServiceTest {
             .actorId("dave-id")
             .subjectId("carol-id")
             .delegationToken("some-token")
+            .actorToken("dave-original-token")
+            .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))
             .build();
 
@@ -107,6 +113,8 @@ class DelegationContextServiceTest {
             .actorId("dave-id")
             .subjectId("carol-id")
             .delegationToken("expired-token")
+            .actorToken("dave-original-token")
+            .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().minusSeconds(60))
             .build();
 

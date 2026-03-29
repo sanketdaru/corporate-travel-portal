@@ -1,5 +1,6 @@
 package com.corporate.travel.bff.client;
 
+import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,15 +25,18 @@ public class ConsentServiceClient {
     }
 
     /**
-     * Checks whether active consent exists covering the requested scopes.
+     * Checks whether active consent exists covering the requested scopes and returns the consent ID.
+     *
+     * <p>The consentId is required by ADR-011 so that downstream services can record it in their
+     * audit tables. Returning a boolean alone would permanently lose this reference.</p>
      *
      * @param grantorId   Subject's user ID (e.g. Carol)
      * @param granteeId   Actor's user ID (e.g. Dave)
      * @param scopes      Scopes required for this delegation
      * @param bearerToken Caller's Bearer token for authentication
-     * @return true if consent is valid and covers the requested scopes
+     * @return ConsentCheckResult with valid=true and the consentId if found; valid=false otherwise
      */
-    public boolean hasConsentForScopes(String grantorId, String granteeId, List<String> scopes, String bearerToken) {
+    public ConsentCheckResult hasConsentForScopes(String grantorId, String granteeId, List<String> scopes, String bearerToken) {
         log.debug("Checking consent: grantor={}, grantee={}, scopes={}", grantorId, granteeId, scopes);
         try {
             JsonNode response = consentServiceWebClient.get()
@@ -46,10 +50,15 @@ public class ConsentServiceClient {
                 .bodyToMono(JsonNode.class)
                 .block();
 
-            return response != null && response.isArray() && response.size() > 0;
+            if (response == null || !response.isArray() || response.size() == 0) {
+                return new ConsentCheckResult(false, null);
+            }
+
+            String consentId = response.get(0).path("id").asText(null);
+            return new ConsentCheckResult(true, consentId);
         } catch (Exception e) {
             log.warn("Consent check failed for grantor={} grantee={}: {}", grantorId, granteeId, e.getMessage());
-            return false;
+            return new ConsentCheckResult(false, null);
         }
     }
 }

@@ -5,6 +5,7 @@ import com.corporate.travel.bff.client.DelegationServiceClient;
 import com.corporate.travel.bff.client.KeycloakTokenExchangeClient;
 import com.corporate.travel.bff.exception.DelegationNotFoundException;
 import com.corporate.travel.bff.exception.TokenExchangeException;
+import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.corporate.travel.bff.model.DelegationContext;
 import com.corporate.travel.bff.model.TokenExchangeResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +43,7 @@ class TokenExchangeServiceTest {
     }
 
     @Test
-    void exchangeForDelegation_happyPath_returnsDelegationContext() {
+    void exchangeForDelegation_happyPath_returnsDelegationContextWithAllFields() {
         ObjectNode delegationNode = objectMapper.createObjectNode();
         delegationNode.put("id", "delegation-123");
         delegationNode.put("delegatorId", "carol-user-id");
@@ -50,14 +51,16 @@ class TokenExchangeServiceTest {
 
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
+        // ConsentServiceClient now returns ConsentCheckResult, not boolean (ADR-011: consentId required)
         when(consentServiceClient.hasConsentForScopes("carol-user-id", "dave-user-id", List.of("book_travel"), "dave-token"))
-            .thenReturn(true);
+            .thenReturn(new ConsentCheckResult(true, "consent-uuid-abc"));
 
         TokenExchangeResponse exchangeResponse = new TokenExchangeResponse();
         exchangeResponse.setAccessToken("delegation-token-abc");
         exchangeResponse.setExpiresIn(300L);
 
-        when(keycloakTokenExchangeClient.exchangeToken("dave-token", "carol-user-id", "travel-service"))
+        // KeycloakTokenExchangeClient no longer accepts requestedSubject (ADR-004: Standard V2 is audience-scoping only)
+        when(keycloakTokenExchangeClient.exchangeToken("dave-token", "travel-service"))
             .thenReturn(exchangeResponse);
 
         DelegationContext result = tokenExchangeService.exchangeForDelegation(
@@ -69,6 +72,10 @@ class TokenExchangeServiceTest {
         assertThat(result.getAudience()).isEqualTo("travel-service");
         assertThat(result.getDelegationToken()).isEqualTo("delegation-token-abc");
         assertThat(result.getExpiresAt()).isNotNull();
+        // ADR-004: actorToken stored for X-Actor-Token header threading
+        assertThat(result.getActorToken()).isEqualTo("dave-token");
+        // ADR-011: consentId stored for downstream audit records
+        assertThat(result.getConsentId()).isEqualTo("consent-uuid-abc");
     }
 
     @Test
@@ -92,7 +99,7 @@ class TokenExchangeServiceTest {
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
         when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyList(), anyString()))
-            .thenReturn(false);
+            .thenReturn(new ConsentCheckResult(false, null));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
             "delegation-123", "dave-token", "dave-user-id", "travel-service"))
@@ -110,8 +117,8 @@ class TokenExchangeServiceTest {
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
         when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyList(), anyString()))
-            .thenReturn(true);
-        when(keycloakTokenExchangeClient.exchangeToken(anyString(), anyString(), anyString()))
+            .thenReturn(new ConsentCheckResult(true, "consent-uuid"));
+        when(keycloakTokenExchangeClient.exchangeToken(anyString(), anyString()))
             .thenThrow(new TokenExchangeException("Token exchange rejected by Keycloak"));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
