@@ -59,10 +59,11 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      KC_FEATURES: "token-exchange-standard"
     ports:
       - "8080:8080"
     volumes:
-      - ./infrastructure/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      - ./infrastructure/keycloak:/opt/keycloak/data/import
     depends_on:
       postgres:
         condition: service_healthy
@@ -283,28 +284,41 @@ services:
       retries: 5
       start_period: 60s
 
-  # # Employee BFF
-  # employee-bff:
-  #   build:
-  #     context: .
-  #     dockerfile: services/employee-bff/Dockerfile
-  #   container_name: corporate-travel-employee-bff
-  #   environment:
-  #     SPRING_PROFILES_ACTIVE: docker
-  #     KEYCLOAK_URL: http://keycloak:8080
-  #     TRAVEL_SERVICE_URL: http://travel-service:8080
-  #     EXPENSE_SERVICE_URL: http://expense-service:8080
-  #     APPROVAL_SERVICE_URL: http://approval-service:8080
-  #     DELEGATION_SERVICE_URL: http://delegation-service:8080
-  #   ports:
-  #     - "3001:8080"
-  #   depends_on:
-  #     - travel-service
-  #     - expense-service
-  #     - approval-service
-  #     - delegation-service
-  #   networks:
-  #     - corporate-travel-network
+  # Employee BFF
+  employee-bff:
+    build:
+      context: .
+      dockerfile: services/employee-bff/Dockerfile
+    container_name: corporate-travel-employee-bff
+    platform: linux/amd64
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_URL: http://keycloak:8080
+      SERVICES_TRAVEL_SERVICE_URL: http://travel-service:8081
+      SERVICES_EXPENSE_SERVICE_URL: http://expense-service:8082
+      SERVICES_DELEGATION_SERVICE_URL: http://delegation-service:8083
+      SERVICES_CONSENT_SERVICE_URL: http://consent-service:8084
+    ports:
+      - "8085:8085"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      travel-service:
+        condition: service_healthy
+      expense-service:
+        condition: service_healthy
+      delegation-service:
+        condition: service_healthy
+      consent-service:
+        condition: service_healthy
+    networks:
+      - corporate-travel-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # # Employee Portal Frontend
   # employee-portal:

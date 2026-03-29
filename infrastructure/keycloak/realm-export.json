@@ -194,7 +194,14 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
-      }
+      },
+      "defaultClientScopes": ["user-attributes"],
+      "optionalClientScopes": [
+        "travel-booking",
+        "expense-management",
+        "approval",
+        "delegation"
+      ]
     },
     {
       "clientId": "employee-bff",
@@ -204,10 +211,19 @@
       "protocol": "openid-connect",
       "directAccessGrantsEnabled": true,
       "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
       "serviceAccountsEnabled": true,
       "secret": "bff-service-secret-change-in-production",
-      "redirectUris": ["http://localhost:3001/*"],
-      "webOrigins": ["+"]
+      "redirectUris": ["http://localhost:3001/*", "http://localhost:8085/*"],
+      "webOrigins": ["+"],
+      "attributes": {},
+      "defaultClientScopes": ["user-attributes"],
+      "optionalClientScopes": [
+        "travel-booking",
+        "expense-management",
+        "approval",
+        "delegation"
+      ]
     },
     {
       "clientId": "travel-service",
@@ -217,9 +233,7 @@
       "protocol": "openid-connect",
       "serviceAccountsEnabled": true,
       "secret": "travel-service-secret-change-in-production",
-      "attributes": {
-        "token-exchange.enabled": "true"
-      }
+      "attributes": {}
     },
     {
       "clientId": "expense-service",
@@ -229,9 +243,7 @@
       "protocol": "openid-connect",
       "serviceAccountsEnabled": true,
       "secret": "expense-service-secret-change-in-production",
-      "attributes": {
-        "token-exchange.enabled": "true"
-      }
+      "attributes": {}
     },
     {
       "clientId": "approval-service",
@@ -262,6 +274,45 @@
     }
   ],
   "clientScopes": [
+    {
+      "name": "user-attributes",
+      "description": "Custom user attribute claims: tenant_id and employee_id included in every access token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "employee-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "employee_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "employee_id",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
     {
       "name": "travel-booking",
       "description": "Travel booking operations",

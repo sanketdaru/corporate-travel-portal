@@ -1,0 +1,19 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+
+keycloak:
+  url: http://keycloak:8080
+
+services:
+  travel-service-url: http://travel-service:8081
+  expense-service-url: http://expense-service:8082
+  delegation-service-url: http://delegation-service:8083
+  consent-service-url: http://consent-service:8084
+
+opa:
+  url: http://opa:8181

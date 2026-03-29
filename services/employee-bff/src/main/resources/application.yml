@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: employee-bff
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/corporate-travel
+          jwk-set-uri: http://localhost:8080/realms/corporate-travel/protocol/openid-connect/certs
+
+server:
+  port: 8085
+
+keycloak:
+  url: http://localhost:8080
+  realm: corporate-travel
+  client-id: employee-bff
+  client-secret: bff-service-secret-change-in-production
+
+services:
+  travel-service-url: http://localhost:8081
+  expense-service-url: http://localhost:8082
+  delegation-service-url: http://localhost:8083
+  consent-service-url: http://localhost:8084
+
+opa:
+  url: http://localhost:8181
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.corporate.travel.bff: DEBUG
+    org.springframework.security: DEBUG
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

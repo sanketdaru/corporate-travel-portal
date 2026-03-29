@@ -1,0 +1,11 @@
+rootProject.name = 'corporate-travel-portal'
+
+// Only include this service and its dependencies
+include 'services:shared:security-commons'
+include 'services:shared:domain-models'
+include 'services:employee-bff'
+
+// Explicitly set project directories relative to Docker build context root (/app)
+project(':services:shared:security-commons').projectDir = file('services/shared/security-commons')
+project(':services:shared:domain-models').projectDir = file('services/shared/domain-models')
+project(':services:employee-bff').projectDir = file('services/employee-bff')
