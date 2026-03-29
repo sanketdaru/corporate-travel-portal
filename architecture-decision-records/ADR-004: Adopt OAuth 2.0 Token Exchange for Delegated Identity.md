@@ -77,3 +77,5 @@ Context switching via server-side session. No cryptographic chain of custody. Re
 
 ### Static role delegation (rejected — flexibility)
 Pre-assigned roles per delegation pair. Does not support dynamic, time-bounded, purpose-scoped delegation. Rejected: insufficient for the executive assistant and AI agent use cases.
+
+Read more at: https://www.keycloak.org/securing-apps/token-exchange
