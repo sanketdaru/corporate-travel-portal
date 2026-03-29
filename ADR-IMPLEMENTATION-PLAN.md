@@ -482,87 +482,96 @@ GET /api/expenses/{id}/audit  - Get expense audit trail
 
 #### 2.1 Employee BFF + Token Exchange (4-5 days, 32 hours)
 
-**Purpose**: Backend-for-Frontend that performs OAuth 2.0 Token Exchange
+**Purpose**: Backend-for-Frontend that is the delegation gateway — performs audience-scoped token exchange and threads the full delegation identity chain to downstream services.
 
 **Architecture**:
 ```
-User Browser → Employee BFF → Keycloak (Token Exchange)
-                ↓
-          API Gateway → Domain Services
+Human / AI Agent → Employee BFF → Keycloak (Token Exchange V2: audience scoping)
+                        ↓
+                 delegation-service  (validate delegation chain)
+                 consent-service     (validate consent for action)
+                        ↓
+                  API Gateway → Domain Services
+                  (with delegation headers threaded)
 ```
 
-**Token Exchange Flow (Standard Token Exchange V2)**:
-1. User (Dave) logs in → Gets his own access token (`sub=dave`)
-2. Dave selects "Act as Carol" in UI
-3. BFF calls Keycloak token exchange endpoint, passing **Dave's token as `subject_token`** (chain of trust)
-4. Keycloak validates Dave's token, checks Client Policy authorising `employee-bff` to exchange
-5. Keycloak issues delegated token (`sub=carol`, `act.sub=dave`, `aud=travel-service`)
-6. BFF uses delegated token for downstream calls
+**Delegation Flow (two-layer approach)**:
 
-> **Security note**: The `subject_token` is mandatory and non-negotiable. It proves Dave is authenticated before any delegation is performed. This distinguishes Standard Token Exchange V2 from the deprecated "naked" exchange, which accepted only client credentials and a `requested_subject` — providing no chain of trust.
+*Layer 1 — Keycloak Standard Token Exchange V2 (audience scoping):*
+1. Actor (Dave or AI agent) authenticates → holds own access token (`sub=actor`)
+2. Actor requests to act under delegation context (provides `delegationId`)
+3. BFF validates the delegation record is active via delegation-service
+4. BFF validates consent exists for the requested action via consent-service
+5. BFF performs V2 token exchange: `subject_token=actor-token`, `audience=target-service`
+6. Keycloak issues audience-scoped token (`sub=actor`, `aud=travel-service`) — actor identity preserved
 
-**Keycloak Configuration Update**:
+*Layer 2 — Application-level delegation context headers:*
 
-Update `infrastructure/keycloak/realm-export.json`:
+7. BFF threads the following headers on every downstream call:
+```
+Authorization:       Bearer <audience-scoped token>   # actor JWT, sub=actor
+X-Delegated-Subject: <carol-user-id>                  # human principal
+X-Delegation-Id:     <delegation-record-uuid>         # validated delegation record
+X-Actor-Token:       <actor-original-token>           # for audit chain
+```
 
-Standard Token Exchange V2 is controlled via **Client Policies** at the realm level, not via the deprecated per-client `oauth2.token.exchange.enabled` attribute.
+*Downstream service enforcement:*
 
-```json
-{
-  "clients": [
-    {
-      "clientId": "employee-bff",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "bff-service-secret",
-      "directAccessGrantsEnabled": false,
-      "publicClient": false,
-      "attributes": {
-        "oauth2.device.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false"
-      }
-    }
-  ],
-  "clientProfiles": {
-    "profiles": [
-      {
-        "name": "standard-token-exchange-profile",
-        "description": "Enables Standard Token Exchange V2 (RFC 8693) for confidential BFF clients",
-        "executors": [
-          {
-            "executor": "secure-token-exchange",
-            "configuration": {}
-          }
-        ]
-      }
-    ]
-  },
-  "clientPolicies": {
-    "policies": [
-      {
-        "name": "allow-bff-token-exchange",
-        "description": "Allow employee-bff to perform Standard Token Exchange V2 with subject_token chain of trust",
-        "enabled": true,
-        "conditions": [
-          {
-            "condition": "client-access-type",
-            "configuration": {
-              "type": ["confidential"]
-            }
-          },
-          {
-            "condition": "client-roles",
-            "configuration": {
-              "roles": ["token-exchanger"],
-              "is-not": false
-            }
-          }
-        ],
-        "profiles": ["standard-token-exchange-profile"]
-      }
-    ]
-  }
-}
+8. Each service builds `SecurityContext` from JWT + headers
+9. Each service validates `X-Delegation-Id` against delegation-service
+10. OPA authorization receives full context: `actorId`, `subjectId`, `delegationId`, `tenantId`
+11. Audit records capture both actor and subject
+
+> **Why not `requested_subject`?** Keycloak Standard Token Exchange V2 does not support `requested_subject` or the RFC 8693 `act` claim. V1 (Legacy) impersonation with `requested_subject` produces `sub=Carol` with no actor trace — the AI agent disappears from the identity chain. Application-level headers preserve every identity at every hop, which is essential for the multi-agent agentic AI objective. When Keycloak ships `act` claim support, headers become a drop-in replacement.
+
+**Keycloak Configuration**:
+
+Standard Token Exchange V2 is enabled via:
+- `KC_FEATURES=token-exchange-standard` in `docker-compose.yml` ✅ (already done)
+- **Standard token exchange** toggle enabled on `employee-bff` client in Admin Console (post-start, manual step)
+- No Client Policies, no FGAP, no `secure-token-exchange` executor required
+
+**Multi-Agent Node Support in Delegation Service**:
+
+The delegation-service Neo4j graph must support AI agent nodes (Keycloak client IDs) as delegation participants, not only human user IDs:
+
+```cypher
+// Agent node — registered Keycloak confidential client
+CREATE (:Agent {
+  agentId: "travel-planner-agent",   // Keycloak client_id
+  tenantId: "tenant-a",
+  displayName: "Travel Planner Agent"
+})
+
+// Human grants delegation to AI agent
+(carol:User)-[:CAN_ACT_AS {
+  delegationId: "...",
+  purpose: "book_travel",
+  scopes: ["create_bookings", "view_bookings"],
+  grantedAt: timestamp,
+  expiresAt: timestamp
+}]->(travel-planner-agent:Agent)
+
+// Agent delegates to sub-agent
+(travel-planner-agent:Agent)-[:CAN_ACT_AS {
+  delegationId: "...",
+  purpose: "book_travel"
+}]->(booking-agent:Agent)
+```
+
+**SecurityContext Extension**:
+
+`security-commons` `SecurityContext` must be extended to carry delegation fields read from headers:
+
+```java
+// SecurityContext additions
+String subjectId;       // from X-Delegated-Subject header (null if no delegation)
+String delegationId;    // from X-Delegation-Id header (null if no delegation)
+boolean isDelegated();  // true when subjectId != null
+
+// JwtAuthenticationConverter extension
+// Read X-Delegated-Subject and X-Delegation-Id from request headers
+// Populate SecurityContext fields from both JWT claims and headers
 ```
 
 **Project Structure**:
@@ -573,76 +582,95 @@ services/employee-bff/
 │   ├── config/
 │   │   ├── SecurityConfig.java
 │   │   ├── WebClientConfig.java
-│   │   └── ServiceClientsConfig.java
+│   │   └── BffProperties.java
 │   ├── client/
-│   │   ├── KeycloakClient.java          # Token exchange
+│   │   ├── KeycloakTokenExchangeClient.java   # V2 token exchange (audience scoping)
 │   │   ├── TravelServiceClient.java
 │   │   ├── ExpenseServiceClient.java
 │   │   ├── DelegationServiceClient.java
 │   │   └── ConsentServiceClient.java
 │   ├── service/
 │   │   ├── TokenExchangeService.java
-│   │   ├── DelegationContextService.java
+│   │   ├── DelegationContextService.java      # validates delegation + consent, builds context
 │   │   └── ApiAggregationService.java
 │   ├── controller/
 │   │   ├── BookingBffController.java
 │   │   ├── ExpenseBffController.java
 │   │   └── DelegationBffController.java
 │   └── model/
-│       ├── DelegationContext.java
-│       └── TokenExchangeRequest.java
+│       ├── DelegationContext.java             # actorToken, subjectId, delegationId, consentId
+│       └── TokenExchangeResponse.java
 ```
 
-**Key Implementation - Token Exchange (Standard V2)**:
+**Key Implementation — Token Exchange (Standard V2, audience scoping only)**:
 ```java
 @Service
-public class KeycloakClient {
+public class KeycloakTokenExchangeClient {
 
     /**
-     * Performs Standard Token Exchange V2 (RFC 8693) to obtain a delegation token.
+     * Performs Standard Token Exchange V2 (RFC 8693) for audience scoping.
      *
      * Security contract:
-     *   - actorToken (subject_token) is MANDATORY. It proves the actor's (Dave's) identity
-     *     and establishes the chain of trust. Keycloak will reject requests without it.
-     *     This is what distinguishes V2 from the deprecated naked token exchange.
-     *   - audience scopes the resulting token to a specific resource server, preventing
-     *     it from being replayed against unintended services.
-     *   - requestedSubject (Carol's ID) requires the employee-bff client to hold the
-     *     token-exchanger role and be covered by the Client Policy on the realm.
+     *   - actorToken (subject_token) is MANDATORY — chain of trust, proves actor identity.
+     *     Keycloak rejects requests without it.
+     *   - audience scopes the issued token to a single resource server, preventing replay.
+     *   - NO requested_subject — Standard V2 does not support impersonation.
+     *     The delegation target (Carol) is threaded as X-Delegated-Subject header,
+     *     validated against the delegation-service before the exchange is invoked.
      *
-     * @param actorToken   The actor's current access token (e.g. Dave's JWT) — chain of trust
-     * @param delegationTargetUserId  The user being acted on behalf of (e.g. Carol's user ID)
-     * @param targetAudience  The resource server this token will be used against (e.g. "travel-service")
+     * @param actorToken     Actor's current access token (Dave or AI agent) — chain of trust
+     * @param targetAudience Resource server to scope the token to (e.g. "travel-service")
      */
-    public TokenExchangeResponse exchangeToken(
-            String actorToken,
-            String delegationTargetUserId,
-            String targetAudience) {
-
+    public TokenExchangeResponse exchangeToken(String actorToken, String targetAudience) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange");
-        formData.add("client_id", clientId);
-        formData.add("client_secret", clientSecret);
-        // subject_token: the actor's existing token — mandatory chain of trust for V2
-        formData.add("subject_token", actorToken);
-        formData.add("subject_token_type", "urn:ietf:params:oauth:token-type:access_token");
-        formData.add("requested_token_type", "urn:ietf:params:oauth:token-type:access_token");
-        // audience: scopes the issued token to the specific downstream resource server
-        formData.add("audience", targetAudience);
-        // requested_subject: delegation target (impersonation) — requires Client Policy grant
-        formData.add("requested_subject", delegationTargetUserId);
+        formData.add("client_id", properties.getKeycloak().getClientId());
+        formData.add("client_secret", properties.getKeycloak().getClientSecret());
+        formData.add("subject_token", actorToken);          // mandatory — chain of trust
+        formData.add("subject_token_type", TOKEN_TYPE_ACCESS);
+        formData.add("requested_token_type", TOKEN_TYPE_ACCESS);
+        formData.add("audience", targetAudience);           // scopes token to target service
+        // Note: NO requested_subject — V2 does not support impersonation.
+        // Delegation target is carried as X-Delegated-Subject header.
 
-        return webClient.post()
-            .uri(keycloakUrl + "/realms/" + realm + "/protocol/openid-connect/token")
+        return keycloakWebClient.post()
+            .uri("/realms/{realm}/protocol/openid-connect/token", realm)
             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
             .bodyValue(formData)
             .retrieve()
             .onStatus(HttpStatusCode::is4xxClientError, response ->
                 response.bodyToMono(String.class)
                     .flatMap(body -> Mono.error(new TokenExchangeException(
-                        "Token exchange rejected by Keycloak — verify subject_token validity and Client Policy: " + body))))
+                        "Token exchange rejected — verify subject_token validity and that " +
+                        "'Standard token exchange' is enabled on employee-bff in Keycloak Admin: " + body))))
             .bodyToMono(TokenExchangeResponse.class)
             .block();
+    }
+}
+```
+
+**Key Implementation — Delegation Context Service**:
+```java
+@Service
+public class DelegationContextService {
+
+    /**
+     * Resolves and validates a full delegation context before any downstream call.
+     * Validates: delegation is active, consent covers the requested action, same tenant.
+     *
+     * @param actorToken   The actor's JWT (Dave or AI agent)
+     * @param delegationId The delegation record to activate
+     * @param action       The action to be performed (e.g. "book_travel")
+     * @return DelegationContext containing subjectId, consentId, and the actor token
+     */
+    public DelegationContext resolve(String actorToken, UUID delegationId, String action) {
+        DelegationResponse delegation = delegationServiceClient.getDelegation(delegationId);
+        // validate: active, not expired, actor is the delegate
+        // validate consent covers requested action
+        ConsentValidationResponse consent = consentServiceClient.validateConsent(
+            delegation.getDelegatorId(), delegation.getDelegateId(), action);
+        return DelegationContext.of(actorToken, delegation.getDelegatorId(),
+                                   delegationId, consent.getConsentId());
     }
 }
 ```
@@ -714,54 +742,80 @@ GET    /api/bff/dashboard                     - Aggregate dashboard data
   - [ ] Create project structure
   - [ ] Add dependencies (WebClient, OAuth2 client)
   - [ ] Configure application.yml
-  
-- [ ] **Keycloak Config** (3h)
-  - [ ] Update realm-export.json with Client Profiles and Client Policies (Standard Token Exchange V2)
-  - [ ] Assign `token-exchanger` role to `employee-bff` client in Keycloak
-  - [ ] Do NOT use deprecated `oauth2.token.exchange.enabled` per-client attribute
-  - [ ] Test token exchange with curl — verify subject_token is required (400 without it)
-  
-- [ ] **Token Exchange** (5h)
-  - [ ] Implement KeycloakClient with Standard Token Exchange V2 (subject_token + audience + requested_subject)
-  - [ ] Implement TokenExchangeService (actor token → delegation token per target audience)
-  - [ ] Add TokenExchangeException with clear Keycloak rejection messaging
-  - [ ] Validate subject_token is present before calling Keycloak (fail-fast)
-  
-- [ ] **Service Clients** (6h)
-  - [ ] Create TravelServiceClient (WebClient)
-  - [ ] Create ExpenseServiceClient
-  - [ ] Create DelegationServiceClient
-  - [ ] Create ConsentServiceClient
-  - [ ] Add circuit breakers
-  
-- [ ] **BFF Controllers** (6h)
-  - [ ] Create BookingBffController
-  - [ ] Create ExpenseBffController
-  - [ ] Create DelegationBffController
+
+- [ ] **Keycloak Config** (2h)
+  - [ ] Verify `KC_FEATURES=token-exchange-standard` is set in docker-compose.yml ✅ (already done)
+  - [ ] After Keycloak starts: enable **Standard token exchange** toggle on `employee-bff` client in Admin Console
+  - [ ] Do NOT configure Client Policies or `secure-token-exchange` executor — not needed for V2
+  - [ ] Do NOT use deprecated per-client `oauth2.token.exchange.enabled` attribute ✅ (already removed)
+  - [ ] Test token exchange with curl — verify `subject_token` is required (400 without it), verify `sub` in result equals actor (not delegation target)
+
+- [ ] **SecurityContext Extension in security-commons** (2h)
+  - [ ] Add `subjectId` field (from `X-Delegated-Subject` header)
+  - [ ] Add `delegationId` field (from `X-Delegation-Id` header)
+  - [ ] Add `isDelegated()` helper
+  - [ ] Extend `JwtAuthenticationConverter` to read headers and populate new fields
+  - [ ] Update `SecurityContextTestUtil` with delegation context factory methods
+
+- [ ] **Token Exchange** (4h)
+  - [ ] Update `KeycloakTokenExchangeClient` — remove `requested_subject`, keep `subject_token` + `audience` only
+  - [ ] Implement `TokenExchangeService` (actor token + target audience → audience-scoped token)
+  - [ ] Add fail-fast validation that `actorToken` is non-null before calling Keycloak
+
+- [ ] **Delegation Context Service** (4h)
+  - [ ] Implement `DelegationContextService.resolve(actorToken, delegationId, action)`
+    - Fetches and validates delegation record (active, not expired, actor is the delegate)
+    - Validates consent covers the requested action via consent-service
+    - Returns `DelegationContext` (actorToken, subjectId, delegationId, consentId)
+  - [ ] Implement `DelegationContext` model
+  - [ ] Add unit tests with mock delegation-service and consent-service clients
+
+- [ ] **Agent Node Support in Delegation Service** (2h)
+  - [ ] Add `Agent` node type to Neo4j schema (alongside existing `User` node)
+  - [ ] `Agent` carries `agentId` (= Keycloak `client_id`), `tenantId`, `displayName`
+  - [ ] `CAN_ACT_AS` relationship supports both `User→Agent`, `Agent→Agent`, `User→User`
+  - [ ] Update `DelegationGraphRepository` queries to traverse mixed-type chains
+  - [ ] Update `CreateDelegationRequest` to accept optional `delegateType` field (`USER` / `AGENT`)
+
+- [ ] **Service Clients** (4h)
+  - [ ] Create `TravelServiceClient` (WebClient, injects delegation headers)
+  - [ ] Create `ExpenseServiceClient` (same pattern)
+  - [ ] Create `DelegationServiceClient`
+  - [ ] Create `ConsentServiceClient`
+  - [ ] All service clients must inject `X-Delegated-Subject`, `X-Delegation-Id`, `X-Actor-Token` when a `DelegationContext` is active
+
+- [ ] **BFF Controllers** (5h)
+  - [ ] Create `BookingBffController`
+  - [ ] Create `ExpenseBffController`
+  - [ ] Create `DelegationBffController`
   - [ ] Implement API aggregation
-  
-- [ ] **Session Management** (3h)
-  - [ ] Implement delegation context tracking
-  - [ ] Add context switching logic
-  - [ ] Store active delegation in session
-  
+
+- [ ] **Session Management** (2h)
+  - [ ] Store active `DelegationContext` in session
+  - [ ] Activate / deactivate delegation context endpoints
+
 - [ ] **Error Handling** (2h)
   - [ ] Global exception handler
   - [ ] Token exchange failure handling
-  
+  - [ ] Delegation validation failure handling (expired, revoked, no consent)
+
 - [ ] **Testing** (4h)
-  - [ ] Integration tests with WireMock
-  - [ ] Test token exchange flow
+  - [ ] Unit tests for `DelegationContextService` (mock clients)
+  - [ ] Unit tests for `KeycloakTokenExchangeClient` (mock Keycloak)
+  - [ ] Verify `requested_subject` is absent from token exchange calls
+  - [ ] Verify delegation headers are present on all downstream service calls
 
 ---
 
 ### Audit Logging (12 hours)
 
+> **Note**: Audit records must capture both `actor_id` (from JWT `sub`) and `subject_id` (from `SecurityContext.subjectId`, populated from `X-Delegated-Subject` header). This is the mechanism that makes the full delegation chain auditable — the `act` claim is not available from Keycloak Standard V2.
+
 - [ ] **Travel Service** (6h)
-  - [ ] Create BookingAudit entity
-  - [ ] Create BookingAuditRepository
-  - [ ] Implement AuditService
-  - [ ] Integrate into BookingServiceImpl
+  - [ ] Create `BookingAudit` entity with `actorId`, `subjectId`, `delegationId` fields
+  - [ ] Create `BookingAuditRepository`
+  - [ ] Implement `AuditService` reading both `actorId` and `subjectId` from `SecurityContext`
+  - [ ] Integrate into `BookingServiceImpl`
   - [ ] Add audit endpoint
   - [ ] Write tests
   
