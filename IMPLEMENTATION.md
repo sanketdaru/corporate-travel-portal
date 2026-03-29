@@ -4,6 +4,8 @@ This document provides a detailed guide for implementing and extending the Corpo
 
 ## 🏗️ Current Implementation Status
 
+*Last updated: 2026-03-29*
+
 ### ✅ Completed
 
 - [x] Monorepo structure with Gradle multi-project build
@@ -14,19 +16,26 @@ This document provides a detailed guide for implementing and extending the Corpo
 - [x] Shared security library (JWT handling, OPA client, security config)
 - [x] Shared domain models (enums and common types)
 - [x] Comprehensive README documentation
+- [x] Travel Service — bookings CRUD, OPA authorization, unit tests
+- [x] Expense Service — expense + items CRUD, workflow, unit tests
+- [x] API Gateway — Spring Cloud Gateway with JWT validation and routing
+- [x] Delegation Service — JPA + Neo4j dual-write, graph chain traversal, unit tests
+- [x] Consent Service — grant/validate/revoke, purpose binding, audit trail, scheduler, unit tests
 
 ### 🚧 In Progress / To Be Implemented
 
-- [ ] Travel Service (domain service implementation)
-- [ ] Expense Service (domain service implementation)
+- [ ] Audit Logging — `booking_audit` and `expense_audit` schemas exist; service layer not wired
+- [ ] Employee BFF — Token exchange (RFC 8693) + API aggregation + session context
+- [ ] Keycloak token exchange config — Standard Token Exchange V2 via Client Policies + Client Profiles on the realm (do NOT use deprecated per-client `oauth2.token.exchange.enabled` flag)
+
+### ⏸️ Deferred (Post-MVP)
+
 - [ ] Approval Service (workflow engine)
-- [ ] Consent Service (consent management)
-- [ ] Delegation Service (graph-based relationships)
-- [ ] API Gateway (Spring Cloud Gateway)
-- [ ] Employee BFF (Backend-for-Frontend)
 - [ ] Employee Portal (Next.js frontend)
 - [ ] Keycloak SPI for token enrichment
 - [ ] OpenTelemetry observability setup
+- [ ] HashiCorp Vault
+- [ ] Kubernetes deployment
 
 ## 📝 Implementation Patterns
 
@@ -116,7 +125,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8080/realms/corporate-travel
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
 
 server:
   port: 8080
@@ -408,7 +417,7 @@ public class BookingServiceImpl implements BookingService {
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:postgresql://localhost:5432/corporate_travel_test",
-    "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:8080/realms/corporate-travel"
+    "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://keycloak:8080/realms/corporate-travel"
 })
 class BookingControllerIntegrationTest {
     
