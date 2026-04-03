@@ -3,6 +3,7 @@ package com.corporate.travel.bff.config;
 import com.corporate.travel.security.JwtAuthenticationConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -10,6 +11,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
+@Import(JwtAuthenticationConverter.class)
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;

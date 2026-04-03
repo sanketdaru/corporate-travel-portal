@@ -80,6 +80,12 @@ public class TravelServiceClient {
                 .header("X-Delegated-Subject", ctx.getSubjectId())
                 .header("X-Delegation-Id", ctx.getDelegationId())
                 .header("X-Actor-Token", ctx.getActorToken());
+            if (ctx.getConsentId() != null) {
+                spec = spec.header("X-Consent-Id", ctx.getConsentId());
+            }
+            if (ctx.getPurpose() != null) {
+                spec = spec.header("X-Delegation-Purpose", ctx.getPurpose());
+            }
         }
         return spec;
     }

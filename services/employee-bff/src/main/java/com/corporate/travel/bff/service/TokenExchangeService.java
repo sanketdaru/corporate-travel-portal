@@ -68,8 +68,13 @@ public class TokenExchangeService {
         log.debug("Token exchange: actor={}, subject={}, audience={}", actorId, subjectId, targetAudience);
 
         // Step 2: Validate consent and capture consentId for downstream audit records (ADR-011)
+        String purpose = delegation.path("purpose").asText("book_travel");
+        List<String> scopes = new java.util.ArrayList<>();
+        delegation.path("scopes").forEach(s -> scopes.add(s.asText()));
+        if (scopes.isEmpty()) { scopes.add("view_bookings"); }
+
         ConsentCheckResult consentResult = consentServiceClient.hasConsentForScopes(
-            subjectId, actorId, List.of("book_travel"), actorToken);
+            subjectId, actorId, purpose, scopes, actorToken);
         if (!consentResult.isValid()) {
             throw new TokenExchangeException(
                 "No active consent found for actor=" + actorId + " acting on behalf of subject=" + subjectId);
@@ -85,6 +90,7 @@ public class TokenExchangeService {
             .actorId(actorId)
             .subjectId(subjectId)
             .audience(targetAudience)
+            .purpose(purpose)
             .delegationToken(exchangeResponse.getAccessToken())
             .actorToken(actorToken)
             .consentId(consentResult.getConsentId())

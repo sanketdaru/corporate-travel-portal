@@ -4,6 +4,7 @@ import com.corporate.travel.delegation.model.dto.CreateDelegationRequest;
 import com.corporate.travel.delegation.model.dto.DelegationChainResponse;
 import com.corporate.travel.delegation.model.dto.DelegationResponse;
 import com.corporate.travel.delegation.service.DelegationService;
+import com.corporate.travel.security.JwtAuthenticationConverter;
 import com.corporate.travel.security.SecurityContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,7 +28,7 @@ import java.util.UUID;
 
 /**
  * REST Controller for Delegation Management
- * 
+ *
  * Provides endpoints for creating, querying, and revoking delegations
  */
 @RestController
@@ -60,8 +62,8 @@ public class DelegationController {
     })
     public ResponseEntity<DelegationResponse> createDelegation(
             @Valid @RequestBody CreateDelegationRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("POST /api/delegations - Creating delegation for user: {}", securityContext.getUserId());
         DelegationResponse response = delegationService.createDelegation(request, securityContext);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -81,8 +83,8 @@ public class DelegationController {
         @ApiResponse(responseCode = "403", description = "Not authorized")
     })
     public ResponseEntity<List<DelegationResponse>> getMyDelegations(
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("GET /api/delegations/my-delegations - User: {}", securityContext.getUserId());
         List<DelegationResponse> delegations = delegationService.getMyDelegations(securityContext);
         return ResponseEntity.ok(delegations);
@@ -102,8 +104,8 @@ public class DelegationController {
         @ApiResponse(responseCode = "403", description = "Not authorized")
     })
     public ResponseEntity<List<DelegationResponse>> getDelegationsToMe(
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("GET /api/delegations/to-me - User: {}", securityContext.getUserId());
         List<DelegationResponse> delegations = delegationService.getDelegationsToMe(securityContext);
         return ResponseEntity.ok(delegations);
@@ -125,8 +127,8 @@ public class DelegationController {
     })
     public ResponseEntity<DelegationResponse> getDelegation(
             @Parameter(description = "Delegation ID") @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("GET /api/delegations/{} - User: {}", id, securityContext.getUserId());
         DelegationResponse response = delegationService.getDelegation(id, securityContext);
         return ResponseEntity.ok(response);
@@ -144,8 +146,8 @@ public class DelegationController {
     })
     public ResponseEntity<Void> revokeDelegation(
             @Parameter(description = "Delegation ID") @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("DELETE /api/delegations/{} - User: {}", id, securityContext.getUserId());
         delegationService.revokeDelegation(id, securityContext);
         return ResponseEntity.noContent().build();
@@ -167,8 +169,8 @@ public class DelegationController {
     })
     public ResponseEntity<List<DelegationChainResponse>> getDelegationChain(
             @Parameter(description = "User ID to query chain for") @RequestParam String userId,
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("GET /api/delegations/chain?userId={} - Requester: {}", userId, securityContext.getUserId());
         List<DelegationChainResponse> chain = delegationService.getDelegationChain(userId, securityContext);
         return ResponseEntity.ok(chain);
@@ -186,8 +188,8 @@ public class DelegationController {
     public ResponseEntity<Boolean> checkDelegation(
             @Parameter(description = "Delegator user ID") @RequestParam String delegatorId,
             @Parameter(description = "Delegate user ID") @RequestParam String delegateId,
-            @Parameter(hidden = true) @AuthenticationPrincipal SecurityContext securityContext) {
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+        SecurityContext securityContext = JwtAuthenticationConverter.extractSecurityContext(jwt);
         logger.info("GET /api/delegations/check - delegator={}, delegate={}", delegatorId, delegateId);
         boolean exists = delegationService.hasDelegation(delegatorId, delegateId, securityContext);
         return ResponseEntity.ok(exists);

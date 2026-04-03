@@ -29,6 +29,9 @@ public class DelegationContext {
     /** The audience this delegation token is scoped to (e.g. "travel-service") */
     private String audience;
 
+    /** The delegation purpose (e.g. "book_travel"). Forwarded as X-Delegation-Purpose. */
+    private String purpose;
+
     /** The audience-scoped delegation token issued by Keycloak (sub=actor, aud=target-service) */
     private String delegationToken;
 

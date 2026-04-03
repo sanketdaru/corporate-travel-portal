@@ -62,6 +62,8 @@ public class DelegationServiceImpl implements DelegationService {
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation",
             "action", "create",
+            "tenant_id", context.getTenantId(),
+            "delegator_id", context.getUserId(),
             "delegate_id", request.getDelegateId()
         );
 
@@ -108,7 +110,8 @@ public class DelegationServiceImpl implements DelegationService {
         // Check OPA authorization
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation",
-            "action", "view"
+            "action", "view",
+            "tenant_id", context.getTenantId()
         );
 
         if (!opaClient.authorize(context, "view_delegations", resourceContext)) {
@@ -133,7 +136,8 @@ public class DelegationServiceImpl implements DelegationService {
         // Check OPA authorization
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation",
-            "action", "view"
+            "action", "view",
+            "tenant_id", context.getTenantId()
         );
 
         if (!opaClient.authorize(context, "view_delegations", resourceContext)) {
@@ -163,11 +167,12 @@ public class DelegationServiceImpl implements DelegationService {
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation",
             "action", "view",
+            "tenant_id", context.getTenantId(),
             "delegator_id", delegation.getDelegatorId(),
             "delegate_id", delegation.getDelegateId()
         );
 
-        if (!opaClient.authorize(context, "view_delegation", resourceContext)) {
+        if (!opaClient.authorize(context, "view_delegations", resourceContext)) {
             throw new AccessDeniedException("Not authorized to view this delegation");
         }
 
@@ -187,6 +192,7 @@ public class DelegationServiceImpl implements DelegationService {
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation",
             "action", "revoke",
+            "tenant_id", context.getTenantId(),
             "delegator_id", delegation.getDelegatorId()
         );
 
@@ -210,11 +216,12 @@ public class DelegationServiceImpl implements DelegationService {
         // Check OPA authorization
         Map<String, Object> resourceContext = Map.of(
             "resource_type", "delegation_chain",
-            "action", "query",
+            "action", "view",
+            "tenant_id", context.getTenantId(),
             "target_user_id", userId
         );
 
-        if (!opaClient.authorize(context, "query_delegation_chain", resourceContext)) {
+        if (!opaClient.authorize(context, "view_delegations", resourceContext)) {
             throw new AccessDeniedException("Not authorized to query delegation chain");
         }
 

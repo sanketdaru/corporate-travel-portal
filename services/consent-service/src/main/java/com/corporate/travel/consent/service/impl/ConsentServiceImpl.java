@@ -51,7 +51,9 @@ public class ConsentServiceImpl implements ConsentService {
                 request.getGrantorId(), request.getGranteeId(), request.getPurpose());
 
         // Authorize with OPA
-        if (!opaClient.authorize(context, "create_consent", buildResourceContext(request))) {
+        Map<String, Object> createResource = buildResourceContext(request);
+        createResource.put("tenant_id", context.getTenantId());
+        if (!opaClient.authorize(context, "create_consent", createResource)) {
             throw new AccessDeniedException("Not authorized to grant consent");
         }
 
@@ -118,7 +120,7 @@ public class ConsentServiceImpl implements ConsentService {
         logger.info("Getting consents granted by user: userId={}", context.getUserId());
 
         // Authorize with OPA
-        if (!opaClient.authorize(context, "list_my_consents", Map.of())) {
+        if (!opaClient.authorize(context, "list_my_consents", Map.of("tenant_id", context.getTenantId()))) {
             throw new AccessDeniedException("Not authorized to list consents");
         }
 
@@ -136,7 +138,7 @@ public class ConsentServiceImpl implements ConsentService {
         logger.info("Getting consents granted to user: userId={}", context.getUserId());
 
         // Authorize with OPA
-        if (!opaClient.authorize(context, "list_consents_to_me", Map.of())) {
+        if (!opaClient.authorize(context, "list_consents_to_me", Map.of("tenant_id", context.getTenantId()))) {
             throw new AccessDeniedException("Not authorized to list consents");
         }
 
@@ -180,7 +182,7 @@ public class ConsentServiceImpl implements ConsentService {
                 request.getGrantorId(), request.getGranteeId(), request.getPurpose());
 
         // Authorize with OPA
-        if (!opaClient.authorize(context, "validate_consent", Map.of())) {
+        if (!opaClient.authorize(context, "validate_consent", Map.of("tenant_id", context.getTenantId()))) {
             throw new AccessDeniedException("Not authorized to validate consent");
         }
 

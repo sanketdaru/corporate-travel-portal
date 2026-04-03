@@ -189,6 +189,35 @@ allow if {
     is_same_tenant
 }
 
+# Consent Authorization
+
+# Allow user to grant consent on their own behalf (they are the grantor)
+allow if {
+    input.action == "create_consent"
+    is_same_tenant
+    input.resource.grantor_id == input.user.user_id
+}
+
+# Allow user to view, revoke, or audit their own consents
+allow if {
+    input.action in ["view_consent", "revoke_consent", "view_consent_audit"]
+    is_same_tenant
+    input.resource.grantor_id == input.user.user_id
+}
+
+# Allow grantee to view consents granted to them
+allow if {
+    input.action == "view_consent"
+    is_same_tenant
+    input.resource.grantee_id == input.user.user_id
+}
+
+# Allow any authenticated user in the same tenant to list and validate consents
+allow if {
+    input.action in ["list_my_consents", "list_consents_to_me", "validate_consent"]
+    is_same_tenant
+}
+
 # Admin Authorization
 
 # Allow admin to perform any action within their tenant

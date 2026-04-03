@@ -3,7 +3,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          issuer-uri: http://localhost:8080/realms/corporate-travel
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
 
 # Service URLs in Docker network
 # Routes use service names defined in docker-compose.yml

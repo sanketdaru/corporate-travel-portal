@@ -2,6 +2,7 @@ package com.corporate.travel.consent.controller;
 
 import com.corporate.travel.consent.model.dto.*;
 import com.corporate.travel.consent.service.ConsentService;
+import com.corporate.travel.security.JwtAuthenticationConverter;
 import com.corporate.travel.security.SecurityContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -133,18 +134,6 @@ public class ConsentController {
 
     private SecurityContext buildSecurityContext(Authentication authentication) {
         Jwt jwt = (Jwt) authentication.getPrincipal();
-        
-        String userId = jwt.getClaimAsString("sub");
-        String tenantId = jwt.getClaimAsString("tenant_id");
-        String actorSub = jwt.getClaimAsString("act") != null ? 
-            jwt.getClaimAsString("act") : userId;
-        String subjectId = jwt.getClaimAsString("act") != null ? userId : null;
-        
-        return SecurityContext.builder()
-                .userId(userId)
-                .tenantId(tenantId)
-                .actorId(actorSub)
-                .subjectId(subjectId)
-                .build();
+        return JwtAuthenticationConverter.extractSecurityContext(jwt);
     }
 }

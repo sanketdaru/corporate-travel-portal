@@ -21,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -62,11 +63,12 @@ public class BookingController {
     public ResponseEntity<Booking> createBooking(
             @Parameter(description = "Booking details", required = true)
             @Valid @RequestBody Booking booking,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.info("Creating booking for user: {}", context.getUserId());
-        
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.info("Creating booking for user: {}, isDelegated: {}", context.getUserId(), context.isDelegated());
+
         Booking created = bookingService.createBooking(booking, context);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -87,9 +89,10 @@ public class BookingController {
     })
     @GetMapping
     public ResponseEntity<List<Booking>> getUserBookings(
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.debug("Fetching bookings for user: {}", context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.debug("Fetching bookings for user: {}, isDelegated: {}", context.getUserId(), context.isDelegated());
         
         List<Booking> bookings = bookingService.getUserBookings(context);
         return ResponseEntity.ok(bookings);
@@ -115,9 +118,10 @@ public class BookingController {
     public ResponseEntity<Booking> getBooking(
             @Parameter(description = "Booking UUID", required = true)
             @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
         log.debug("Fetching booking {} for user: {}", id, context.getUserId());
         
         Booking booking = bookingService.getBooking(id, context);
