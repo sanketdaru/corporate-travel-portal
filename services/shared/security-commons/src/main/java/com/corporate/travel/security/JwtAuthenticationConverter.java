@@ -96,8 +96,9 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         }
 
         // Delegation headers present — override delegation fields
-        String consentId = request.getHeader("X-Consent-Id");
-        String purpose   = request.getHeader("X-Delegation-Purpose");
+        String delegationId = request.getHeader("X-Delegation-Id");
+        String consentId    = request.getHeader("X-Consent-Id");
+        String purpose      = request.getHeader("X-Delegation-Purpose");
 
         return SecurityContext.builder()
                 .userId(base.getUserId())
@@ -108,6 +109,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
                 .isDelegated(true)
                 .actorId(base.getUserId())   // actor = JWT bearer (Dave)
                 .subjectId(delegatedSubject) // subject = Carol (from header)
+                .delegationId(delegationId)
                 .consentId(consentId)
                 .purpose(purpose)
                 .build();

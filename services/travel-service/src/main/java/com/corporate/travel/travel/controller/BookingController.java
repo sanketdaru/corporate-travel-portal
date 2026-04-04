@@ -4,6 +4,8 @@ import com.corporate.travel.models.BookingStatus;
 import com.corporate.travel.security.JwtAuthenticationConverter;
 import com.corporate.travel.security.SecurityContext;
 import com.corporate.travel.travel.model.entity.Booking;
+import com.corporate.travel.travel.model.entity.BookingAudit;
+import com.corporate.travel.travel.service.BookingAuditService;
 import com.corporate.travel.travel.service.BookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,6 +44,7 @@ import java.util.UUID;
 public class BookingController {
     
     private final BookingService bookingService;
+    private final BookingAuditService bookingAuditService;
     
     /**
      * Create a new booking
@@ -167,11 +170,29 @@ public class BookingController {
         return ResponseEntity.ok(updated);
     }
     
-    /**
-     * Delete/cancel a booking
-     * 
-     * DELETE /api/bookings/{id}
-     */
+    @Operation(
+        summary = "Get booking audit trail",
+        description = "Returns all audit records for a booking, ordered by most recent first (ADR-011)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Audit trail retrieved successfully"),
+        @ApiResponse(responseCode = "401", description = "Not authenticated", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Not authorized", content = @Content),
+        @ApiResponse(responseCode = "404", description = "Booking not found", content = @Content)
+    })
+    @GetMapping("/{id}/audit")
+    public ResponseEntity<List<BookingAudit>> getBookingAudit(
+            @Parameter(description = "Booking UUID", required = true)
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        bookingService.getBooking(id, context);
+        List<BookingAudit> trail = bookingAuditService.getAuditTrail(id, context);
+        return ResponseEntity.ok(trail);
+    }
+
     @Operation(
         summary = "Delete booking",
         description = "Deletes or cancels a booking. Authorization ensures only authorized users can delete bookings."
@@ -187,10 +208,10 @@ public class BookingController {
             @Parameter(description = "Booking UUID", required = true)
             @PathVariable UUID id,
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
+
         SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
         log.info("Deleting booking {} by user: {}", id, context.getUserId());
-        
+
         bookingService.deleteBooking(id, context);
         return ResponseEntity.noContent().build();
     }

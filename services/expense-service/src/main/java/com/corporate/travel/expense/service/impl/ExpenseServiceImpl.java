@@ -7,6 +7,7 @@ import com.corporate.travel.expense.model.entity.Expense;
 import com.corporate.travel.expense.model.entity.ExpenseItem;
 import com.corporate.travel.expense.repository.ExpenseItemRepository;
 import com.corporate.travel.expense.repository.ExpenseRepository;
+import com.corporate.travel.expense.service.ExpenseAuditService;
 import com.corporate.travel.expense.service.ExpenseService;
 import com.corporate.travel.models.ExpenseStatus;
 import com.corporate.travel.security.OpaClient;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,6 +36,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final ExpenseItemRepository expenseItemRepository;
     private final OpaClient opaClient;
+    private final ExpenseAuditService auditService;
     
     @Override
     public Expense createExpense(Expense expense, SecurityContext context) {
@@ -55,9 +58,16 @@ public class ExpenseServiceImpl implements ExpenseService {
             throw new AccessDeniedException("Not authorized to create expenses");
         }
         
-        return expenseRepository.save(expense);
+        Expense saved = expenseRepository.save(expense);
+
+        Map<String, Object> auditDetails = new HashMap<>();
+        auditDetails.put("status", saved.getStatus().toString());
+        auditDetails.put("title", saved.getTitle());
+        auditService.record(saved.getId(), "CREATE", auditDetails, context);
+
+        return saved;
     }
-    
+
     @Override
     @Transactional(readOnly = true)
     public Expense getExpense(UUID id, SecurityContext context) {
@@ -109,10 +119,12 @@ public class ExpenseServiceImpl implements ExpenseService {
         if (expenseUpdate.getCurrency() != null) expense.setCurrency(expenseUpdate.getCurrency());
         if (expenseUpdate.getBookingId() != null) expense.setBookingId(expenseUpdate.getBookingId());
         expense.setUpdatedBy(context.getUserId());
-        
-        return expenseRepository.save(expense);
+
+        Expense updated = expenseRepository.save(expense);
+        auditService.record(updated.getId(), "UPDATE", Map.of("title", updated.getTitle()), context);
+        return updated;
     }
-    
+
     @Override
     public void deleteExpense(UUID id, SecurityContext context) {
         Expense expense = expenseRepository.findByIdAndTenantId(id, context.getTenantId())
@@ -130,6 +142,7 @@ public class ExpenseServiceImpl implements ExpenseService {
         }
         
         expenseRepository.delete(expense);
+        auditService.record(id, "DELETE", Map.of("status", expense.getStatus().toString()), context);
     }
     
     @Override
@@ -236,8 +249,10 @@ public class ExpenseServiceImpl implements ExpenseService {
         expense.setStatus(ExpenseStatus.SUBMITTED);
         expense.setSubmissionDate(LocalDateTime.now());
         expense.setUpdatedBy(context.getUserId());
-        
-        return expenseRepository.save(expense);
+
+        Expense submitted = expenseRepository.save(expense);
+        auditService.record(submitted.getId(), "SUBMIT", Map.of("itemCount", submitted.getItems().size()), context);
+        return submitted;
     }
     
     @Override
@@ -260,10 +275,13 @@ public class ExpenseServiceImpl implements ExpenseService {
         expense.setApprovalDate(LocalDateTime.now());
         expense.setApproverId(context.getUserId());
         expense.setUpdatedBy(context.getUserId());
-        
-        return expenseRepository.save(expense);
+
+        Expense approved = expenseRepository.save(expense);
+        auditService.record(approved.getId(), "APPROVE",
+            comments != null ? Map.of("comments", comments) : Map.of(), context);
+        return approved;
     }
-    
+
     @Override
     public Expense rejectExpense(UUID id, String comments, SecurityContext context) {
         Expense expense = expenseRepository.findByIdAndTenantId(id, context.getTenantId())
@@ -284,7 +302,10 @@ public class ExpenseServiceImpl implements ExpenseService {
         expense.setApprovalDate(LocalDateTime.now());
         expense.setApproverId(context.getUserId());
         expense.setUpdatedBy(context.getUserId());
-        
-        return expenseRepository.save(expense);
+
+        Expense rejected = expenseRepository.save(expense);
+        auditService.record(rejected.getId(), "REJECT",
+            comments != null ? Map.of("comments", comments) : Map.of(), context);
+        return rejected;
     }
 }

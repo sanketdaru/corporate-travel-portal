@@ -13,6 +13,12 @@ services:
       - postgres_data:/var/lib/postgresql
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d corporate_travel"]
       interval: 10s
@@ -35,6 +41,12 @@ services:
       - neo4j_logs:/logs
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+        reservations:
+          memory: 1024m
     healthcheck:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password123", "RETURN 1"]
       interval: 10s
@@ -70,6 +82,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+        reservations:
+          memory: 512m
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/corporate-travel HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 30s
@@ -94,6 +112,12 @@ services:
       - ./infrastructure/opa/policies:/policies
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+        reservations:
+          memory: 64m
     healthcheck:
       test: ["CMD", "/opa", "version"]
       interval: 10s
@@ -127,6 +151,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+        reservations:
+          memory: 192m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
       interval: 30s
@@ -161,6 +191,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
       interval: 30s
@@ -195,6 +231,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
       interval: 30s
@@ -229,6 +271,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+        reservations:
+          memory: 192m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
       interval: 30s
@@ -288,6 +336,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
       interval: 30s
@@ -326,6 +380,12 @@ services:
         condition: service_healthy
     networks:
       - corporate-travel-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/actuator/health"]
       interval: 30s

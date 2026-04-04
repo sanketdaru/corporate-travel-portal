@@ -23,6 +23,9 @@ public class SecurityContext {
     private String actorId;  // Who is actually performing the action
     private String subjectId;  // On whose behalf the action is performed
     
+    // Delegation identity
+    private String delegationId;  // UUID of the delegation record in delegation-service
+
     // Consent context
     private String consentId;
     private String purpose;

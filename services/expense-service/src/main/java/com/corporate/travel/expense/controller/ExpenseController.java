@@ -1,7 +1,9 @@
 package com.corporate.travel.expense.controller;
 
 import com.corporate.travel.expense.model.entity.Expense;
+import com.corporate.travel.expense.model.entity.ExpenseAudit;
 import com.corporate.travel.expense.model.entity.ExpenseItem;
+import com.corporate.travel.expense.service.ExpenseAuditService;
 import com.corporate.travel.expense.service.ExpenseService;
 import com.corporate.travel.models.ExpenseStatus;
 import com.corporate.travel.security.JwtAuthenticationConverter;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,7 @@ import java.util.UUID;
 public class ExpenseController {
     
     private final ExpenseService expenseService;
+    private final ExpenseAuditService expenseAuditService;
     
     @Operation(
         summary = "Create a new expense report",
@@ -129,6 +133,28 @@ public class ExpenseController {
     }
     
     @Operation(
+        summary = "Get expense audit trail",
+        description = "Returns all audit records for an expense, ordered by most recent first (ADR-011)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Audit trail retrieved successfully"),
+        @ApiResponse(responseCode = "401", description = "Not authenticated", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Not authorized", content = @Content),
+        @ApiResponse(responseCode = "404", description = "Expense not found", content = @Content)
+    })
+    @GetMapping("/{id}/audit")
+    public ResponseEntity<List<ExpenseAudit>> getExpenseAudit(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        expenseService.getExpense(id, context);
+        List<ExpenseAudit> trail = expenseAuditService.getAuditTrail(id, context);
+        return ResponseEntity.ok(trail);
+    }
+
+    @Operation(
         summary = "Delete expense report",
         description = "Deletes an expense report (only in DRAFT status)"
     )
@@ -143,10 +169,10 @@ public class ExpenseController {
     public ResponseEntity<Void> deleteExpense(
             @PathVariable UUID id,
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
+
         SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
         log.info("Deleting expense {} by user: {}", id, context.getUserId());
-        
+
         expenseService.deleteExpense(id, context);
         return ResponseEntity.noContent().build();
     }

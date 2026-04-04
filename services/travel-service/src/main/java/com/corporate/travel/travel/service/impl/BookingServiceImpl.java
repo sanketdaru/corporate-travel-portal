@@ -6,6 +6,7 @@ import com.corporate.travel.security.SecurityContext;
 import com.corporate.travel.travel.exception.BookingNotFoundException;
 import com.corporate.travel.travel.model.entity.Booking;
 import com.corporate.travel.travel.repository.BookingRepository;
+import com.corporate.travel.travel.service.BookingAuditService;
 import com.corporate.travel.travel.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +40,7 @@ public class BookingServiceImpl implements BookingService {
     
     private final BookingRepository bookingRepository;
     private final OpaClient opaClient;
+    private final BookingAuditService auditService;
     
     @Override
     public Booking createBooking(Booking booking, SecurityContext context) {
@@ -75,7 +78,13 @@ public class BookingServiceImpl implements BookingService {
         
         Booking saved = bookingRepository.save(booking);
         log.info("Booking created with ID: {}", saved.getId());
-        
+
+        Map<String, Object> auditDetails = new HashMap<>();
+        auditDetails.put("bookingType", saved.getBookingType().toString());
+        auditDetails.put("destination", saved.getDestination());
+        auditDetails.put("status", saved.getStatus().toString());
+        auditService.record(saved.getId(), "CREATE", auditDetails, context);
+
         return saved;
     }
     
@@ -163,13 +172,18 @@ public class BookingServiceImpl implements BookingService {
             throw new AccessDeniedException("Not authorized to update this booking");
         }
         
-        // Update status
+        // Capture old status before mutating (for audit)
+        String oldStatus = booking.getStatus().toString();
+
         booking.setStatus(status);
         booking.setUpdatedBy(context.getUserId());
-        
+
         Booking updated = bookingRepository.save(booking);
         log.info("Booking {} status updated to {}", id, status);
-        
+
+        auditService.record(updated.getId(), "STATUS_CHANGE",
+            Map.of("oldStatus", oldStatus, "newStatus", status.toString()), context);
+
         return updated;
     }
     
@@ -200,5 +214,8 @@ public class BookingServiceImpl implements BookingService {
         // Delete the booking
         bookingRepository.delete(booking);
         log.info("Booking {} deleted", id);
+
+        auditService.record(id, "DELETE",
+            Map.of("status", booking.getStatus().toString()), context);
     }
 }

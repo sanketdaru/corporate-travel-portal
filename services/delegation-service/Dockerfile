@@ -73,7 +73,7 @@ EXPOSE 8083
 # JVM optimization flags for container environments
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
-    -XX:InitialRAMPercentage=50.0 \
+    -XX:InitialRAMPercentage=25.0 \
     -XX:+ExitOnOutOfMemoryError \
     -XX:+UseG1GC \
     -XX:+UseStringDeduplication \
