@@ -154,9 +154,10 @@ public class BookingController {
             @PathVariable UUID id,
             @Parameter(description = "Status update request with 'status' field (PENDING, CONFIRMED, COMPLETED, CANCELLED)", required = true)
             @RequestBody Map<String, String> request,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest httpRequest) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, httpRequest);
         log.info("Updating booking {} status by user: {}", id, context.getUserId());
         
         String statusStr = request.get("status");
@@ -207,9 +208,10 @@ public class BookingController {
     public ResponseEntity<Void> deleteBooking(
             @Parameter(description = "Booking UUID", required = true)
             @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest httpRequest) {
 
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, httpRequest);
         log.info("Deleting booking {} by user: {}", id, context.getUserId());
 
         bookingService.deleteBooking(id, context);

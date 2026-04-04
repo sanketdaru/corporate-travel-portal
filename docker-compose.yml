@@ -105,6 +105,7 @@ services:
       - "--server"
       - "--addr=0.0.0.0:8181"
       - "--log-level=debug"
+      - "--watch"
       - "/policies"
     ports:
       - "8181:8181"

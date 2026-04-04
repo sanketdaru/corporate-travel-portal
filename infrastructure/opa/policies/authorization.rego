@@ -69,6 +69,22 @@ allow if {
     is_manager_of_user
 }
 
+# Allow owner to update their own booking status
+allow if {
+    input.action == "update_booking"
+    is_same_tenant
+    is_resource_owner
+}
+
+# Allow delegate to update booking status on behalf of another (with consent)
+allow if {
+    input.action == "update_booking"
+    is_same_tenant
+    has_active_delegation
+    input.consent.valid == true
+    "book_travel" in input.consent.scopes
+}
+
 # Expense Authorization
 
 # Allow user to create expense

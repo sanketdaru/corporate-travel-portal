@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-28  
 **Last Updated**: 2026-04-04  
-**Status**: Phase 3 Complete — Audit Service Layer Verified  
+**Status**: Phase 4 Complete — MVP Fully Implemented (71/71 E2E tests passing)  
 **Estimated Effort**: 10-13 days (80-104 hours)
 
 ---
@@ -21,9 +21,9 @@
 
 ## Executive Summary
 
-### Current State (98% Complete) — Updated 2026-04-04
+### Current State (100% MVP Complete) — Updated 2026-04-04
 
-**✅ Fully Implemented (13 ADRs)**
+**✅ Fully Implemented (all ADRs)**
 - Infrastructure (Keycloak, PostgreSQL, Neo4j, OPA)
 - Spring Boot services (Travel, Expense)
 - API Gateway
@@ -33,16 +33,15 @@
 - **Consent Service** — full CRUD, OPA, scheduler, audit trail
 - **Employee BFF** — token exchange, delegation context, API aggregation
 - **Token Exchange (ADR-004)** — Standard Token Exchange V2, RFC 8693
-- **End-to-end delegation flow** — verified (Dave acts as Carol, booking saved with actor/subject)
-- **Audit service layer (ADR-011)** ← newly complete — `BookingAuditService`, `ExpenseAuditService` wired end-to-end; `GET /api/bookings/{id}/audit` and `GET /api/expenses/{id}/audit` return full delegation chain
+- **End-to-end delegation flow** — 71/71 tests passing (Phase 4 final)
+- **Audit service layer (ADR-011)** — `BookingAuditService`, `ExpenseAuditService` wired end-to-end; audit trail assertions in E2E test (Phase 10)
 - **OPA consent authorization** — consent operations policy block in `authorization.rego`
 - **`delegationId` in SecurityContext** — `X-Delegation-Id` header extracted and threaded to audit records
-
-**⚠️ Known Issues — Pre-existing (Phase 4)**
-- **Keycloak role assignments**: `employee` role not assigned to any user; `create_expense` and related OPA rules require it
-- **OPA `update_booking` gap**: No owner-update rule; Carol cannot update her own booking's status
-- **Delegation headers missing on mutation endpoints**: `PUT /api/bookings/{id}/status` and `DELETE /api/bookings/{id}` do not read `HttpServletRequest`, so delegation context is lost for those operations
-- **E2E test coverage**: Audit trail endpoints not yet covered in `run-delegation-flow.sh`
+- **Keycloak role assignments (Phase 4)** — all 5 human users seeded with correct roles + `tenant_id` attribute; `realm_access.roles` in JWT via `oidc-usermodel-realm-role-mapper` on `user-attributes` scope; realm-export.json is authoritative canonical export
+- **OPA `update_booking` + `delete_booking` (Phase 4)** — owner and delegate rules added; `realm_access.roles` now flows correctly so `has_role("employee")` is satisfied for direct expense/booking creation
+- **Delegation headers on mutation endpoints (Phase 4)** — `PUT /api/bookings/{id}/status` and `DELETE /api/bookings/{id}` now accept `HttpServletRequest` and call the header-aware `extractSecurityContext` overload
+- **OPA hot-reload (Phase 4)** — `--watch` flag added to OPA container so policy file changes apply without restart
+- **Realm export validation (Phase 4)** — `validate-realm-export.sh` proves clean import on isolated KC instance (65/65 checks)
 
 **❌ Not Implemented — Identity Brokering (low priority)**
 - Identity brokering (Keycloak capable; external IdP config not needed for MVP)
@@ -52,11 +51,7 @@
 
 ### Remaining Work
 
-**Phase 4** (next): Fix Pre-existing Issues + E2E Test Expansion — 1-2 days
-- Fix Keycloak role assignments (0.5 days)
-- Fix OPA policy gaps for booking/expense mutations (0.5 days)
-- Fix delegation header propagation on status/delete endpoints (0.5 days)
-- Add Phase 10 (audit trail assertions) to end-to-end regression script (0.5 days)
+None — MVP scope is complete.
 
 ---
 

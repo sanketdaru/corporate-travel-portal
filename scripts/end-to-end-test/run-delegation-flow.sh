@@ -589,6 +589,60 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Phase 10: Audit trail assertions (ADR-011)
+# ---------------------------------------------------------------------------
+header "Phase 10 — Audit trail assertions (ADR-011)"
+
+if [[ -z "${BOOKING_ID:-}" || "$BOOKING_ID" == "null" ]]; then
+  skip "Skipping audit trail checks — no booking was created in Phase 7"
+else
+  info "Fetching audit trail for booking $BOOKING_ID"
+  AUDIT_RESPONSE=$(curl -s "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID/audit" \
+    -H "Authorization: Bearer $DELEGATION_TOKEN" \
+    -H "X-Delegated-Subject: $CAROL_USER" \
+    -H "X-Delegation-Id: $DELEGATION_ID" \
+    -H "X-Consent-Id: $BFF_CONSENT_ID" \
+    -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
+    -H "X-Actor-Token: $DAVE_TOKEN")
+
+  AUDIT_COUNT=$(echo "$AUDIT_RESPONSE" | jq 'length // 0')
+  if [[ "$AUDIT_COUNT" -gt 0 ]]; then
+    pass "Audit trail is non-empty ($AUDIT_COUNT record(s))"
+  else
+    fail "Audit trail is empty (expected at least one record)"
+  fi
+
+  FIRST_RECORD=$(echo "$AUDIT_RESPONSE" | jq -r '.[0] // empty')
+  if [[ -n "$FIRST_RECORD" && "$FIRST_RECORD" != "null" ]]; then
+    AUDIT_ACTOR=$(echo "$FIRST_RECORD" | jq -r '.actorId // empty')
+    AUDIT_SUBJECT=$(echo "$FIRST_RECORD" | jq -r '.subjectId // empty')
+    AUDIT_BOOKING=$(echo "$FIRST_RECORD" | jq -r '.bookingId // empty')
+    AUDIT_ACTION=$(echo "$FIRST_RECORD" | jq -r '.action // empty')
+
+    assert_eq  "Audit actorId=Dave"           "$DAVE_USER"  "$AUDIT_ACTOR"
+    assert_eq  "Audit subjectId=Carol"        "$CAROL_USER" "$AUDIT_SUBJECT"
+    assert_not_empty "Audit bookingId present"              "$AUDIT_BOOKING"
+    assert_not_empty "Audit action present"                 "$AUDIT_ACTION"
+
+    AUDIT_DELEGATION=$(echo "$FIRST_RECORD" | jq -r '.delegationId // empty')
+    assert_eq "Audit delegationId matches active delegation" "$DELEGATION_ID" "$AUDIT_DELEGATION"
+  else
+    fail "Could not parse first audit record"
+  fi
+
+  info "Verifying audit trail endpoint is accessible via BFF booking fetch path"
+  AUDIT_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID/audit" \
+    -H "Authorization: Bearer $DELEGATION_TOKEN" \
+    -H "X-Delegated-Subject: $CAROL_USER" \
+    -H "X-Delegation-Id: $DELEGATION_ID" \
+    -H "X-Consent-Id: $BFF_CONSENT_ID" \
+    -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
+    -H "X-Actor-Token: $DAVE_TOKEN")
+  assert_eq "Audit endpoint returns HTTP 200" "200" "$AUDIT_HTTP_CODE"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 TOTAL=$((PASS + FAIL + SKIP))
