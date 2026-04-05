@@ -714,8 +714,8 @@ GET    /api/bff/dashboard                     - Aggregate dashboard data
 - `PUT /api/bookings/{id}/status` and `DELETE /api/bookings/{id}` do not pass `HttpServletRequest` → delegation context dropped
 - E2E test has no Phase 10 assertions for audit trail endpoints
 
-#### 3.2 Documentation Updates ⚠️ Deferred to Phase 4
-- README files, delegation flow guide, IMPLEMENTATION.md still pending
+#### 3.2 Documentation Updates ✅ Complete (2026-04-05)
+- README.md, IMPLEMENTATION.md, DELEGATION-FLOW.md, all service READMEs updated
 
 ---
 
@@ -937,10 +937,10 @@ Once expense creation is fixed (4.1), also add:
   - [x] End-to-end regression script: `scripts/end-to-end-test/run-delegation-flow.sh`
   - [ ] Audit trail verification (audit tables not yet populated by service layer)
   
-- [ ] **Documentation** (4h)
-  - [ ] Update README files
-  - [ ] Create delegation flow guide
-  - [ ] Update IMPLEMENTATION.md
+- [x] **Documentation** (4h)
+  - [x] Update README files
+  - [x] Create delegation flow guide
+  - [x] Update IMPLEMENTATION.md
 
 ---
 
@@ -1039,7 +1039,7 @@ class DelegationServiceIntegrationTest {
 - [x] `booking_audit` and `expense_audit` tables populated on every mutation
 - [x] `GET /api/bookings/{id}/audit` and `GET /api/expenses/{id}/audit` return full delegation trail
 - [x] All 64 existing end-to-end regression assertions still passing
-- [ ] README and delegation flow guide updated ← deferred to Phase 4
+- [x] README and delegation flow guide updated ✅ 2026-04-05
 
 ### Phase 4 Complete When:
 - [ ] `employee` Keycloak role assigned to `carol.executive` and `dave.assistant`; `create_expense` and workflow operations succeed without 403
@@ -1047,7 +1047,7 @@ class DelegationServiceIntegrationTest {
 - [ ] `PUT /api/bookings/{id}/status` and `DELETE /api/bookings/{id}` pass `HttpServletRequest`; delegation context threaded for Dave acting as Carol
 - [ ] E2E regression script Phase 10: audit trail assertions pass (actorId, subjectId, delegationId, consentId, action=CREATE)
 - [ ] E2E regression script Phase 11: expense delegation + audit assertions pass (requires 4.1 fix)
-- [ ] README files and delegation flow guide updated
+- [x] README files and delegation flow guide updated ✅ 2026-04-05
 
 ---
 

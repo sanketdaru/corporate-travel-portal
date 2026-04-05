@@ -1,20 +1,22 @@
-# Corporate Travel & Expense Platform - Identity Reference Implementation
+# Corporate Travel & Expense Platform — Identity Reference Implementation
 
 A comprehensive multi-tenant Corporate Travel & Expense platform demonstrating advanced identity and access management patterns using Keycloak, OAuth 2.0 Token Exchange, Open Policy Agent, and microservices architecture.
 
-## 🎯 Overview
+**Status**: MVP Complete — 71/71 E2E tests passing (Phase 4, 2026-04-04)
+
+## Overview
 
 This project implements a reference architecture for enterprise identity management featuring:
 
 - **Federated Identity** with Keycloak as central IAM
-- **Delegated Identity** using OAuth 2.0 Token Exchange (RFC 8693)
+- **Delegated Identity** using OAuth 2.0 Token Exchange (RFC 8693) — Standard Token Exchange V2
 - **Multi-Tenant Isolation** with single realm strategy
 - **Fine-Grained Authorization** with Open Policy Agent (OPA)
-- **Backend-for-Frontend (BFF)** pattern
+- **Backend-for-Frontend (BFF)** pattern with delegation context injection
 - **Microservices Architecture** with Spring Boot
-- **Comprehensive Audit Trail** for compliance
+- **Comprehensive Audit Trail** — `actorId`, `subjectId`, `delegationId`, `consentId` on every mutation
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
@@ -26,67 +28,64 @@ This project implements a reference architecture for enterprise identity managem
 - [Testing](#testing)
 - [Architecture Decision Records](#architecture-decision-records)
 
-## 🏗️ Architecture
+## Architecture
 
 ### System Architecture
 
 ```
-┌─────────────────┐
-│  Employee Portal│ (Next.js + React)
-└────────┬────────┘
-         │
-    ┌────▼─────┐
-    │ Employee │
-    │   BFF    │ (Spring Boot)
-    └────┬─────┘
-         │
-    ┌────▼─────────────────────────────────┐
-    │         API Gateway                   │ (Spring Cloud Gateway)
-    │    (JWT Validation, Routing)          │
-    └────┬─────────────────────────────────┘
-         │
-    ┌────┴──────┬──────────┬──────────┬────────────┐
-    │           │          │          │            │
-┌───▼───┐  ┌───▼───┐  ┌───▼────┐ ┌──▼──────┐ ┌──▼────────┐
-│Travel │  │Expense│  │Approval│ │Consent  │ │Delegation │
-│Service│  │Service│  │Service │ │Service  │ │Service    │
-└───┬───┘  └───┬───┘  └───┬────┘ └──┬──────┘ └──┬────────┘
-    │          │          │         │            │
-    └──────────┴──────────┴─────────┴────────────┘
-                     │                    │
-              ┌──────▼──────┐      ┌─────▼─────┐
-              │  PostgreSQL │      │   Neo4j   │
-              └─────────────┘      └───────────┘
+┌──────────────────────────────────────────────────┐
+│  Employee BFF (Spring Boot, Port 8085)           │
+│  Token Exchange · Delegation Context · API Agg.  │
+└───────────────────┬──────────────────────────────┘
+                    │ direct service calls (delegation-aware)
+     ┌──────────────┼─────────────────────────────┐
+     │              │                             │
+┌────▼─────────────────────────────────────────┐  │
+│         API Gateway (Port 8000)              │  │
+│    (JWT Validation, Routing, Circuit Break)  │  │
+└────┬─────────────────────────────────────────┘  │
+     │                                            │
+ ┌───▼───┐  ┌───────┐  ┌──────────┐  ┌──────────▼┐
+ │Travel │  │Expense│  │Consent   │  │Delegation │
+ │Service│  │Service│  │Service   │  │Service    │
+ │:8081  │  │:8082  │  │:8084     │  │:8083      │
+ └───┬───┘  └───┬───┘  └──────────┘  └─────┬─────┘
+     │          │                           │
+     └──────────┴───────────────────────────┘
+                        │                    │
+               ┌────────▼───────┐  ┌────────▼──────┐
+               │   PostgreSQL   │  │     Neo4j     │
+               │   Port 5432    │  │   Port 7687   │
+               └────────────────┘  └───────────────┘
 
-         ┌──────────┐          ┌──────────┐
-         │ Keycloak │          │   OPA    │
-         │   IAM    │          │  Policy  │
-         └──────────┘          └──────────┘
+         ┌──────────────┐          ┌──────────────┐
+         │   Keycloak   │          │     OPA      │
+         │   Port 8080  │          │   Port 8181  │
+         └──────────────┘          └──────────────┘
 ```
 
 ### Key Identity Patterns
 
-1. **Authentication**: Keycloak handles user authentication with SSO support
-2. **Token Exchange**: Delegated actions use OAuth 2.0 Token Exchange (RFC 8693)
-3. **Authorization**: OPA evaluates fine-grained policies based on context
-4. **Multi-Tenancy**: Single realm with group-based tenant isolation
-5. **Consent Management**: External service for purpose-bound delegation
-6. **Audit Trail**: Actor/Subject tracking for all identity-sensitive operations
+1. **Authentication**: Keycloak handles user authentication; `realm_access.roles` delivered via `oidc-usermodel-realm-role-mapper` on `user-attributes` scope
+2. **Token Exchange**: BFF performs Standard Token Exchange V2 (RFC 8693) — Dave's token becomes Carol's audience-scoped delegation token
+3. **Authorization**: OPA evaluates policies including tenant isolation, role checks, ownership, and delegation scope
+4. **Multi-Tenancy**: Single realm, `tenant_id` in all DB tables + JWT, enforced at OPA
+5. **Consent Management**: External consent-service validates purpose-bound delegation before token exchange
+6. **Audit Trail**: Every mutation writes `actorId`/`subjectId`/`delegationId`/`consentId` to audit tables
 
-## 📦 Prerequisites
+## Prerequisites
 
 - **Docker** 24.0+ and Docker Compose
 - **Java** 17+ (for local development)
-- **Node.js** 18+ (for frontend development)
-- **Gradle** 8.0+ (wrapper included)
+- **Gradle** 8.5+ (wrapper included)
 - **Git**
 
 ### System Resources
 
-- Minimum 8GB RAM
-- 20GB available disk space
+- Minimum 8 GB RAM (Neo4j + Keycloak + 5 Spring Boot services)
+- 20 GB available disk space
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone the Repository
 
@@ -95,187 +94,163 @@ git clone <repository-url>
 cd corporate-travel-portal
 ```
 
-### 2. Start Infrastructure Services
+### 2. Start All Services
 
 ```bash
-# Start Keycloak, PostgreSQL, Neo4j, OPA
-docker-compose up -d postgres neo4j keycloak opa
+# Start everything (infrastructure + application services)
+docker-compose up -d
 
-# Wait for services to be healthy (30-60 seconds)
+# Wait for all services to be healthy (60-90 seconds)
 docker-compose ps
 ```
 
 ### 3. Verify Infrastructure
 
-- **Keycloak**: http://localhost:8080 (admin/admin123)
-- **Neo4j Browser**: http://localhost:7474 (neo4j/password123)
-- **OPA**: http://localhost:8181/health
-- **PostgreSQL**: localhost:5432 (admin/admin123)
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Keycloak Admin | http://localhost:8080/admin | admin / admin123 |
+| Neo4j Browser | http://localhost:7474 | neo4j / password123 |
+| OPA Health | http://localhost:8181/health | — |
+| API Gateway | http://localhost:8000/actuator/health | — |
+| Employee BFF | http://localhost:8085/actuator/health | — |
 
-### 4. Build Services
+### 4. Build Services (for local development)
 
 ```bash
-# Build all Spring Boot services
 ./gradlew build
 
-# Or build individual service
+# Build specific service
 ./gradlew :services:travel-service:build
 ```
 
-### 5. Start Application Services
+### 5. Run End-to-End Delegation Regression Test
 
 ```bash
-# Start all application services
-docker-compose up -d
-
-# Or start services individually for development
-./gradlew :services:travel-service:bootRun
+./scripts/end-to-end-test/run-delegation-flow.sh
+# Expected: 71/71 assertions passing
 ```
 
-### 6. Access the Application
-
-- **Employee Portal**: http://localhost:3000
-- **API Gateway**: http://localhost:8000
-- **BFF**: http://localhost:3001
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 corporate-travel-portal/
 ├── architecture-decision-records/   # ADRs documenting architectural choices
 ├── infrastructure/
-│   ├── databases/                   # Database init scripts
-│   ├── keycloak/                    # Keycloak realm configuration
-│   └── opa/                         # OPA authorization policies
+│   ├── databases/                   # PostgreSQL init scripts
+│   ├── keycloak/                    # realm-export.json (authoritative)
+│   └── opa/                         # OPA authorization policies (authorization.rego)
 ├── services/
-│   ├── shared/                      # Shared libraries
-│   │   ├── security-commons/       # Security utilities and OPA client
-│   │   ├── domain-models/          # Shared domain models
-│   │   └── observability/          # OpenTelemetry setup
-│   ├── api-gateway/                # Spring Cloud Gateway
-│   ├── travel-service/             # Travel booking domain service
-│   ├── expense-service/            # Expense management domain service
-│   ├── approval-service/           # Approval workflow service
-│   ├── consent-service/            # Consent and purpose binding
-│   ├── delegation-service/         # Delegation relationship management
-│   └── employee-bff/               # Backend-for-Frontend
-├── frontend/
-│   └── employee-portal/            # Next.js + React application
-├── docs/                           # Additional documentation
-├── scripts/                        # Utility scripts
-├── docker-compose.yml              # Docker Compose configuration
-├── build.gradle                    # Root Gradle build
-└── settings.gradle                 # Gradle multi-project settings
+│   ├── shared/
+│   │   ├── security-commons/        # JWT handling, OPA client, SecurityContext
+│   │   └── domain-models/           # Shared enums (BookingStatus, ExpenseStatus, …)
+│   ├── api-gateway/                 # Spring Cloud Gateway (Port 8000)
+│   ├── travel-service/              # Travel bookings + audit (Port 8081)
+│   ├── expense-service/             # Expense management + audit (Port 8082)
+│   ├── delegation-service/          # Delegation graph (PostgreSQL + Neo4j) (Port 8083)
+│   ├── consent-service/             # Consent lifecycle + purpose binding (Port 8084)
+│   └── employee-bff/                # BFF — token exchange + API aggregation (Port 8085)
+├── scripts/
+│   ├── end-to-end-test/             # run-delegation-flow.sh — 71 E2E assertions
+│   ├── kc-realm-export-test/        # validate-realm-export.sh — 65 realm checks
+│   ├── get-token.sh                 # JWT token retrieval for manual testing
+│   ├── test-opa-policy.sh           # OPA policy validation
+│   ├── setup-local.sh               # Infrastructure setup
+│   └── cleanup.sh                   # Environment cleanup
+├── memory-bank/                     # Project context (projectbrief, systemPatterns, …)
+├── docker-compose.yml
+├── build.gradle
+└── settings.gradle
 ```
 
-## 🔧 Services
+## Services
 
 ### Core Infrastructure
 
-#### Keycloak (IAM Platform)
-- **Port**: 8080
-- **Realm**: corporate-travel
-- **Users**: alice.employee, bob.manager, carol.executive, dave.assistant, eve.employee
-- **Default Password**: password123
+#### Keycloak (IAM Platform) — Port 8080
+- Realm: `corporate-travel`
+- 5 human users seeded: `alice.employee`, `bob.manager`, `carol.executive`, `dave.assistant`, `eve.employee`
+- Default password: `password123`
+- Standard Token Exchange V2 enabled on `employee-bff` client (`KC_FEATURES=token-exchange-standard`)
+- `realm_access.roles` in all tokens via `oidc-usermodel-realm-role-mapper` on `user-attributes` scope
 
-#### PostgreSQL (Primary Database)
-- **Port**: 5432
-- **Schemas**: travel, expense, approval, consent, delegation, keycloak
+#### PostgreSQL — Port 5432
+Schemas: `travel`, `expense`, `consent`, `delegation`, `keycloak`
 
-#### Neo4j (Graph Database)
-- **HTTP**: 7474
-- **Bolt**: 7687
-- **Purpose**: Delegation relationship graph
+#### Neo4j — Port 7474 / 7687
+Graph database for delegation chains (`User` nodes, `CAN_ACT_AS` relationships)
 
-#### OPA (Policy Engine)
-- **Port**: 8181
-- **Policies**: Multi-tenant isolation, delegation-aware authorization
+#### OPA — Port 8181
+Rego policies: multi-tenant isolation, RBAC, delegation-aware rules (`is_resource_owner`, `is_active_delegate`), consent scope validation. Hot-reload via `--watch`.
 
 ### Application Services
 
-#### API Gateway
-- **Port**: 8000
-- **Responsibilities**: JWT validation, routing, rate limiting
+#### API Gateway — Port 8000
+Spring Cloud Gateway; JWT validation, path-based routing to travel-service and expense-service, circuit breakers, security headers.
 
-#### Travel Service
-- **Domain**: Travel booking management
-- **Features**: Create bookings, delegated booking, approval workflow
-- **Database**: travel schema
+#### Travel Service — Port 8081
+Bookings CRUD with OPA authorization. Delegation-aware via `X-Delegated-Subject` / `X-Delegation-Id` headers. Audit trail on CREATE, STATUS_CHANGE, DELETE. See [services/travel-service/README.md](services/travel-service/README.md).
 
-#### Expense Service
-- **Domain**: Expense submission and tracking
-- **Features**: Submit expenses, link to bookings, approval workflow
-- **Database**: expense schema
+#### Expense Service — Port 8082
+Expense reports + line items, submit/approve/reject/pay workflow. Delegation-aware. Audit trail on all mutations. See [services/expense-service/README.md](services/expense-service/README.md).
 
-#### Approval Service
-- **Domain**: Multi-step approval workflows
-- **Features**: Workflow state machine, delegation support, audit trail
-- **Database**: approval schema
+#### Delegation Service — Port 8083
+Delegation CRUD with PostgreSQL (source of truth) + Neo4j (graph traversal). Dual-write on create/revoke. Chain traversal via Cypher. See [services/delegation-service/README.md](services/delegation-service/README.md).
 
-#### Consent Service
-- **Domain**: Consent and purpose binding
-- **Features**: Grant/revoke consent, purpose-based access, consent validation
-- **Database**: consent schema
+#### Consent Service — Port 8084
+Consent lifecycle: grant, validate, revoke, expire. Purpose binding and scope validation. Auto-expiry scheduler. See [services/consent-service/README.md](services/consent-service/README.md).
 
-#### Delegation Service
-- **Domain**: Delegation relationship management
-- **Features**: Create/revoke delegations, relationship traversal, temporal delegation
-- **Databases**: delegation schema (PostgreSQL) + Neo4j graph
+#### Employee BFF — Port 8085
+Standard Token Exchange V2 (RFC 8693), delegation context management (session-scoped), delegation-aware API aggregation for bookings and expenses. See [services/employee-bff/README.md](services/employee-bff/README.md).
 
-#### Employee BFF
-- **Port**: 3001
-- **Responsibilities**: Token exchange, API aggregation, session management
-
-### Frontend
-
-#### Employee Portal
-- **Port**: 3000
-- **Framework**: Next.js 14 + React 18 + TypeScript
-- **Design**: shadcn/ui + Tailwind CSS
-- **Auth**: NextAuth.js with Keycloak provider
-
-## 🎬 Demo Scenarios
+## Demo Scenarios
 
 ### Scenario 1: Basic Employee Flow
 
-1. **Login** as Alice (alice.employee / password123)
-2. **Create Booking**: Book a flight to NYC
-3. **Submit Expense**: Create expense linked to booking
-4. **Login** as Bob (bob.manager / password123)
-5. **Approve**: Bob approves Alice's expense
+```bash
+# 1. Get Alice's token
+TOKEN=$(./scripts/get-token.sh alice.employee password123 | grep "access_token" | ...)
 
-### Scenario 2: Delegation Flow
+# 2. Create a booking
+curl -X POST http://localhost:8081/api/bookings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"bookingType":"FLIGHT","destination":"New York","startDate":"2026-06-01","endDate":"2026-06-05","totalAmount":500.00}'
 
-1. **Login** as Carol (carol.executive / password123)
-2. **Create Delegation**: Grant booking permission to Dave
-3. **Login** as Dave (dave.assistant / password123)
-4. **Act as Carol**: Switch to "Acting as Carol" mode
-5. **Book Travel**: Dave books hotel for Carol
-6. **Audit**: System shows Actor=Dave, Subject=Carol
+# 3. Create an expense
+curl -X POST http://localhost:8082/api/expenses \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"NYC Trip","description":"Client meeting"}'
+```
+
+### Scenario 2: Delegation Flow (Carol + Dave)
+
+For a complete step-by-step walkthrough see [DELEGATION-FLOW.md](DELEGATION-FLOW.md).
+
+**Summary**:
+1. Carol grants a delegation to Dave (via delegation-service)
+2. Carol grants consent with scope `book_travel` / `create_bookings` (via consent-service)
+3. Dave authenticates and gets his own JWT
+4. Dave calls `POST /api/bff/delegation/activate/{delegationId}?audience=travel-service` on BFF
+5. BFF performs Standard Token Exchange V2 — exchanges Dave's token for a delegation token scoped to `travel-service`
+6. Dave calls `POST /api/bff/bookings` — BFF injects delegation headers
+7. Booking is created under Carol; audit record shows `actorId=dave.assistant`, `subjectId=carol.executive`
 
 ### Scenario 3: Multi-Tenant Isolation
 
-1. **Login** as Alice (Tenant A)
-2. **Attempt Access**: Try to view Tenant B data
-3. **Denied**: OPA policy blocks cross-tenant access
-4. **Audit**: Attempt is logged
+1. Login as Alice (Tenant A) and create a booking
+2. Login as Eve (Tenant B) and attempt to retrieve Alice's booking
+3. OPA blocks the request: `tenant_id` mismatch
 
-## 💻 Development
+## Development
 
 ### Build Commands
 
 ```bash
-# Build all services
-./gradlew build
-
-# Build specific service
-./gradlew :services:travel-service:build
-
-# Run tests
-./gradlew test
-
-# Clean build
-./gradlew clean build
+./gradlew build                                         # Build all services
+./gradlew :services:travel-service:build                # Build one service
+./gradlew test                                          # Run all unit tests
+./gradlew clean build                                   # Clean build
 ```
 
 ### Running Services Locally
@@ -286,34 +261,13 @@ docker-compose up -d postgres neo4j keycloak opa
 
 # Run service with Spring Boot
 ./gradlew :services:travel-service:bootRun
-
-# Run with active profile
-./gradlew :services:travel-service:bootRun --args='--spring.profiles.active=local'
-```
-
-### Frontend Development
-
-```bash
-cd frontend/employee-portal
-
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
 ```
 
 ### Database Migrations
 
-Database schemas are automatically created via init scripts. For changes:
+All services use Flyway. Migrations live in `src/main/resources/db/migration/` per service. They apply automatically on startup.
 
-1. Update SQL scripts in `infrastructure/databases/init-scripts/`
-2. Restart PostgreSQL: `docker-compose restart postgres`
-
-## 🧪 Testing
+## Testing
 
 ### Test Users
 
@@ -321,85 +275,103 @@ Database schemas are automatically created via init scripts. For changes:
 |----------|----------|------|--------|---------|
 | alice.employee | password123 | employee | tenant-a | Standard employee |
 | bob.manager | password123 | manager | tenant-a | Manager with approval rights |
-| carol.executive | password123 | executive | tenant-a | Executive for delegation demos |
-| dave.assistant | password123 | assistant | tenant-a | Assistant to executive |
-| eve.employee | password123 | employee | tenant-b | Tenant isolation demos |
+| carol.executive | password123 | executive | tenant-a | Delegation subject |
+| dave.assistant | password123 | assistant | tenant-a | Delegation actor |
+| eve.employee | password123 | employee | tenant-b | Tenant isolation testing |
 
-### Testing Authorization
+### End-to-End Regression
+
+```bash
+./scripts/end-to-end-test/run-delegation-flow.sh
+```
+
+The script runs 10 phases covering:
+- Direct booking and expense creation (alice, carol)
+- Delegation setup (carol → dave)
+- Consent setup
+- Token exchange via BFF
+- Delegated booking creation
+- OPA authorization for owner and delegate
+- Audit trail verification (actorId, subjectId, delegationId, consentId)
+
+### Manual Token Testing
 
 ```bash
 # Get access token
-curl -X POST "http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token" \
+curl -s -X POST "http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token" \
   -d "client_id=employee-portal" \
   -d "username=alice.employee" \
   -d "password=password123" \
-  -d "grant_type=password"
+  -d "grant_type=password" | jq -r '.access_token'
 
-# Use token to call API
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:8000/api/bookings
+# Call API with token
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/bookings
 ```
 
-### Testing OPA Policies
+### OPA Policy Testing
 
 ```bash
-# Test policy directly
 curl -X POST http://localhost:8181/v1/data/corporate/travel/authorization/allow \
   -H "Content-Type: application/json" \
-  -d @test-input.json
+  -d @infrastructure/opa/test-inputs/view_booking.json
 ```
 
-## 📚 Architecture Decision Records
+## Architecture Decision Records
 
-All architectural decisions are documented in `/architecture-decision-records/`:
+All architectural decisions are documented in [/architecture-decision-records/](./architecture-decision-records/):
 
-- **ADR-001**: Corporate Travel & Expense as Reference Domain
-- **ADR-002**: Keycloak as Central IAM Platform
-- **ADR-003**: Multi-Tenant Identity Model
-- **ADR-004**: OAuth 2.0 Token Exchange for Delegation
-- **ADR-005**: External Consent and Purpose Binding
-- **ADR-006**: Microservices with BFF Pattern
-- **ADR-007**: External Policy Engine for Authorization
-- **ADR-019**: Open Policy Agent Implementation
-- [See all ADRs](./architecture-decision-records/)
+| ADR | Title | Status |
+|-----|-------|--------|
+| ADR-001 | Corporate Travel & Expense as Reference Domain | Accepted |
+| ADR-002 | Keycloak as Central IAM | Accepted |
+| ADR-003 | Multi-Tenant Single Realm | Accepted |
+| ADR-004 | OAuth 2.0 Token Exchange for Delegation | Accepted |
+| ADR-005 | External Consent and Purpose Binding | Accepted |
+| ADR-006 | Microservices with BFF Pattern | Accepted |
+| ADR-007 / ADR-019 | OPA for External Authorization | Accepted |
+| ADR-010 | Graph Database for Delegation Modeling | Accepted |
+| ADR-011 | Comprehensive Audit and Compliance Ledger | Accepted |
+| ADR-013 | Spring Boot as Backend Framework | Accepted |
+| ADR-015 | PostgreSQL as Primary Database | Accepted |
+| ADR-016 | Neo4j for Delegation Graph | Accepted |
+| ADR-017 | API Gateway Pattern | Accepted |
+| ADR-018 | BFF Strategy | Accepted |
+| ADR-023 | Flyway for Database Migrations | Accepted |
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### Production Checklist
 
 - [ ] Change all default passwords
 - [ ] Use HTTPS/TLS for all services
 - [ ] Configure proper CORS policies
-- [ ] Enable Keycloak security features (brute force protection)
+- [ ] Enable Keycloak brute-force protection
 - [ ] Implement rate limiting
-- [ ] Use HashiCorp Vault for secrets (see ADR-021)
-- [ ] Enable audit logging
-- [ ] Configure proper firewall rules
-- [ ] Use workload identity for service-to-service auth
+- [ ] Use HashiCorp Vault for secrets (ADR-021, deferred)
+- [ ] Enable OPA audit logging
+- [ ] Use workload identity for service-to-service auth (ADR-009, deferred)
 
-## 🤝 Contributing
+### Critical Operational Notes
 
-1. Review Architecture Decision Records
-2. Follow existing code patterns
-3. Write tests for new features
-4. Update documentation
-5. Submit pull request
+- `realm_access.roles` is **not** included in Keycloak tokens by default. It requires the `oidc-usermodel-realm-role-mapper` on the `user-attributes` client scope. If this mapper is removed, all OPA `has_role("employee")` checks will fail with 403.
+- OPA **does not** hot-reload without the `--watch` flag. The flag is set in `docker-compose.yml`; a running OPA container without it requires a policy push via `PUT /v1/policies/...` or container restart.
+- The `realm-export.json` is the authoritative Keycloak configuration. Use `validate-realm-export.sh` to verify a clean import (65/65 checks).
 
-## 📄 License
+## Post-MVP Backlog
 
-[Your License Here]
+The following are out of scope for MVP and intentionally deferred:
 
-## 🙏 Acknowledgments
+- Frontend (Next.js employee portal) — ADR-014
+- HashiCorp Vault — ADR-021
+- OpenTelemetry distributed tracing — ADR-020
+- Kubernetes deployment — ADR-012
+- Keycloak SPI for token enrichment — ADR-022
+- Workload identity (mTLS) — ADR-009
+- Identity brokering (external IdP) — ADR-008
 
-This implementation demonstrates patterns from:
-- OAuth 2.0 Token Exchange (RFC 8693)
-- Open Policy Agent best practices
-- Spring Security OAuth2 patterns
-- Keycloak identity brokering
+## Support
 
-## 📞 Support
-
-For issues and questions:
 - GitHub Issues: [Project Issues]
-- Documentation: `/docs/`
-- ADRs: `/architecture-decision-records/`
+- ADRs: [/architecture-decision-records/](./architecture-decision-records/)
+- Delegation Flow: [DELEGATION-FLOW.md](DELEGATION-FLOW.md)
+- Implementation Guide: [IMPLEMENTATION.md](IMPLEMENTATION.md)

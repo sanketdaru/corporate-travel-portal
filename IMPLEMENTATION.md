@@ -1,47 +1,43 @@
 # Implementation Guide
 
-This document provides a detailed guide for implementing and extending the Corporate Travel & Expense platform.
+This document provides a reference guide for the Corporate Travel & Expense platform implementation patterns and architecture.
 
-## 🏗️ Current Implementation Status
+## Current Implementation Status
 
-*Last updated: 2026-03-29*
+**Last updated**: 2026-04-04 — Phase 4 Complete, MVP Done (71/71 E2E tests passing)
 
-### ✅ Completed
+### Completed
 
 - [x] Monorepo structure with Gradle multi-project build
-- [x] Docker Compose infrastructure setup (Keycloak, PostgreSQL, Neo4j, OPA)
-- [x] Database schemas and initialization scripts
-- [x] Keycloak realm configuration with test users and clients
-- [x] OPA authorization policies (Rego)
-- [x] Shared security library (JWT handling, OPA client, security config)
-- [x] Shared domain models (enums and common types)
-- [x] Comprehensive README documentation
-- [x] Travel Service — bookings CRUD, OPA authorization, unit tests
-- [x] Expense Service — expense + items CRUD, workflow, unit tests
+- [x] Docker Compose infrastructure (Keycloak, PostgreSQL, Neo4j, OPA)
+- [x] Keycloak realm configuration — 5 users, `realm_access.roles` via `oidc-usermodel-realm-role-mapper`
+- [x] OPA authorization policies (Rego) — RBAC, tenant isolation, delegation-aware rules
+- [x] Shared security library — `SecurityContext`, `JwtAuthenticationConverter` (with delegation header overload), `OpaClient`
+- [x] Shared domain models — `BookingStatus`, `ExpenseStatus`, `ExpenseCategory` enums
+- [x] Travel Service — bookings CRUD, OPA, audit trail (CREATE/STATUS_CHANGE/DELETE), delegation headers
+- [x] Expense Service — expense + items, workflow, OPA, audit trail (all mutations), delegation headers
 - [x] API Gateway — Spring Cloud Gateway with JWT validation and routing
 - [x] Delegation Service — JPA + Neo4j dual-write, graph chain traversal, unit tests
-- [x] Consent Service — grant/validate/revoke, purpose binding, audit trail, scheduler, unit tests
+- [x] Consent Service — grant/validate/revoke, purpose binding, scheduler, audit trail, unit tests
+- [x] Employee BFF — Standard Token Exchange V2 (RFC 8693), delegation context (session), API aggregation
+- [x] Audit service layer — `BookingAuditService`, `ExpenseAuditService`, `booking_audit` + `expense_audit` tables
+- [x] Flyway migrations — V1 baseline + V2 audit tables in travel-service and expense-service
+- [x] End-to-end delegation regression script — 71 assertions across 10 phases
 
-### 🚧 In Progress / To Be Implemented
+### Deferred (Post-MVP)
 
-- [ ] Audit Logging — `booking_audit` and `expense_audit` schemas exist; service layer not wired
-- [ ] Employee BFF — Token exchange (RFC 8693) + API aggregation + session context
-- [ ] Keycloak token exchange config — Standard Token Exchange V2 via Client Policies + Client Profiles on the realm (do NOT use deprecated per-client `oauth2.token.exchange.enabled` flag)
-
-### ⏸️ Deferred (Post-MVP)
-
-- [ ] Approval Service (workflow engine)
-- [ ] Employee Portal (Next.js frontend)
+- [ ] Frontend (Next.js employee portal)
+- [ ] Approval Service
 - [ ] Keycloak SPI for token enrichment
-- [ ] OpenTelemetry observability setup
+- [ ] OpenTelemetry distributed tracing
 - [ ] HashiCorp Vault
 - [ ] Kubernetes deployment
 
-## 📝 Implementation Patterns
+## Implementation Patterns
 
-### Service Implementation Pattern
+### Service Structure
 
-Each microservice follows this standard structure:
+Each microservice follows this standard layout:
 
 ```
 services/{service-name}/
@@ -52,7 +48,8 @@ services/{service-name}/
 │   │   ├── java/com/corporate/travel/{service}/
 │   │   │   ├── {Service}Application.java
 │   │   │   ├── config/
-│   │   │   │   └── ServiceConfig.java
+│   │   │   │   ├── SecurityConfig.java
+│   │   │   │   └── OpenApiConfig.java
 │   │   │   ├── controller/
 │   │   │   │   └── {Entity}Controller.java
 │   │   │   ├── service/
@@ -64,16 +61,18 @@ services/{service-name}/
 │   │   │   │   ├── entity/{Entity}.java
 │   │   │   │   └── dto/{Entity}DTO.java
 │   │   │   └── exception/
-│   │   │       └── {Service}Exception.java
+│   │   │       └── GlobalExceptionHandler.java
 │   │   └── resources/
 │   │       ├── application.yml
-│   │       └── application-docker.yml
+│   │       ├── application-docker.yml
+│   │       └── db/migration/
+│   │           └── V1__{service}_schema.sql
 │   └── test/
 │       └── java/com/corporate/travel/{service}/
 └── README.md
 ```
 
-### Standard Dependencies (build.gradle)
+### Standard Dependencies
 
 ```gradle
 plugins {
@@ -82,20 +81,21 @@ plugins {
 }
 
 dependencies {
-    // Shared libraries
     implementation project(':services:shared:security-commons')
     implementation project(':services:shared:domain-models')
-    
-    // Spring Boot
+
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    
-    // Database
+
     runtimeOnly 'org.postgresql:postgresql'
-    
-    // Testing
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
 }
@@ -104,23 +104,26 @@ dependencies {
 ### Application Configuration Template
 
 ```yaml
-# application.yml
 spring:
   application:
     name: {service-name}
-  
+
   datasource:
     url: jdbc:postgresql://localhost:5432/corporate_travel
     username: admin
     password: admin123
-    
+
   jpa:
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
         default_schema: {schema-name}
-  
+
+  flyway:
+    enabled: true
+    schemas: {schema-name}
+
   security:
     oauth2:
       resourceserver:
@@ -128,445 +131,179 @@ spring:
           issuer-uri: http://keycloak:8080/realms/corporate-travel
 
 server:
-  port: 8080
+  port: {port}
 
-# OPA Configuration
 opa:
   url: http://localhost:8181
 
-# Logging
 logging:
   level:
     com.corporate.travel: DEBUG
     org.springframework.security: DEBUG
 ```
 
-## 🔨 Building a Service: Step-by-Step
+## OPA Authorization Pattern
 
-### Example: Travel Service Implementation
-
-#### 1. Create Service Structure
-
-```bash
-mkdir -p services/travel-service/src/main/java/com/corporate/travel/travel
-mkdir -p services/travel-service/src/main/resources
-mkdir -p services/travel-service/src/test/java/com/corporate/travel/travel
-```
-
-#### 2. Create build.gradle
-
-```gradle
-plugins {
-    id 'org.springframework.boot'
-    id 'java'
-}
-
-dependencies {
-    implementation project(':services:shared:security-commons')
-    implementation project(':services:shared:domain-models')
-    
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    
-    runtimeOnly 'org.postgresql:postgresql'
-    
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-}
-
-bootJar {
-    archiveFileName = 'travel-service.jar'
-}
-```
-
-#### 3. Create Main Application Class
-
-```java
-package com.corporate.travel.travel;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-@SpringBootApplication
-@ComponentScan(basePackages = {
-    "com.corporate.travel.travel",
-    "com.corporate.travel.security"  // Scan shared security package
-})
-public class TravelServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(TravelServiceApplication.class, args);
-    }
-}
-```
-
-#### 4. Create Entity
-
-```java
-package com.corporate.travel.travel.model.entity;
-
-import com.corporate.travel.models.BookingStatus;
-import jakarta.persistence.*;
-import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "bookings", schema = "travel")
-@Data
-public class Booking {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-    
-    @Column(name = "tenant_id", nullable = false)
-    private String tenantId;
-    
-    @Column(name = "user_id", nullable = false)
-    private String userId;
-    
-    @Column(name = "booking_type", nullable = false)
-    private String bookingType;  // FLIGHT, HOTEL, CAR
-    
-    @Column(name = "destination")
-    private String destination;
-    
-    @Column(name = "start_date")
-    private LocalDate startDate;
-    
-    @Column(name = "end_date")
-    private LocalDate endDate;
-    
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    private BookingStatus status;
-    
-    @Column(name = "total_amount")
-    private BigDecimal totalAmount;
-    
-    @Column(name = "details", columnDefinition = "jsonb")
-    private String details;
-    
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-    
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-    
-    @Column(name = "created_by")
-    private String createdBy;
-    
-    @Column(name = "updated_by")
-    private String updatedBy;
-}
-```
-
-#### 5. Create Repository
-
-```java
-package com.corporate.travel.travel.repository;
-
-import com.corporate.travel.travel.model.entity.Booking;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-import java.util.List;
-import java.util.UUID;
-
-@Repository
-public interface BookingRepository extends JpaRepository<Booking, UUID> {
-    List<Booking> findByTenantIdAndUserId(String tenantId, String userId);
-    List<Booking> findByTenantId(String tenantId);
-}
-```
-
-#### 6. Create Service
-
-```java
-package com.corporate.travel.travel.service;
-
-import com.corporate.travel.models.BookingStatus;
-import com.corporate.travel.security.SecurityContext;
-import com.corporate.travel.travel.model.entity.Booking;
-
-import java.util.List;
-import java.util.UUID;
-
-public interface BookingService {
-    Booking createBooking(Booking booking, SecurityContext context);
-    Booking getBooking(UUID id, SecurityContext context);
-    List<Booking> getUserBookings(SecurityContext context);
-    Booking updateBookingStatus(UUID id, BookingStatus status, SecurityContext context);
-}
-```
-
-#### 7. Create Controller
-
-```java
-package com.corporate.travel.travel.controller;
-
-import com.corporate.travel.security.JwtAuthenticationConverter;
-import com.corporate.travel.security.SecurityContext;
-import com.corporate.travel.travel.model.entity.Booking;
-import com.corporate.travel.travel.service.BookingService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
-
-@RestController
-@RequestMapping("/api/bookings")
-@RequiredArgsConstructor
-public class BookingController {
-    
-    private final BookingService bookingService;
-    
-    @PostMapping
-    public ResponseEntity<Booking> createBooking(
-            @RequestBody Booking booking,
-            @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        Booking created = bookingService.createBooking(booking, context);
-        return ResponseEntity.ok(created);
-    }
-    
-    @GetMapping
-    public ResponseEntity<List<Booking>> getBookings(@AuthenticationPrincipal Jwt jwt) {
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        return ResponseEntity.ok(bookingService.getUserBookings(context));
-    }
-    
-    @GetMapping("/{id}")
-    public ResponseEntity<Booking> getBooking(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        return ResponseEntity.ok(bookingService.getBooking(id, context));
-    }
-}
-```
-
-#### 8. Create Dockerfile
-
-```dockerfile
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-COPY build/libs/travel-service.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-
-## 🔐 Authorization Integration
-
-### Using OPA in Service Layer
+Every service operation calls OPA before performing business logic:
 
 ```java
 @Service
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
-    
+
     private final BookingRepository repository;
+    private final BookingAuditService auditService;
     private final OpaClient opaClient;
-    
+
     @Override
-    public Booking getBooking(UUID id, SecurityContext context) {
-        Booking booking = repository.findById(id)
-            .orElseThrow(() -> new BookingNotFoundException(id));
-        
-        // Build resource context for OPA
+    @Transactional
+    public Booking createBooking(Booking booking, SecurityContext context) {
         Map<String, Object> resource = Map.of(
             "type", "booking",
-            "id", booking.getId().toString(),
-            "tenant_id", booking.getTenantId(),
-            "user_id", booking.getUserId()
+            "tenant_id", context.getTenantId()
         );
-        
-        // Check authorization with OPA
-        boolean allowed = opaClient.authorize(context, "view_booking", resource);
-        
-        if (!allowed) {
-            throw new AccessDeniedException("Not authorized to view this booking");
+
+        if (!opaClient.authorize(context, "create_booking", resource)) {
+            throw new AccessDeniedException("Not authorized to create booking");
         }
-        
-        return booking;
+
+        booking.setTenantId(context.getTenantId());
+        booking.setUserId(context.getSubjectId());   // subject (may be delegated-to user)
+        booking.setCreatedBy(context.getUserId());   // actor (person making the call)
+        Booking saved = repository.save(booking);
+
+        auditService.recordAction(saved.getId(), "CREATE", context);
+        return saved;
     }
 }
 ```
 
-## 🧪 Testing
-
-### Integration Test Example
+### SecurityContext — Delegation-Aware
 
 ```java
-@SpringBootTest
-@AutoConfigureMockMvc
-@TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://localhost:5432/corporate_travel_test",
-    "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://keycloak:8080/realms/corporate-travel"
-})
-class BookingControllerIntegrationTest {
-    
-    @Autowired
-    private MockMvc mockMvc;
-    
-    @Test
-    @WithMockUser(username = "alice.employee", roles = {"EMPLOYEE"})
-    void createBooking_Success() throws Exception {
-        String bookingJson = """
-            {
-                "bookingType": "FLIGHT",
-                "destination": "New York",
-                "startDate": "2024-06-01",
-                "endDate": "2024-06-05",
-                "totalAmount": 500.00
-            }
-            """;
-        
-        mockMvc.perform(post("/api/bookings")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(bookingJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.destination").value("New York"));
-    }
+// Direct call (Alice books for herself)
+SecurityContext {
+    userId     = "alice.employee"  // actor == subject
+    subjectId  = "alice.employee"
+    tenantId   = "tenant-a"
+    roles      = ["employee"]
+    delegationId = null
+}
+
+// Delegated call (Dave books for Carol via BFF)
+SecurityContext {
+    userId     = "dave.assistant"   // actor — token sub
+    subjectId  = "carol.executive"  // from X-Delegated-Subject header
+    tenantId   = "tenant-a"
+    roles      = ["assistant"]
+    delegationId = "uuid-of-delegation"  // from X-Delegation-Id header
 }
 ```
 
-## 🚀 Deployment
+The header-aware `JwtAuthenticationConverter` overload is used on mutation endpoints:
 
-### Building Docker Images
+```java
+@PostMapping
+public ResponseEntity<Booking> createBooking(
+        @RequestBody BookingRequest req,
+        @AuthenticationPrincipal Jwt jwt,
+        HttpServletRequest httpRequest) {
 
-```bash
-# Build service JAR
-./gradlew :services:travel-service:build
-
-# Build Docker image
-docker build -t corporate-travel/travel-service:latest \
-    -f services/travel-service/Dockerfile \
-    --build-context . \
-    services/travel-service/
+    SecurityContext ctx = JwtAuthenticationConverter.extractSecurityContext(jwt, httpRequest);
+    return ResponseEntity.ok(bookingService.createBooking(req, ctx));
+}
 ```
 
-### Running Services
+## Audit Trail Pattern
 
-```bash
-# Infrastructure first
-docker-compose up -d postgres neo4j keycloak opa
+Every service that mutates data has an audit service layer. The audit write shares the same transaction as the business write (same `@Transactional` scope — `REQUIRED`, not `REQUIRES_NEW`) to satisfy the FK constraint `booking_audit.booking_id → bookings.id`.
 
-# Wait for health checks
-sleep 30
-
-# Start application services
-docker-compose up -d travel-service expense-service
+```java
+// V2__add_booking_audit.sql (Flyway migration)
+CREATE TABLE travel.booking_audit (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id    UUID NOT NULL REFERENCES travel.bookings(id),
+    action        VARCHAR(100) NOT NULL,  -- CREATE, STATUS_CHANGE, DELETE
+    actor_id      VARCHAR(255) NOT NULL,
+    subject_id    VARCHAR(255) NOT NULL,
+    delegation_id UUID,
+    consent_id    UUID,
+    tenant_id     VARCHAR(255) NOT NULL,
+    timestamp     TIMESTAMP NOT NULL DEFAULT NOW(),
+    details       JSONB
+);
 ```
 
-## 📋 Next Steps
+Query audit trail:
+```bash
+GET /api/bookings/{id}/audit
+GET /api/expenses/{id}/audit
+```
 
-### Priority 1: Core Services
+## Token Exchange Pattern (BFF)
 
-1. **Complete Travel Service** - Finish service implementation and testing
-2. **Implement Expense Service** - Similar pattern to Travel Service
-3. **Implement Approval Service** - Workflow state machine
+The BFF performs Standard Token Exchange V2 per RFC 8693:
 
-### Priority 2: Supporting Services
+```
+POST /realms/corporate-travel/protocol/openid-connect/token
+  grant_type        = urn:ietf:params:oauth:grant-type:token-exchange
+  subject_token     = <Dave's JWT>
+  subject_token_type = urn:ietf:params:oauth:token-type:access_token
+  requested_token_type = urn:ietf:params:oauth:token-type:access_token
+  audience          = travel-service
+  requested_subject = carol.executive
+```
 
-4. **Implement Delegation Service** - Neo4j integration
-5. **Implement Consent Service** - Consent management
-6. **Create API Gateway** - Spring Cloud Gateway configuration
+Prerequisites in Keycloak:
+- `KC_FEATURES=token-exchange-standard` on the Keycloak container
+- Standard token exchange enabled on `employee-bff` client
+- `aud` mapper on `employee-bff` scope mapping to `travel-service`
+- `preferred_username` mapper on `user-attributes` scope
 
-### Priority 3: Frontend
+## Building a New Service: Checklist
 
-7. **Employee BFF** - Token exchange and API aggregation
-8. **Employee Portal** - Next.js application with shadcn/ui
+1. Create directory structure under `services/{name}/`
+2. Add to `settings.gradle`: `include ':services:{name}'`
+3. Write `build.gradle` following the standard template above
+4. Create `V1__{name}_schema.sql` Flyway migration with `CREATE SCHEMA` + tables
+5. Implement entity → repository → service/impl → controller
+6. Add OPA authorize call in service layer before each operation
+7. Add audit service layer and wire into `ServiceImpl`
+8. Write unit tests (`@ExtendWith(MockitoExtension.class)`)
+9. Add service to `docker-compose.yml`
+10. Write service `README.md`
 
-### Priority 4: Advanced Features
+## Troubleshooting
 
-9. **Keycloak SPI** - Token enrichment
-10. **OpenTelemetry** - Distributed tracing
-11. **Service Mesh** - Consider Istio for advanced scenarios
+**403 on booking/expense creation**
+- Verify `oidc-usermodel-realm-role-mapper` is on the `user-attributes` client scope in Keycloak
+- Without this, `realm_access.roles` is absent from tokens and `has_role("employee")` fails in OPA
 
-## 🔍 Troubleshooting
+**OPA policy changes not applying**
+- OPA requires `--watch` flag for hot-reload; already set in `docker-compose.yml`
+- If OPA was started without `--watch`: push policy via REST (`PUT /v1/policies/corporate/travel`) or `docker-compose restart opa`
 
-### Common Issues
+**Token exchange fails (400 Bad Request)**
+- Verify `KC_FEATURES=token-exchange-standard` in `docker-compose.yml` (not `token-exchange` which is the deprecated preview)
+- Verify standard token exchange is toggled on the `employee-bff` Keycloak client
 
-**Issue**: Services can't connect to Keycloak
-- **Solution**: Ensure Keycloak is healthy: `docker-compose ps keycloak`
-- Check realm is imported: http://localhost:8080/admin
+**Delegation context not appearing in audit**
+- Confirm BFF is injecting `X-Delegated-Subject`, `X-Delegation-Id`, `X-Consent-Id` headers
+- Confirm downstream controller is calling the `extractSecurityContext(jwt, httpRequest)` overload (not the single-arg version)
 
-**Issue**: OPA authorization always denies
-- **Solution**: Test OPA policies directly with curl
-- Check OPA logs: `docker-compose logs opa`
+**Neo4j connection issues**
+```bash
+docker-compose exec neo4j cypher-shell -u neo4j -p password123
+```
 
-**Issue**: Database connection fails
-- **Solution**: Verify PostgreSQL is running and schemas exist
-- Check connection string in application.yml
+**JWT validation fails**
+- Verify `issuer-uri` in `application-docker.yml` uses the Docker service name (`keycloak`), not `localhost`
 
-**Issue**: JWT validation fails
-- **Solution**: Verify issuer-uri matches Keycloak realm
-- Check token expiration and signature
+## Additional Resources
 
-### Debugging Tips
-
-1. **Enable Debug Logging**:
-   ```yaml
-   logging:
-     level:
-       com.corporate.travel: DEBUG
-       org.springframework.security: DEBUG
-   ```
-
-2. **Test Keycloak Token**:
-   ```bash
-   curl -X POST http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token \
-     -d "client_id=employee-portal" \
-     -d "username=alice.employee" \
-     -d "password=password123" \
-     -d "grant_type=password"
-   ```
-
-3. **Test OPA Policy**:
-   ```bash
-   curl -X POST http://localhost:8181/v1/data/corporate/travel/authorization \
-     -H "Content-Type: application/json" \
-     -d @test-input.json
-   ```
-
-## 📚 Additional Resources
-
-- [Spring Security OAuth2 Resource Server](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/index.html)
-- [Keycloak Documentation](https://www.keycloak.org/documentation)
-- [Open Policy Agent Documentation](https://www.openpolicyagent.org/docs/latest/)
 - [OAuth 2.0 Token Exchange RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693)
+- [Spring Security OAuth2 Resource Server](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/index.html)
+- [Open Policy Agent Documentation](https://www.openpolicyagent.org/docs/latest/)
+- [Keycloak Documentation](https://www.keycloak.org/documentation)
 - [Project ADRs](./architecture-decision-records/)
-
-## 💡 Best Practices
-
-1. **Always validate tenant isolation** in authorization checks
-2. **Log actor and subject** for all delegated actions
-3. **Use OPA for authorization decisions** (don't hard-code in services)
-4. **Implement comprehensive audit trails** for compliance
-5. **Test delegation scenarios** thoroughly
-6. **Keep services stateless** for horizontal scaling
-7. **Use circuit breakers** for inter-service communication
-8. **Implement health checks** for all services
-9. **Document API contracts** with OpenAPI/Swagger
-10. **Follow 12-factor app principles**
-
----
-
-**Last Updated**: 2024
-**Status**: Foundation Complete, Services In Progress
+- [Delegation Flow Guide](./DELEGATION-FLOW.md)
