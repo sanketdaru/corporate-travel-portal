@@ -1,25 +1,27 @@
 # API Gateway Service
 
-Spring Cloud Gateway implementation providing centralized routing, security, and traffic management for the Corporate Travel & Expense Platform.
+Spring Cloud Gateway providing centralized routing, JWT validation, and traffic management for the Corporate Travel & Expense Platform.
+
+**Port**: 8000  
+**Spring Boot**: 3.2.2 / Java 17
 
 ## Overview
 
-The API Gateway serves as the single entry point for all client requests to backend microservices. It provides:
+The API Gateway is the single entry point for external client requests. It:
 
-- **JWT Token Validation**: Validates tokens once at the gateway level
-- **Path-Based Routing**: Routes requests to appropriate backend services
-- **Security Headers**: Adds security headers to all responses
-- **CORS Configuration**: Centralized CORS handling
-- **Circuit Breakers**: Resilience patterns for backend service failures
-- **Request/Response Logging**: Comprehensive logging for monitoring
+- Validates JWT tokens once at the gateway level
+- Routes requests to backend microservices by path
+- Applies circuit breakers (Resilience4j)
+- Injects security headers on all responses
+- Manages CORS centrally
+
+> The Employee BFF (port 8085) calls downstream services directly — it does **not** route through the gateway. The gateway is intended for direct API clients.
 
 ## Architecture
 
 ```
-Client (Browser/Mobile/BFF)
-    ↓
-    ↓ HTTP/HTTPS with JWT
-    ↓
+External Client (curl / frontend)
+    ↓ HTTP with JWT
 API Gateway (Port 8000)
     ├─ JWT Validation (Spring Security OAuth2)
     ├─ Route Matching
@@ -27,268 +29,120 @@ API Gateway (Port 8000)
     └─ Circuit Breakers (Resilience4j)
     ↓
 Backend Services
-    ├─ Travel Service (Port 8081)
-    ├─ Expense Service (Port 8082)
-    ├─ Approval Service (Port 8083)
-    ├─ Delegation Service (Port 8084)
-    └─ Consent Service (Port 8085)
+    ├─ Travel Service   (Port 8081)  ← /api/bookings/**
+    └─ Expense Service  (Port 8082)  ← /api/expenses/**
 ```
 
 ## Routes
 
-### Current Routes
+| Path | Backend Service | Port |
+|------|----------------|------|
+| `/api/bookings/**` | travel-service | 8081 |
+| `/api/expenses/**` | expense-service | 8082 |
 
-| Path | Backend Service | Description |
-|------|----------------|-------------|
-| `/api/travel/**` | travel-service:8081 | Booking management |
-| `/api/expenses/**` | expense-service:8082 | Expense management |
-
-### Future Routes
-
-| Path | Backend Service | Description |
-|------|----------------|-------------|
-| `/api/approvals/**` | approval-service:8083 | Approval workflows |
-| `/api/delegations/**` | delegation-service:8084 | Delegation management |
-| `/api/consent/**` | consent-service:8085 | Consent management |
+Routes to delegation-service (8083), consent-service (8084), and employee-bff (8085) are not yet wired through the gateway — access those services directly for now.
 
 ## Features
 
-### 1. JWT Authentication
+### JWT Authentication
 
-All requests (except health checks) require a valid JWT token:
+All requests (except `/actuator/health`) require a valid JWT from Keycloak:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/travel/bookings
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookings
 ```
 
-### 2. Circuit Breakers
+### Circuit Breakers
 
-Each backend service has a dedicated circuit breaker with fallback responses:
+Each backend has a dedicated circuit breaker:
 
-- **Sliding Window**: 10 requests
-- **Failure Threshold**: 50%
-- **Wait Duration**: 10 seconds
-- **Half-Open Calls**: 3
+- Sliding window: 10 requests
+- Failure threshold: 50%
+- Wait duration: 10 seconds
 
-### 3. Security Headers
+Fallback endpoints: `/fallback/travel`, `/fallback/expenses`
+
+### Security Headers
 
 All responses include:
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `X-XSS-Protection: 1; mode=block`
 - `Strict-Transport-Security: max-age=31536000`
-- `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: geolocation=(), microphone=(), camera=()`
 
-### 4. CORS Configuration
+### CORS
 
-CORS is configured to allow:
-- **Origins**: localhost:3000 (frontend), localhost:3001 (BFF)
-- **Methods**: GET, POST, PUT, DELETE, PATCH, OPTIONS
-- **Headers**: All headers allowed
-- **Credentials**: Enabled
+Configured for:
+- Origins: `localhost:3000` (future frontend), `localhost:8085` (BFF)
+- Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
+- Credentials: enabled
 
-## Running Locally
-
-### Prerequisites
-
-- Java 17+
-- Docker (for backend services)
-
-### Build
+## Running
 
 ```bash
+# Build
 ./gradlew :services:api-gateway:build
-```
 
-### Run
-
-```bash
+# Run locally
 ./gradlew :services:api-gateway:bootRun
-```
 
-Or with specific profile:
-
-```bash
-SPRING_PROFILES_ACTIVE=docker ./gradlew :services:api-gateway:bootRun
-```
-
-## Running with Docker Compose
-
-The gateway is included in the main docker-compose.yml:
-
-```bash
-# Start all services including gateway
+# Docker Compose
 docker-compose up -d
-
-# View gateway logs
 docker-compose logs -f api-gateway
-
-# Check gateway health
-curl http://localhost:8000/actuator/health
 ```
 
 ## Configuration
 
-### application.yml
+Routes are defined programmatically in `GatewayConfig.java`. The YAML configures JWT validation and server settings:
 
-Main configuration for local development:
-- Port: 8000
-- Keycloak URL: http://localhost:8080
-- Service URLs: localhost with specific ports
-
-### application-docker.yml
-
-Docker environment configuration:
-- Keycloak URL: http://keycloak:8080
-- Service URLs: Docker service names
+```yaml
+# application-docker.yml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/corporate-travel
+server:
+  port: 8000
+```
 
 ## Testing
 
-### Health Check
-
 ```bash
+# Health check
 curl http://localhost:8000/actuator/health
-```
 
-### Get Token and Test
-
-```bash
-# Get token for alice
-TOKEN=$(./scripts/get-token.sh alice.employee)
-
-# Test travel service via gateway
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/travel/bookings
-
-# Test expense service via gateway
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/expenses/expenses
-```
-
-### View Routes
-
-```bash
-# See all configured routes
+# List configured routes
 curl http://localhost:8000/actuator/gateway/routes | jq
-```
 
-### Circuit Breaker Status
+# Get token and test routing
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token \
+  -d "client_id=employee-portal&username=alice.employee&password=password123&grant_type=password" \
+  | jq -r '.access_token')
 
-```bash
-# Check circuit breaker health
-curl http://localhost:8000/actuator/health | jq '.components.circuitBreakers'
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookings
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/expenses
 ```
 
 ## Endpoints
 
-### Management Endpoints
-
-- **Health**: `GET /actuator/health`
-- **Info**: `GET /actuator/info`
-- **Metrics**: `GET /actuator/metrics`
-- **Gateway Routes**: `GET /actuator/gateway/routes`
-- **Swagger UI**: `GET /swagger-ui.html`
-- **API Docs**: `GET /api-docs`
-
-### Fallback Endpoints
-
-- `/fallback/travel` - Travel service fallback
-- `/fallback/expenses` - Expense service fallback
-- `/fallback/approvals` - Approval service fallback
-- `/fallback/delegations` - Delegation service fallback
-- `/fallback/consent` - Consent service fallback
-
-## Security
-
-### JWT Token Requirements
-
-The gateway validates JWT tokens from Keycloak with the following:
-
-- **Issuer**: `http://keycloak:8080/realms/corporate-travel`
-- **Algorithm**: RS256
-- **Required Claims**: `sub`, `tenant_id`
-
-### Role Extraction
-
-Roles are extracted from:
-- `realm_access.roles` - Realm-level roles
-- `resource_access.{client}.roles` - Client-specific roles
-
-Roles are prefixed with `ROLE_` in Spring Security context.
-
-## Monitoring
-
-### Logs
-
-```bash
-# View gateway logs
-docker-compose logs -f api-gateway
-
-# Search for specific requests
-docker-compose logs api-gateway | grep "GET /api/travel"
-```
-
-### Metrics
-
-Gateway exposes Prometheus metrics at `/actuator/prometheus`:
-
-- Request count by route
-- Circuit breaker state
-- Response times
-- Error rates
+### Management
+- `GET /actuator/health` — health status
+- `GET /actuator/metrics` — metrics
+- `GET /actuator/gateway/routes` — configured routes
+- `GET /swagger-ui.html` — Swagger UI
+- `GET /api-docs` — OpenAPI spec
 
 ## Troubleshooting
 
-### Gateway not starting
+**401 Unauthorized** — verify token is valid and not expired; check issuer matches `http://keycloak:8080/realms/corporate-travel`
 
-Check Keycloak is healthy:
-```bash
-docker-compose ps keycloak
-curl http://localhost:8080/realms/corporate-travel
-```
+**503 Service Unavailable** — check that the backend service is running (`docker-compose ps`); review circuit breaker status at `/actuator/health`
 
-### 401 Unauthorized
-
-- Verify token is valid: Check expiration time
-- Verify issuer matches configuration
-- Check Keycloak public key is accessible
-
-### 503 Service Unavailable
-
-- Check backend service is running
-- Review circuit breaker status
-- Check service URLs in configuration
-
-### CORS errors
-
-- Verify frontend origin is in allowed origins
-- Check CORS configuration in application.yml
-- Ensure credentials are enabled if needed
+**Gateway won't start** — Keycloak must be healthy first: `curl http://localhost:8080/realms/corporate-travel`
 
 ## Architecture Decisions
 
-See ADR-017 for detailed rationale on choosing Spring Cloud Gateway over Kong or NGINX.
-
-Key factors:
-- Consistency with Spring Boot ecosystem
-- Reusable security components
-- Developer productivity
-- Right-sized for corporate portal needs
-
-## Future Enhancements
-
-1. **Rate Limiting**: Add Redis-based rate limiting per user/tenant
-2. **API Versioning**: Support multiple API versions
-3. **Request Transformation**: Add/remove headers based on context
-4. **Response Caching**: Cache frequently accessed resources
-5. **Distributed Tracing**: Add OpenTelemetry integration
-6. **API Documentation**: Aggregate OpenAPI specs from all services
-
-## Related Documentation
-
-- [ADR-017: Adopt API Gateway Pattern](../../architecture-decision-records/ADR-017:%20Adopt%20API%20Gateway%20Pattern.md)
-- [ADR-018: Backend-for-Frontend Strategy](../../architecture-decision-records/ADR-018:%20Backend-for-Frontend%20(BFF)%20Strategy.md)
-- [Travel Service Documentation](../travel-service/README.md)
-- [Expense Service Documentation](../expense-service/README.md)
+- [ADR-017: API Gateway Pattern](../../architecture-decision-records/ADR-017:%20Adopt%20API%20Gateway%20Pattern.md)
+- [ADR-018: BFF Strategy](../../architecture-decision-records/ADR-018:%20Backend-for-Frontend%20(BFF)%20Strategy.md)

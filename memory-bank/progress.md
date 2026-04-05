@@ -1,398 +1,118 @@
 # Progress
 
-## What Works
-
-### ✅ Infrastructure (Complete)
-
-**Docker Compose Environment**
-- PostgreSQL 15 running with all schemas created
-- Neo4j 5.15 ready for delegation graph
-- Keycloak 23.0 configured with realm imported
-- OPA running with authorization policies loaded
-- Health checks passing for all services
-- Network configured for service communication
-
-**Database Schemas**
-- `keycloak` - Keycloak internal schema
-- `travel` - Bookings and audit tables
-- `expense` - Expenses and audit tables
-- `approval` - Workflows and approval steps
-- `consent` - Consent records and audit
-- `delegation` - Delegation metadata
-
-**Test Data**
-- 5 users configured in Keycloak:
-  - alice.employee (Tenant A, employee role)
-  - bob.manager (Tenant A, manager role)
-  - carol.executive (Tenant A, executive role)
-  - dave.assistant (Tenant A, assistant role)
-  - eve.employee (Tenant B, employee role)
-- 2 tenants (TenantA, TenantB) for isolation testing
-- All OAuth clients configured for services
-
-### ✅ Build System (Complete)
-
-**Gradle Configuration**
-- Multi-project build working
-- Root build.gradle with shared dependencies
-- settings.gradle includes all services
-- Gradle wrapper (gradlew) installed and executable
-- Dependency management configured
-
-**Shared Libraries**
-- `services:shared:security-commons` - Security infrastructure
-- `services:shared:domain-models` - Common enums and models
-- Dependencies properly shared across projects
-
-### ✅ Security Infrastructure (Complete)
-
-**security-commons Library**
-- `SecurityContext` - JWT claims extraction with delegation support
-- `JwtAuthenticationConverter` - Spring Security integration
-- `OpaClient` - Authorization policy evaluation
-- `SecurityConfig` - Base Spring Security configuration
-- WebClient configuration for HTTP calls
-
-**domain-models Library**
-- `BookingStatus` enum
-- `ExpenseStatus` enum
-- `ApprovalStatus` enum
-
-**OPA Policies (authorization.rego)**
-- Multi-tenant isolation rules
-- Role-based access control
-- Delegation-aware authorization
-- Consent validation
-- Manager approval chains
-- Admin override capabilities
-
-### ✅ Documentation (Complete)
-
-**User Documentation**
-- README.md - Complete system overview (8000+ words)
-- GETTING-STARTED.md - Quick start guide with troubleshooting
-- IMPLEMENTATION.md - Detailed implementation patterns
-
-**Architecture Documentation**
-- 23 ADRs documenting all major decisions
-  - **ADR-023 (NEW)**: Flyway for Database Schema Migration Management
-- Architecture diagrams in README
-- Service interaction patterns documented
-
-**Developer Tools**
-- setup-local.sh - Automated infrastructure setup
-- get-token.sh - JWT token retrieval for testing
-- test-opa-policy.sh - Policy validation
-- cleanup.sh - Environment cleanup
-
-### ✅ Memory Bank (Complete)
-
-- projectbrief.md - Project scope and requirements
-- productContext.md - Why this exists and how it should work
-- systemPatterns.md - Architecture and design patterns
-- techContext.md - Technology stack and tools
-- activeContext.md - Current work focus and decisions
-- progress.md - This file
-
-## What's Left to Build
-
-### 🔨 Domain Services (In Progress)
-
-**Travel Service** (Priority 1) ✅ **COMPLETE**
-- [x] Spring Boot application setup
-- [x] Booking entity and repository
-- [x] BookingService with OPA integration
-- [x] BookingController REST API
-- [ ] Audit logging implementation (deferred)
-- [ ] Integration tests (deferred)
-- [x] Dockerfile
-- [x] README documentation
-- [x] Built successfully - JAR ready
-
-**Expense Service** (Priority 1) ✅ **COMPLETE**
-- [x] Spring Boot application setup
-- [x] Expense and ExpenseItem entities with repositories
-- [x] ExpenseService with OPA integration
-- [x] ExpenseController REST API with full workflow
-- [x] Link to bookings (booking_id field)
-- [x] Approval workflow (submit, approve, reject)
-- [x] OpenAPI/Swagger documentation
-- [ ] Audit logging implementation (deferred)
-- [ ] Integration tests (deferred)
-- [x] Dockerfile
-- [x] Built successfully - JAR ready
-
-**Approval Service** (Priority 2)
-- [ ] Spring Boot application setup
-- [ ] Workflow and ApprovalStep entities
-- [ ] State machine implementation
-- [ ] Workflow service with multi-step support
-- [ ] REST API for approvals
-- [ ] Integration with Travel/Expense services
-- [ ] Dockerfile
-
-**Consent Service** (Priority 2)
-- [ ] Spring Boot application setup
-- [ ] Consent entity and repository
-- [ ] Purpose binding logic
-- [ ] Consent lifecycle management (grant/revoke)
-- [ ] Validation endpoints
-- [ ] REST API
-- [ ] Dockerfile
-
-**Delegation Service** (Priority 2)
-- [ ] Spring Boot application setup
-- [ ] Neo4j repository setup
-- [ ] Delegation graph modeling
-- [ ] Relationship traversal queries
-- [ ] Temporal delegation support
-- [ ] REST API
-- [ ] PostgreSQL metadata sync
-- [ ] Dockerfile
-
-### 🌐 API Layer (Not Started)
-
-**API Gateway** (Priority 2)
-- [ ] Spring Cloud Gateway setup
-- [ ] JWT validation filter
-- [ ] Route configuration for all services
-- [ ] Rate limiting
-- [ ] CORS configuration
-- [ ] Health check aggregation
-- [ ] Dockerfile
-
-**Employee BFF** (Priority 2)
-- [ ] Spring Boot application setup
-- [ ] Token exchange implementation (RFC 8693)
-- [ ] API aggregation logic
-- [ ] Session management
-- [ ] REST API for frontend
-- [ ] Service client configurations
-- [ ] Dockerfile
-
-### 💻 Frontend (Not Started)
-
-**Employee Portal** (Priority 3)
-- [ ] Next.js 14 project setup
-- [ ] shadcn/ui and Tailwind CSS configuration
-- [ ] NextAuth.js with Keycloak provider
-- [ ] Login/authentication flow
-- [ ] Dashboard page
-- [ ] Booking management UI
-- [ ] Expense management UI
-- [ ] Approval queue UI
-- [ ] Delegation management UI
-- [ ] "Acting as" mode switcher
-- [ ] Dockerfile
-
-### 🔧 Advanced Features (Post-MVP)
-
-**Keycloak SPI** (Deferred)
-- [ ] Token enrichment SPI
-- [ ] Add delegation claims to tokens
-- [ ] Add consent_id to tokens
-- [ ] Build and deploy SPI JAR
-
-**OpenTelemetry** (Deferred)
-- [ ] Add OpenTelemetry dependencies
-- [ ] Configure tracing
-- [ ] Set up Jaeger backend
-- [ ] Add trace IDs to logs
-- [ ] Create dashboards
-
-**HashiCorp Vault** (Deferred)
-- [ ] Vault deployment
-- [ ] Secret rotation setup
-- [ ] Service integration
-- [ ] Dynamic database credentials
-
-**Kubernetes Deployment** (Deferred)
-- [ ] Helm charts for each service
-- [ ] ConfigMaps and Secrets
-- [ ] Ingress configuration
-- [ ] HPA setup
-- [ ] Service mesh integration
-
-## Current Status
-
-### Infrastructure Layer: 100% Complete ✅
-- Docker Compose: ✅
-- PostgreSQL: ✅
-- Neo4j: ✅
-- Keycloak: ✅
-- OPA: ✅
-- **Database Migration Strategy**: ✅ (ADR-023 Flyway)
-
-### Foundation Layer: 100% Complete ✅
-- Build system: ✅
-- Shared libraries: ✅
-- Security infrastructure: ✅
-- Documentation: ✅
-- Developer tools: ✅
-- Memory bank: ✅
-- **Data Storage Architecture**: ✅ (ADR-023)
-
-### Application Layer: 40% Complete 🔨
-- Domain services: 2/5 (Travel Service ✅, Expense Service ✅)
-- API layer: 0/2
-- Frontend: 0/1
-
-### Overall Progress: ~60% Complete
-
-**Phase 1 (Foundation)**: ✅ Complete
-**Phase 2 (Services)**: 🔨 In Progress (2/5 complete - 40%)
-**Phase 3 (Integration)**: ⏳ Pending
-**Phase 4 (Frontend)**: ⏳ Pending
-
-## Known Issues
-
-### Build System
-
-1. **Gradle Wrapper Upgraded**: Changed from 4.4.1 to 8.5
-   - **Reason**: Old version incompatible with Java 17
-   - **Impact**: All future builds will work correctly
-   - **Status**: ✅ Resolved
-
-2. **Flyway PostgreSQL Dependency Missing Version**: Flyway database-specific module not in Spring Boot BOM
-   - **Reason**: Spring Boot 3.2.2 BOM includes flyway-core but not flyway-database-postgresql
-   - **Impact**: Build failures in expense-service and travel-service compilation
-   - **Resolution**: Added explicit version to root build.gradle dependency management
-   - **Status**: ✅ Resolved (2026-02-21)
-
-### Shared Libraries
-
-1. **Lombok Configuration**: Initially missing annotation processor
-   - **Impact**: Build failures with @Data, @Builder annotations
-   - **Status**: ✅ Resolved in security-commons build.gradle
-
-2. **SecurityConfig Bean Initialization**: JwtAuthenticationConverter not properly configured
-   - **Impact**: Compilation errors
-   - **Status**: ✅ Resolved with proper @Bean method
-
-### Domain Models
-
-1. **BookingStatus Missing PENDING**: Enum didn't have PENDING state
-   - **Impact**: Compilation error in BookingServiceImpl
-   - **Status**: ✅ Resolved - added PENDING to enum
-
-### None Currently Outstanding
-
-All infrastructure and services are building and running correctly.
-
-## Evolution of Project Decisions
-
-### Initial Planning (Day 1)
-- Decided on monorepo structure
-- Chose Spring Boot for backend
-- Selected Docker Compose for local development
-
-### Design Refinements (Day 1)
-- Added separate Approval Service (was originally embedded)
-- Chose shadcn/ui over Material UI for frontend
-- Deferred Vault to post-MVP
-- Deferred Keycloak SPI to post-MVP
-
-### Implementation Patterns Established
-- Security pattern: JWT → SecurityContext → OPA → Business Logic
-- Database pattern: Every table has tenant_id and user_id
-- Audit pattern: Separate audit tables with actor/subject
-- Service pattern: Controller → Service → Repository
-
-### Best Practices Discovered
-- Shared security library works very well
-- OPA policy testing should be automated
-- Documentation at multiple levels is valuable
-- Setup scripts save significant time
-
-## Next Milestone
-
-**Goal**: Test Both Services and Implement Approval Service
-
-**Deliverables**:
-1. ✅ Travel Service implemented with full CRUD + OpenAPI
-2. ✅ Expense Service implemented with workflow + OpenAPI
-3. Test both services end-to-end with infrastructure
-4. Implement Approval Service with workflow state machine
-5. Integration testing with OPA authorization
-6. Multi-tenant isolation verification
-
-**Estimated Effort**: 3-4 hours for testing + Approval Service
-
-**Success Criteria**:
-- ✅ Can create/read/update/delete bookings via REST API
-- ✅ Can create/read/update/delete expenses via REST API
-- ✅ Expense workflow (submit, approve, reject) implemented
-- ✅ Both services have OpenAPI/Swagger documentation
-- Cross-tenant access blocked by OPA (needs testing)
-- Delegation flow works (Dave books for Carol) (needs testing)
-- ✅ Expenses can reference bookings
-- Both services running in Docker Compose (ready to test)
-
-## Future Enhancements
-
-### Short Term (Next 2-3 Weeks)
-1. Complete all domain services
-2. Implement BFF with token exchange
-3. Create basic frontend with key flows
-4. End-to-end demo scenarios working
-
-### Medium Term (1-2 Months)
-1. Add Keycloak SPI for token enrichment
-2. Implement OpenTelemetry tracing
-3. Add comprehensive test suite
-4. Polish UI with better UX
-
-### Long Term (3+ Months)
-1. Kubernetes deployment
-2. Service mesh integration
-3. Vault for secret management
-4. Production hardening
-5. AI agent delegation patterns
-
-## Metrics
-
-### Code Statistics
-- Infrastructure files: 20+
-- Gradle build files: 9 (root + 2 shared + travel-service + expense-service + 3 others)
-- Java classes: 30+ (9 in shared libraries + 9 in travel-service + 12 in expense-service)
-- TypeScript files: 0
-- Total lines of code: ~5,000+
-- Total lines of configuration: ~3,000+
-- Total lines of documentation: ~12,000+
-
-### Test Coverage
-- **Unit tests**: 
-  - **Travel Service**: 20 tests completed (5/5 operations complete - 100%) ✅
-    - Create Booking: 4 tests ✅
-    - Get Booking: 3 tests ✅
-    - Get User Bookings: 3 tests ✅
-    - Update Booking Status: 3 tests (+ parameterized) ✅
-    - Delete Booking: 3 tests ✅
-  - **Expense Service**: 68+ tests completed (6/11 operation suites complete - ~55%)
-    - Create Expense: 8 tests ✅
-    - Get Expense: 5 tests ✅
-    - Get User Expenses: 5 tests ✅
-    - Update Expense: 11 tests ✅
-    - Delete Expense: 9 tests ✅
-    - Add Expense Item: 11 tests ✅
-    - Update Expense Item: 0 tests (TODO)
-    - Delete Expense Item: 0 tests (TODO)
-    - Submit Expense: 0 tests (TODO)
-    - Approve Expense: 0 tests (TODO)
-    - Reject Expense: 0 tests (TODO)
-  - **Target**: 80%+ line coverage, 100% branch coverage
-  - **Total**: 88+ tests across both services
-- **Integration tests**: 0 (deferred)
-- **OPA policy tests**: 5 scenarios automated
-
-### Documentation Coverage
-- Architecture: ✅ Complete
-- API: ⏳ Pending (OpenAPI specs)
-- Deployment: ✅ Docker Compose documented
-- Runbooks: ⏳ Pending
+**Last Updated**: 2026-04-04  
+**Overall Status**: MVP Complete — 71/71 E2E tests passing
 
 ---
 
-**Last Updated**: 2026-02-18
-**Current Phase**: Two Core Services Complete (Travel ✅, Expense ✅) + Database Migration Strategy Defined (ADR-023)
-**Next Session**: Test both services end-to-end, then implement Approval Service with Flyway migrations
+## What Works
+
+### Infrastructure (Complete)
+
+- PostgreSQL 15 running with all schemas (`travel`, `expense`, `consent`, `delegation`, `keycloak`)
+- Neo4j 5.15 running for delegation graph
+- Keycloak 23.0 with `corporate-travel` realm imported from authoritative `realm-export.json`
+- OPA running with `authorization.rego`, hot-reload via `--watch`
+- All services healthy in Docker Compose
+- `realm_access.roles` delivered via `oidc-usermodel-realm-role-mapper` on `user-attributes` client scope
+
+### Build System (Complete)
+
+- Gradle multi-project build, Gradle wrapper 8.5
+- Shared libraries: `security-commons`, `domain-models`
+- All 6 application services build and pass unit tests
+
+### Services (All Complete)
+
+| Service | Port | Status | Notes |
+|---------|------|--------|-------|
+| api-gateway | 8000 | ✅ | Spring Cloud Gateway, JWT validation, routing |
+| travel-service | 8081 | ✅ | Bookings CRUD, audit trail, delegation headers |
+| expense-service | 8082 | ✅ | Expenses + items, workflow, audit trail |
+| delegation-service | 8083 | ✅ | JPA + Neo4j dual-write, chain traversal |
+| consent-service | 8084 | ✅ | CRUD, purpose binding, scheduler, OPA |
+| employee-bff | 8085 | ✅ | Token Exchange V2, delegation context, API aggregation |
+
+### Security Infrastructure (Complete)
+
+- `SecurityContext` — JWT claims + delegation headers (`subjectId`, `delegationId`, `consentId`)
+- `JwtAuthenticationConverter` — standard overload + header-aware overload for mutation endpoints
+- `OpaClient` — authorization policy evaluation
+- OPA policies: tenant isolation, RBAC, `is_resource_owner`, `is_active_delegate`, consent scope validation
+
+### Audit Trail (Complete — ADR-011)
+
+- `booking_audit` and `expense_audit` tables (Flyway V2 migrations)
+- `BookingAuditService` / `ExpenseAuditService` wired into service impls
+- Audit writes share the booking/expense transaction (FK constraint satisfied)
+- `GET /api/bookings/{id}/audit` and `GET /api/expenses/{id}/audit` endpoints
+- Verified: `actorId=dave.assistant`, `subjectId=carol.executive`, `delegationId`, `consentId` all correct for delegated booking
+
+### Token Exchange (Complete — ADR-004)
+
+- Standard Token Exchange V2 (`KC_FEATURES=token-exchange-standard`) via `KeycloakTokenExchangeClient`
+- `employee-bff` Keycloak client: standard exchange enabled, `aud` mapper → `travel-service`
+- `preferred_username` mapper on `user-attributes` scope
+- `DelegationContextService` validates delegation + consent before exchange
+- Session-scoped `DelegationContext` in BFF
+
+### Keycloak Configuration (Complete — Phase 4)
+
+- 5 human users seeded: alice, bob, carol, dave, eve — all with correct roles and `tenant_id` attribute
+- `realm-export.json` is a clean authoritative export from live KC; validated by `validate-realm-export.sh` (65/65 checks)
+- `realm_access.roles` available in all tokens (direct + exchanged)
+
+### End-to-End Regression (Complete)
+
+- `scripts/end-to-end-test/run-delegation-flow.sh` — 71/71 assertions
+- 10 phases: direct CRUD, delegation setup, consent setup, token exchange, delegated booking, OPA owner/delegate rules, audit trail
+- `scripts/kc-realm-export-test/validate-realm-export.sh` — 65/65 realm checks
+
+### Documentation (Complete — Phase 3/4)
+
+- `README.md` — system overview, architecture, quick start, demo scenarios
+- `IMPLEMENTATION.md` — patterns, OPA integration, audit pattern, token exchange, troubleshooting
+- `DELEGATION-FLOW.md` — step-by-step delegation flow guide (Carol + Dave)
+- `GETTING-STARTED.md` — quick start and common commands
+- Service READMEs: travel-service, expense-service, delegation-service, consent-service, api-gateway, employee-bff
+- 23 ADRs covering all architectural decisions
+
+---
+
+## What's Left to Build (Post-MVP)
+
+### Frontend (Not Started)
+
+- Next.js 14 + React 18 employee portal
+- NextAuth.js with Keycloak provider
+- Booking, expense, delegation management UI
+
+### Approval Service (Not Started)
+
+- Multi-step approval workflow state machine
+- Integration with travel-service and expense-service
+
+### Advanced Features (Deferred)
+
+- Keycloak SPI for token enrichment (ADR-022)
+- OpenTelemetry distributed tracing (ADR-020)
+- HashiCorp Vault (ADR-021)
+- Kubernetes deployment / Helm charts (ADR-012)
+- Workload identity / mTLS (ADR-009)
+- Identity brokering / external IdP (ADR-008)
+
+---
+
+## Known Issues
+
+None currently outstanding. All infrastructure and services are building and running correctly.
+
+### Resolved Issues (Historical)
+
+- **Keycloak `realm_access.roles` missing from tokens**: Required adding `oidc-usermodel-realm-role-mapper` to the `user-attributes` client scope. Without it, `has_role("employee")` in OPA fails for all users. Resolved Phase 4.
+- **`update_booking` / `delete_booking` OPA rules missing**: Added `is_resource_owner` and `is_active_delegate` rules. Resolved Phase 4.
+- **Delegation headers dropped on mutation endpoints**: `PUT /api/bookings/{id}/status` and `DELETE /api/bookings/{id}` now pass `HttpServletRequest` to the header-aware `extractSecurityContext` overload. Resolved Phase 4.
+- **OPA hot-reload**: `--watch` flag added to OPA container in `docker-compose.yml`. Resolved Phase 4.
+- **Standard Token Exchange V2**: `KC_FEATURES=token-exchange-standard` (not `token-exchange`). Resolved Phase 2.
+- **Gradle Wrapper**: Upgraded from 4.4.1 to 8.5 for Java 17 compatibility. Resolved Phase 1.
+- **Flyway `flyway-database-postgresql` version**: Added explicit version to root `build.gradle` dependency management. Resolved Phase 1.
