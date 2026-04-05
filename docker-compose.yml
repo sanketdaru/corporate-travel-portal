@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+      - ./infrastructure/databases/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - corporate-travel-network
     deploy:
@@ -48,10 +49,11 @@ services:
         reservations:
           memory: 1024m
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password123", "RETURN 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # Keycloak - Identity and Access Management
   keycloak:
@@ -131,8 +133,8 @@ services:
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
+    image: localhost/corporate-travel-portal-api-gateway:latest
     container_name: corporate-travel-gateway
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       KEYCLOAK_URL: http://keycloak:8080
@@ -170,8 +172,8 @@ services:
     build:
       context: .
       dockerfile: services/travel-service/Dockerfile
+    image: localhost/corporate-travel-portal-travel-service:latest
     container_name: corporate-travel-service
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
@@ -210,8 +212,8 @@ services:
     build:
       context: .
       dockerfile: services/expense-service/Dockerfile
+    image: localhost/corporate-travel-portal-expense-service:latest
     container_name: corporate-travel-expense-service
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
@@ -250,8 +252,8 @@ services:
     build:
       context: .
       dockerfile: services/consent-service/Dockerfile
+    image: localhost/corporate-travel-portal-consent-service:latest
     container_name: corporate-travel-consent-service
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
@@ -310,8 +312,8 @@ services:
     build:
       context: .
       dockerfile: services/delegation-service/Dockerfile
+    image: localhost/corporate-travel-portal-delegation-service:latest
     container_name: corporate-travel-delegation-service
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/corporate_travel
@@ -355,8 +357,8 @@ services:
     build:
       context: .
       dockerfile: services/employee-bff/Dockerfile
+    image: localhost/corporate-travel-portal-employee-bff:latest
     container_name: corporate-travel-employee-bff
-    platform: linux/amd64
     environment:
       SPRING_PROFILES_ACTIVE: docker
       KEYCLOAK_URL: http://keycloak:8080
