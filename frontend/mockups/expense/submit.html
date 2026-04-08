@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelCorp — Submit Expense</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } } }</script>
+</head>
+<body class="bg-slate-50 font-sans">
+
+  <!-- ── TOP NAV ── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+      </div>
+      <span class="font-semibold text-slate-900 text-sm">TravelCorp</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">Employee</span>
+      <div class="h-4 w-px bg-slate-200"></div>
+      <div class="flex items-center gap-2.5">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-medium text-slate-800 leading-tight">Dave Wilson</p>
+          <p class="text-xs text-slate-400 leading-tight">dave.wilson@acme-corp</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">DW</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── DELEGATION BANNER ── -->
+  <div class="fixed top-14 left-0 right-0 z-40 h-10 bg-amber-50 border-b border-amber-200 flex items-center justify-between px-6">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex items-center gap-1.5 text-amber-700 flex-shrink-0">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        <span class="text-xs font-semibold">Delegation Mode</span>
+      </div>
+      <span class="w-px h-3.5 bg-amber-300 flex-shrink-0"></span>
+      <span class="text-xs text-amber-800 truncate">
+        <strong>Dave Wilson</strong> is acting on behalf of <strong>Carol Singh</strong>
+      </span>
+      <span class="w-px h-3.5 bg-amber-300 flex-shrink-0 hidden lg:block"></span>
+      <span class="text-xs text-amber-600 font-mono truncate hidden lg:block">DLG-2024-0007 · book_travel · CNS-2024-001 · Expires 18:00</span>
+    </div>
+    <button class="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors ml-4">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+      Exit
+    </button>
+  </div>
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="fixed left-0 top-24 bottom-0 w-64 bg-slate-900 flex flex-col z-40">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2.5">
+      <div class="w-6 h-6 rounded-md bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-medium text-slate-300 leading-tight">acme-corp</p>
+        <p class="text-xs text-slate-500 leading-tight">Corporate tenant</p>
+      </div>
+    </div>
+    <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <a href="../dashboard/employee.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <a href="../travel/list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        <span>My Trips</span>
+        <span class="ml-auto inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Carol's
+        </span>
+      </a>
+      <a href="list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium">
+        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        <span>My Expenses</span>
+        <span class="ml-auto inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Carol's
+        </span>
+      </a>
+      <a href="../delegation/manage.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Delegations
+      </a>
+    </nav>
+    <div class="px-2 py-3 border-t border-slate-800">
+      <a href="../auth/login.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm w-full">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="ml-64 pt-24 min-h-screen bg-slate-50">
+    <div class="px-8 py-6">
+
+      <!-- Breadcrumb -->
+      <nav class="flex items-center gap-2 text-sm text-slate-400 mb-5">
+        <a href="list.html" class="hover:text-slate-700 transition-colors">My Expenses</a>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-slate-700 font-medium">New Expense Report</span>
+      </nav>
+
+      <div class="max-w-2xl space-y-6">
+
+        <div>
+          <h1 class="text-xl font-semibold text-slate-900">Submit Expense Report</h1>
+          <div class="flex items-center gap-1.5 mt-1">
+            <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            <p class="text-xs text-amber-700">This report will be attributed to <strong>Carol Singh</strong> — you are acting as her delegate</p>
+          </div>
+        </div>
+
+        <!-- Report Details -->
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Report Details</h2>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Report Title <span class="text-red-400">*</span></label>
+            <input type="text" value="Bangalore trip expenses"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"/>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+            <textarea rows="2"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition">Transport, meals and conference fees for the Bangalore engineering planning trip.</textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Linked Trip</label>
+              <select class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option>— None —</option>
+                <option selected>BKG-2024-0041 — Bangalore</option>
+                <option>BKG-2024-0038 — Singapore</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Currency <span class="text-red-400">*</span></label>
+              <select class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option selected>INR</option><option>USD</option><option>EUR</option><option>SGD</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense Items -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Expense Items</h2>
+            <button class="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add item
+            </button>
+          </div>
+
+          <!-- Column headers -->
+          <div class="px-5 py-2 grid grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50">
+            <span class="col-span-3 text-xs text-slate-400 font-medium">Category</span>
+            <span class="col-span-4 text-xs text-slate-400 font-medium">Description</span>
+            <span class="col-span-2 text-xs text-slate-400 font-medium">Date</span>
+            <span class="col-span-2 text-xs text-slate-400 font-medium">Amount (INR)</span>
+          </div>
+
+          <div class="divide-y divide-slate-100">
+            <!-- Item 1 -->
+            <div class="px-5 py-3.5 grid grid-cols-12 gap-3 items-center">
+              <div class="col-span-3">
+                <select class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option selected>Transportation</option>
+                  <option>Accommodation</option>
+                  <option>Meals</option>
+                  <option>Conference</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="col-span-4">
+                <input type="text" value="Airport cab — BLR"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="date" value="2026-04-10"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="number" value="1800"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-1 flex justify-center">
+                <button class="text-slate-300 hover:text-red-400 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Item 2 -->
+            <div class="px-5 py-3.5 grid grid-cols-12 gap-3 items-center">
+              <div class="col-span-3">
+                <select class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option>Transportation</option>
+                  <option>Accommodation</option>
+                  <option>Meals</option>
+                  <option selected>Conference</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="col-span-4">
+                <input type="text" value="Conference registration fee"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="date" value="2026-04-11"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="number" value="4500"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-1 flex justify-center">
+                <button class="text-slate-300 hover:text-red-400 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Item 3 -->
+            <div class="px-5 py-3.5 grid grid-cols-12 gap-3 items-center">
+              <div class="col-span-3">
+                <select class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option>Transportation</option>
+                  <option>Accommodation</option>
+                  <option selected>Meals</option>
+                  <option>Conference</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="col-span-4">
+                <input type="text" value="Team dinner (4 people)"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="date" value="2026-04-12"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-2">
+                <input type="number" value="1300"
+                  class="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+              </div>
+              <div class="col-span-1 flex justify-center">
+                <button class="text-slate-300 hover:text-red-400 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Total -->
+          <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-600">Total</span>
+            <span class="text-base font-semibold text-slate-900">₹7,600 INR</span>
+          </div>
+        </div>
+
+        <!-- Identity Context -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p class="text-xs font-semibold text-amber-900 mb-2.5">Identity context — this report will be recorded as</p>
+          <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs font-mono">
+            <span class="text-slate-400 font-sans">userId (subject)</span>
+            <span class="text-amber-700 font-semibold">carol.singh@acme-corp</span>
+            <span class="text-slate-400 font-sans">createdBy (actor)</span>
+            <span class="text-blue-700">dave.wilson@acme-corp</span>
+            <span class="text-slate-400 font-sans">delegationId</span>
+            <span class="text-slate-700">DLG-2024-0007</span>
+            <span class="text-slate-400 font-sans">consentId</span>
+            <span class="text-slate-700">CNS-2024-001</span>
+            <span class="text-slate-400 font-sans">tenantId</span>
+            <span class="text-slate-700">acme-corp</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 pb-8">
+          <a href="list.html"
+            class="flex-1 text-center border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-medium py-2.5 rounded-lg transition-colors">
+            Save as Draft
+          </a>
+          <a href="detail.html"
+            class="flex-[2] text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
+            Submit for Approval
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</body>
+</html>

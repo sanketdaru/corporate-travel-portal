@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelCorp — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } } }</script>
+</head>
+<body class="bg-slate-50 font-sans">
+
+  <!-- ── TOP NAV ── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+      </div>
+      <span class="font-semibold text-slate-900 text-sm">TravelCorp</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-full">Admin</span>
+      <div class="h-4 w-px bg-slate-200"></div>
+      <div class="flex items-center gap-2.5">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-medium text-slate-800 leading-tight">Bob Admin</p>
+          <p class="text-xs text-slate-400 leading-tight">bob.admin@acme-corp</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">BA</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="fixed left-0 top-14 bottom-0 w-64 bg-slate-900 flex flex-col z-40">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2.5">
+      <div class="w-6 h-6 rounded-md bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-medium text-slate-300 leading-tight">acme-corp</p>
+        <p class="text-xs text-slate-500 leading-tight">System administration</p>
+      </div>
+    </div>
+    <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <a href="admin.html" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium">
+        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Dashboard
+      </a>
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold text-slate-500 uppercase tracking-widest">Administration</p>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+        User Management
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        Policies &amp; OPA
+      </a>
+      <a href="../delegation/manage.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+        Delegations
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Audit Log
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+        </svg>
+        System Health
+      </a>
+    </nav>
+    <div class="px-2 py-3 border-t border-slate-800">
+      <a href="../auth/login.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm w-full">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="ml-64 pt-14 min-h-screen bg-slate-50">
+    <div class="px-8 py-6 space-y-6">
+
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Admin Dashboard</h1>
+        <p class="text-sm text-slate-400 mt-0.5">Saturday, 5 Apr 2026 · Tenant: acme-corp</p>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Users</p>
+            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-bold text-slate-900">48</p>
+          <p class="text-xs text-slate-400 mt-1.5">All via Keycloak</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Delegations</p>
+            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-bold text-slate-900">11</p>
+          <p class="text-xs text-amber-600 mt-1.5">2 expiring today</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">OPA Decisions (24h)</p>
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-bold text-slate-900">1,842</p>
+          <p class="text-xs text-emerald-600 mt-1.5">99.8% allow rate</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Policy Violations (24h)</p>
+            <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-bold text-red-600">4</p>
+          <p class="text-xs text-slate-400 mt-1.5">3 cross-tenant · 1 scope</p>
+        </div>
+      </div>
+
+      <!-- Service health -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-800">Service Health</h2>
+        </div>
+        <div class="divide-y divide-slate-100">
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">employee-bff</span>
+              <span class="text-xs text-slate-400 font-mono">:8085</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · p99: 42 ms</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">travel-service</span>
+              <span class="text-xs text-slate-400 font-mono">:8081</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · p99: 28 ms</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">expense-service</span>
+              <span class="text-xs text-slate-400 font-mono">:8082</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · p99: 35 ms</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">delegation-service</span>
+              <span class="text-xs text-slate-400 font-mono">:8083</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · p99: 18 ms</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">consent-service</span>
+              <span class="text-xs text-slate-400 font-mono">:8084</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · p99: 22 ms</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">Keycloak</span>
+              <span class="text-xs text-slate-400 font-mono">:8080</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · realm: acme-corp</span>
+          </div>
+          <div class="flex items-center justify-between px-5 py-3 hover:bg-slate-50/70 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="text-sm font-medium text-slate-800">OPA</span>
+              <span class="text-xs text-slate-400 font-mono">:8181</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">UP · 6 policies loaded</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audit events -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-800">Recent Audit Events</h2>
+          <button class="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">Full audit log →</button>
+        </div>
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50">
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Time</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actor</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Resource</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Result</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-mono text-xs">
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5 text-slate-400">09:41:03</td>
+              <td class="px-5 py-3.5 text-slate-700">CREATE_BOOKING</td>
+              <td class="px-5 py-3.5 text-blue-600">dave.wilson</td>
+              <td class="px-5 py-3.5 text-amber-600">carol.singh</td>
+              <td class="px-5 py-3.5 text-slate-500">BKG-2024-0041</td>
+              <td class="px-5 py-3.5"><span class="font-semibold text-emerald-600">ALLOW</span></td>
+            </tr>
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5 text-slate-400">09:38:51</td>
+              <td class="px-5 py-3.5 text-slate-700">ACTIVATE_DELEGATION</td>
+              <td class="px-5 py-3.5 text-blue-600">dave.wilson</td>
+              <td class="px-5 py-3.5 text-amber-600">carol.singh</td>
+              <td class="px-5 py-3.5 text-slate-500">DLG-2024-0007</td>
+              <td class="px-5 py-3.5"><span class="font-semibold text-emerald-600">ALLOW</span></td>
+            </tr>
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5 text-slate-400">09:22:10</td>
+              <td class="px-5 py-3.5 text-slate-700">VIEW_BOOKINGS</td>
+              <td class="px-5 py-3.5 text-blue-600">carol.singh</td>
+              <td class="px-5 py-3.5 text-slate-400">—</td>
+              <td class="px-5 py-3.5 text-slate-500">/api/bff/bookings</td>
+              <td class="px-5 py-3.5"><span class="font-semibold text-emerald-600">ALLOW</span></td>
+            </tr>
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5 text-slate-400">08:55:44</td>
+              <td class="px-5 py-3.5 text-slate-700">CREATE_EXPENSE</td>
+              <td class="px-5 py-3.5 text-blue-600">ravi.kumar</td>
+              <td class="px-5 py-3.5 text-slate-400">—</td>
+              <td class="px-5 py-3.5 text-slate-500">EXP-2024-0021</td>
+              <td class="px-5 py-3.5"><span class="font-semibold text-emerald-600">ALLOW</span></td>
+            </tr>
+            <tr class="bg-red-50/50 hover:bg-red-50/80 transition-colors">
+              <td class="px-5 py-3.5 text-slate-400">08:31:02</td>
+              <td class="px-5 py-3.5 text-red-700">VIEW_BOOKINGS</td>
+              <td class="px-5 py-3.5 text-red-600">unknown.user</td>
+              <td class="px-5 py-3.5 text-slate-400">—</td>
+              <td class="px-5 py-3.5 text-red-500">tenant: beta-corp</td>
+              <td class="px-5 py-3.5"><span class="font-semibold text-red-600">DENY</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="px-5 py-3 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">
+          Showing last 5 events · Audit columns: actorId · subjectId · delegationId · consentId (ADR-011)
+        </div>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelCorp — My Expenses</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } } }</script>
+</head>
+<body class="bg-slate-50 font-sans">
+
+  <!-- ── TOP NAV ── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+      </div>
+      <span class="font-semibold text-slate-900 text-sm">TravelCorp</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">Employee</span>
+      <div class="h-4 w-px bg-slate-200"></div>
+      <div class="flex items-center gap-2.5">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-medium text-slate-800 leading-tight">Carol Singh</p>
+          <p class="text-xs text-slate-400 leading-tight">carol.singh@acme-corp</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">CS</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="fixed left-0 top-14 bottom-0 w-64 bg-slate-900 flex flex-col z-40">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2.5">
+      <div class="w-6 h-6 rounded-md bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div>
+        <p class="text-xs font-medium text-slate-300 leading-tight">acme-corp</p>
+        <p class="text-xs text-slate-500 leading-tight">Corporate tenant</p>
+      </div>
+    </div>
+    <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <a href="../dashboard/employee.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <a href="../travel/list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        My Trips
+      </a>
+      <a href="list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium">
+        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        My Expenses
+      </a>
+      <a href="../delegation/manage.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Delegations
+      </a>
+    </nav>
+    <div class="px-2 py-3 border-t border-slate-800">
+      <a href="../auth/login.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm w-full">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="ml-64 pt-14 min-h-screen bg-slate-50">
+    <div class="px-8 py-6 space-y-5">
+
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-xl font-semibold text-slate-900">My Expenses</h1>
+          <p class="text-sm text-slate-400 mt-0.5">acme-corp · Apr 2026</p>
+        </div>
+        <a href="submit.html" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          New Report
+        </a>
+      </div>
+
+      <!-- Summary strip -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+          <p class="text-xl font-bold text-slate-900">₹42,800</p>
+          <p class="text-xs text-slate-400 mt-1">Total submitted</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+          <p class="text-xl font-bold text-emerald-600">₹28,600</p>
+          <p class="text-xs text-slate-400 mt-1">Approved &amp; paid</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+          <p class="text-xl font-bold text-amber-600">₹9,800</p>
+          <p class="text-xs text-slate-400 mt-1">Pending approval</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+          <p class="text-xl font-bold text-slate-400">₹4,400</p>
+          <p class="text-xs text-slate-400 mt-1">Draft</p>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
+        <div class="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
+          <button class="px-3 py-1.5 bg-slate-900 text-white text-xs font-medium">All</button>
+          <button class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 text-xs transition-colors">Draft</button>
+          <button class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 text-xs transition-colors">Submitted</button>
+          <button class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 text-xs transition-colors">Approved</button>
+          <button class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 text-xs transition-colors">Rejected</button>
+        </div>
+        <input type="text" placeholder="Search reports…"
+          class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48 transition"/>
+        <input type="month" value="2026-04"
+          class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"/>
+        <button class="text-sm text-slate-400 hover:text-slate-600 transition-colors">Reset</button>
+      </div>
+
+      <!-- Table -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50">
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Report</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Title</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Trip</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Items</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th class="px-5 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-mono text-blue-600 hover:underline">EXP-2024-0019</a></td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">Singapore trip — meals &amp; transport</td>
+              <td class="px-5 py-3.5"><a href="../travel/detail.html" class="text-xs font-mono text-blue-600 hover:underline">BKG-2024-0038</a></td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">4</td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">₹14,200</td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">Mar 25, 2026</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
+                </span>
+              </td>
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-medium text-blue-600 hover:text-blue-700">View →</a></td>
+            </tr>
+
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-mono text-blue-600 hover:underline">EXP-2024-0022</a></td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">Delhi conference — accommodation</td>
+              <td class="px-5 py-3.5"><a href="../travel/detail.html" class="text-xs font-mono text-blue-600 hover:underline">BKG-2024-0035</a></td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">2</td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">₹9,800</td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">Mar 8, 2026</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Submitted
+                </span>
+              </td>
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-medium text-blue-600 hover:text-blue-700">View →</a></td>
+            </tr>
+
+            <!-- Submitted via delegation — amber tint -->
+            <tr class="hover:bg-amber-50/30 bg-amber-50/10 transition-colors">
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-mono text-blue-600 hover:underline">EXP-2024-0018</a></td>
+              <td class="px-5 py-3.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-slate-800">Bangalore trip expenses</span>
+                  <span class="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    via delegate
+                  </span>
+                </div>
+              </td>
+              <td class="px-5 py-3.5"><a href="../travel/detail.html" class="text-xs font-mono text-blue-600 hover:underline">BKG-2024-0041</a></td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">3</td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">₹7,600</td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">Apr 3, 2026</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Submitted
+                </span>
+              </td>
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-medium text-blue-600 hover:text-blue-700">View →</a></td>
+            </tr>
+
+            <tr class="hover:bg-slate-50/70 transition-colors">
+              <td class="px-5 py-3.5"><a href="detail.html" class="text-xs font-mono text-blue-600 hover:underline">EXP-2024-0025</a></td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">Bangalore Q2 planning trip</td>
+              <td class="px-5 py-3.5 text-xs text-slate-400">—</td>
+              <td class="px-5 py-3.5 text-sm text-slate-500">1</td>
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-800">₹3,400</td>
+              <td class="px-5 py-3.5 text-xs text-slate-400 italic">Not submitted</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Draft
+                </span>
+              </td>
+              <td class="px-5 py-3.5 flex items-center gap-2">
+                <a href="detail.html" class="text-xs font-medium text-blue-600 hover:text-blue-700">Edit</a>
+                <span class="text-slate-200">|</span>
+                <a href="detail.html" class="text-xs font-medium text-emerald-600 hover:text-emerald-700">Submit</a>
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
+        <div class="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+          <span>4 expense reports</span>
+          <span class="text-amber-600">1 report submitted via delegation (Dave Wilson)</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>

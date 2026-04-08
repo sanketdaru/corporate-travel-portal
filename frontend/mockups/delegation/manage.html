@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelCorp — Delegations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } } }</script>
+</head>
+<body class="bg-slate-50 font-sans">
+
+  <!-- TOP NAV -->
+  <nav class="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+      </div>
+      <span class="font-semibold text-slate-900 text-sm">TravelCorp</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">Employee</span>
+      <div class="h-4 w-px bg-slate-200"></div>
+      <div class="flex items-center gap-2.5">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-medium text-slate-800 leading-tight">Carol Singh</p>
+          <p class="text-xs text-slate-400 leading-tight">carol.singh@acme-corp</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">CS</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- SIDEBAR -->
+  <aside class="fixed left-0 top-14 bottom-0 w-64 bg-slate-900 flex flex-col z-40">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2.5">
+      <div class="w-6 h-6 rounded-md bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-medium text-slate-300 leading-tight">acme-corp</p>
+        <p class="text-xs text-slate-500 leading-tight">Corporate tenant</p>
+      </div>
+    </div>
+    <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <a href="../dashboard/employee.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <a href="../travel/list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        My Trips
+      </a>
+      <a href="../expense/list.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        My Expenses
+      </a>
+      <a href="manage.html" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium">
+        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Delegations
+      </a>
+    </nav>
+    <div class="px-2 py-3 border-t border-slate-800">
+      <a href="../auth/login.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm w-full">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="ml-64 pt-14 min-h-screen bg-slate-50">
+    <div class="px-8 py-6 space-y-6">
+
+      <!-- Page Header -->
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-xl font-semibold text-slate-900">Delegations</h1>
+          <p class="text-sm text-slate-500 mt-0.5">Manage who can act on your behalf, and delegations granted to you</p>
+        </div>
+        <button id="open-grant-modal"
+          class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Grant Delegation
+        </button>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+        <svg class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-blue-900 mb-0.5">How delegation works</p>
+          <p class="text-xs text-blue-700 leading-relaxed">
+            When you grant a delegation, the <strong>delegate</strong> can act on your behalf within specified scopes.
+            Every action they take is recorded with both their identity (<span class="font-mono">actorId</span>) and yours (<span class="font-mono">subjectId</span>)
+            in the audit trail. Powered by OAuth 2.0 Token Exchange (RFC 8693).
+          </p>
+        </div>
+      </div>
+
+      <!-- Section 1: Granted by Me -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Granted by Me</h2>
+            <span class="text-xs text-slate-400">— I am the subject; others act on my behalf</span>
+          </div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>1 active
+          </span>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-400 uppercase tracking-wide">
+            <tr>
+              <th class="px-5 py-3 text-left font-medium">ID</th>
+              <th class="px-5 py-3 text-left font-medium">Delegate (Actor)</th>
+              <th class="px-5 py-3 text-left font-medium">Purpose</th>
+              <th class="px-5 py-3 text-left font-medium">Scopes</th>
+              <th class="px-5 py-3 text-left font-medium">Granted</th>
+              <th class="px-5 py-3 text-left font-medium">Expires</th>
+              <th class="px-5 py-3 text-left font-medium">Status</th>
+              <th class="px-5 py-3 text-left font-medium"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+
+            <!-- Active delegation row -->
+            <tr class="bg-amber-50/40 hover:bg-amber-50/60 transition-colors">
+              <td class="px-5 py-3.5 font-mono text-xs text-slate-700">DLG-2024-0007</td>
+              <td class="px-5 py-3.5">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-xs flex items-center justify-center font-semibold flex-shrink-0">DW</div>
+                  <div>
+                    <p class="text-sm font-medium text-slate-800">Dave Wilson</p>
+                    <p class="text-xs text-slate-400">dave.wilson@acme-corp</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3.5">
+                <span class="font-mono text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-md">book_travel</span>
+              </td>
+              <td class="px-5 py-3.5">
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md w-fit">view_bookings</span>
+                  <span class="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md w-fit">create_bookings</span>
+                </div>
+              </td>
+              <td class="px-5 py-3.5 text-xs text-slate-500">Apr 1, 2026</td>
+              <td class="px-5 py-3.5 text-xs font-medium text-amber-700">Apr 5, 2026 18:00</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active
+                </span>
+              </td>
+              <td class="px-5 py-3.5">
+                <button class="text-xs font-medium text-red-500 hover:text-red-700 transition-colors">Revoke</button>
+              </td>
+            </tr>
+
+            <!-- Expired delegation row -->
+            <tr class="opacity-50 hover:opacity-70 transition-opacity">
+              <td class="px-5 py-3.5 font-mono text-xs text-slate-500">DLG-2024-0003</td>
+              <td class="px-5 py-3.5">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-xs flex items-center justify-center font-semibold flex-shrink-0">NS</div>
+                  <div>
+                    <p class="text-sm font-medium text-slate-600">Neha Sharma</p>
+                    <p class="text-xs text-slate-400">neha.sharma@acme-corp</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3.5">
+                <span class="font-mono text-xs bg-slate-50 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-md">book_travel</span>
+              </td>
+              <td class="px-5 py-3.5">
+                <span class="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md w-fit">view_bookings</span>
+              </td>
+              <td class="px-5 py-3.5 text-xs text-slate-400">Feb 10, 2026</td>
+              <td class="px-5 py-3.5 text-xs text-slate-400">Feb 20, 2026</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Expired
+                </span>
+              </td>
+              <td class="px-5 py-3.5 text-slate-300 text-xs">—</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section 2: Granted to Me -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Granted to Me</h2>
+            <span class="text-xs text-slate-400">— I am the actor; I can act on their behalf</span>
+          </div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>0 active
+          </span>
+        </div>
+        <div class="px-5 py-12 text-center">
+          <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <p class="text-sm text-slate-500">No delegations have been granted to you</p>
+          <p class="text-xs text-slate-400 mt-0.5">When a colleague grants you delegation, it will appear here</p>
+        </div>
+      </div>
+
+      <!-- Section 3: Consent Records -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Consent Records</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Each active delegation requires a valid consent record validated by consent-service :8084</p>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-400 uppercase tracking-wide">
+            <tr>
+              <th class="px-5 py-3 text-left font-medium">Consent ID</th>
+              <th class="px-5 py-3 text-left font-medium">Linked Delegation</th>
+              <th class="px-5 py-3 text-left font-medium">Purpose</th>
+              <th class="px-5 py-3 text-left font-medium">Granted By</th>
+              <th class="px-5 py-3 text-left font-medium">Valid Until</th>
+              <th class="px-5 py-3 text-left font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-5 py-3.5 font-mono text-xs text-blue-600">CNS-2024-001</td>
+              <td class="px-5 py-3.5 font-mono text-xs text-slate-700">DLG-2024-0007</td>
+              <td class="px-5 py-3.5">
+                <span class="font-mono text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-md">book_travel</span>
+              </td>
+              <td class="px-5 py-3.5 text-slate-700">Carol Singh</td>
+              <td class="px-5 py-3.5 text-xs font-medium text-amber-700">Apr 5, 2026 18:00</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Valid
+                </span>
+              </td>
+            </tr>
+            <tr class="opacity-50 hover:opacity-70 transition-opacity">
+              <td class="px-5 py-3.5 font-mono text-xs text-slate-500">CNS-2024-0004</td>
+              <td class="px-5 py-3.5 font-mono text-xs text-slate-500">DLG-2024-0003</td>
+              <td class="px-5 py-3.5">
+                <span class="font-mono text-xs bg-slate-50 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-md">book_travel</span>
+              </td>
+              <td class="px-5 py-3.5 text-slate-500">Carol Singh</td>
+              <td class="px-5 py-3.5 text-xs text-slate-400">Feb 20, 2026</td>
+              <td class="px-5 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Expired
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- GRANT DELEGATION MODAL -->
+  <div id="grant-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold text-slate-900">Grant New Delegation</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Allow a colleague to act on your behalf</p>
+        </div>
+        <button id="close-grant-modal" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="px-6 py-5 space-y-4">
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Delegate <span class="text-red-400">*</span></label>
+          <select class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option>Select a colleague…</option>
+            <option selected>Dave Wilson (dave.wilson@acme-corp)</option>
+            <option>Neha Sharma (neha.sharma@acme-corp)</option>
+            <option>Sam Contractor (sam.contractor@acme-corp)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Purpose <span class="text-red-400">*</span></label>
+          <select class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option selected>book_travel</option>
+            <option>approve_expenses</option>
+            <option>view_reports</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-2">Scopes <span class="text-red-400">*</span></label>
+          <div class="space-y-2.5">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+              <span class="text-sm text-slate-700">view_bookings</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+              <span class="text-sm text-slate-700">create_bookings</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+              <span class="text-sm text-slate-700">view_expenses</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+              <span class="text-sm text-slate-700">create_expenses</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Expiry</label>
+          <input type="datetime-local" value="2026-04-05T18:00"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+          <p class="text-xs text-slate-400 mt-1">Leave blank for no expiry. A consent record will be created automatically.</p>
+        </div>
+
+        <!-- Summary preview -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3.5 space-y-1.5">
+          <p class="text-xs font-semibold text-amber-900">This will create:</p>
+          <ul class="text-xs text-amber-800 space-y-1">
+            <li class="flex items-start gap-1.5">
+              <span class="text-amber-400 mt-0.5">·</span>
+              A delegation record in delegation-service — delegatorId: <span class="font-mono">carol.singh</span>, delegateId: <span class="font-mono">dave.wilson</span>
+            </li>
+            <li class="flex items-start gap-1.5">
+              <span class="text-amber-400 mt-0.5">·</span>
+              A consent record in consent-service for purpose: <span class="font-mono">book_travel</span>
+            </li>
+            <li class="flex items-start gap-1.5">
+              <span class="text-amber-400 mt-0.5">·</span>
+              Dave can activate delegation via Token Exchange (RFC 8693)
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="px-6 py-4 border-t border-slate-200 flex gap-3 justify-end">
+        <button id="close-grant-modal-2"
+          class="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-colors">
+          Cancel
+        </button>
+        <button class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
+          Grant Delegation
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const modal = document.getElementById('grant-modal');
+    document.getElementById('open-grant-modal').addEventListener('click', () => modal.classList.remove('hidden'));
+    document.getElementById('close-grant-modal').addEventListener('click', () => modal.classList.add('hidden'));
+    document.getElementById('close-grant-modal-2').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+  </script>
+
+</body>
+</html>
