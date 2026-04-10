@@ -256,3 +256,5 @@ Update Memory Bank when ANY of these occur:
 - **Database migration** → activeContext.md (schema work), progress.md (DB status)
 
 REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy. NO development work should complete without updating the memory bank.
+
+Always use Context7 MCP when you need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
