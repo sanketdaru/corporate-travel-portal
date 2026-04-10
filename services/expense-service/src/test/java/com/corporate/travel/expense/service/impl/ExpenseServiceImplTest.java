@@ -7,6 +7,7 @@ import com.corporate.travel.expense.model.entity.Expense;
 import com.corporate.travel.expense.model.entity.ExpenseItem;
 import com.corporate.travel.expense.repository.ExpenseItemRepository;
 import com.corporate.travel.expense.repository.ExpenseRepository;
+import com.corporate.travel.expense.service.ExpenseAuditService;
 import com.corporate.travel.expense.testutil.ExpenseItemTestDataBuilder;
 import com.corporate.travel.expense.testutil.ExpenseTestDataBuilder;
 import com.corporate.travel.expense.testutil.ExpenseTestFixtures;
@@ -66,7 +67,10 @@ class ExpenseServiceImplTest {
     
     @Mock
     private OpaClient opaClient;
-    
+
+    @Mock
+    private ExpenseAuditService auditService;
+
     @InjectMocks
     private ExpenseServiceImpl expenseService;
     

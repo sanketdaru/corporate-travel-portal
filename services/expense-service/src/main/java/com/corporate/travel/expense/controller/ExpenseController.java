@@ -57,10 +57,11 @@ public class ExpenseController {
     @PostMapping
     public ResponseEntity<Expense> createExpense(
             @Valid @RequestBody Expense expense,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.info("Creating expense for user: {}", context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.info("Creating expense for user: {}, isDelegated: {}", context.getUserId(), context.isDelegated());
         
         Expense created = expenseService.createExpense(expense, context);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -77,10 +78,11 @@ public class ExpenseController {
     })
     @GetMapping
     public ResponseEntity<List<Expense>> getUserExpenses(
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.debug("Fetching expenses for user: {}", context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.debug("Fetching expenses for user: {}, isDelegated: {}", context.getUserId(), context.isDelegated());
         
         List<Expense> expenses = expenseService.getUserExpenses(context);
         return ResponseEntity.ok(expenses);
@@ -99,10 +101,11 @@ public class ExpenseController {
     @GetMapping("/{id}")
     public ResponseEntity<Expense> getExpense(
             @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.debug("Fetching expense {} for user: {}", id, context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.debug("Fetching expense {} for user: {}, isDelegated: {}", id, context.getUserId(), context.isDelegated());
         
         Expense expense = expenseService.getExpense(id, context);
         return ResponseEntity.ok(expense);
@@ -123,10 +126,11 @@ public class ExpenseController {
     public ResponseEntity<Expense> updateExpense(
             @PathVariable UUID id,
             @Valid @RequestBody Expense expenseUpdate,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.info("Updating expense {} by user: {}", id, context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.info("Updating expense {} by user: {}, isDelegated: {}", id, context.getUserId(), context.isDelegated());
         
         Expense updated = expenseService.updateExpense(id, expenseUpdate, context);
         return ResponseEntity.ok(updated);
@@ -168,9 +172,10 @@ public class ExpenseController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExpense(
             @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
 
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
         log.info("Deleting expense {} by user: {}", id, context.getUserId());
 
         expenseService.deleteExpense(id, context);
@@ -194,10 +199,11 @@ public class ExpenseController {
     public ResponseEntity<ExpenseItem> addExpenseItem(
             @PathVariable UUID expenseId,
             @Valid @RequestBody ExpenseItem item,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.info("Adding item to expense {} by user: {}", expenseId, context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.info("Adding item to expense {} by user: {}, isDelegated: {}", expenseId, context.getUserId(), context.isDelegated());
         
         ExpenseItem created = expenseService.addExpenseItem(expenseId, item, context);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -219,9 +225,10 @@ public class ExpenseController {
             @PathVariable UUID expenseId,
             @PathVariable UUID itemId,
             @Valid @RequestBody ExpenseItem itemUpdate,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
         log.info("Updating item {} in expense {} by user: {}", itemId, expenseId, context.getUserId());
         
         ExpenseItem updated = expenseService.updateExpenseItem(expenseId, itemId, itemUpdate, context);
@@ -243,9 +250,10 @@ public class ExpenseController {
     public ResponseEntity<Void> deleteExpenseItem(
             @PathVariable UUID expenseId,
             @PathVariable UUID itemId,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
         log.info("Deleting item {} from expense {} by user: {}", itemId, expenseId, context.getUserId());
         
         expenseService.deleteExpenseItem(expenseId, itemId, context);
@@ -268,10 +276,11 @@ public class ExpenseController {
     @PostMapping("/{id}/submit")
     public ResponseEntity<Expense> submitExpense(
             @PathVariable UUID id,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        
-        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt);
-        log.info("Submitting expense {} by user: {}", id, context.getUserId());
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        log.info("Submitting expense {} by user: {}, isDelegated: {}", id, context.getUserId(), context.isDelegated());
         
         Expense submitted = expenseService.submitExpense(id, context);
         return ResponseEntity.ok(submitted);
