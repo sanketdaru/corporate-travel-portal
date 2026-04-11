@@ -8,6 +8,22 @@ The frontend must surface a sophisticated identity model where an assistant (Dav
 
 ---
 
+## Implementation Status
+
+| Phase | Description | Status |
+|---|---|---|
+| 0 | Dummy data seeding | ✅ Done |
+| 1 | Project scaffolding, design system, app shell | ✅ Done |
+| 2 | Authentication (Keycloak OIDC via NextAuth) | ✅ Done |
+| 3 | Dashboard pages (all roles) | ✅ Done |
+| 4 | Travel authorizations (list, create, detail) | ✅ Done |
+| 5 | Expense management (list, submit, approve) | ✅ Done |
+| 6 | Delegation and consent management | ⏳ In progress |
+| 7 | Audit trails and admin dashboard | 🔲 Pending |
+| 8 | Polish, error handling, accessibility | 🔲 Pending |
+
+---
+
 ## Tech Stack
 
 | Concern | Choice |
@@ -41,13 +57,13 @@ corporate-travel-portal/
         │       ├── layout.tsx               ← AppShell: TopNav + Sidebar + DelegationBanner
         │       ├── dashboard/page.tsx       ← role-splits employee/manager/admin
         │       ├── travel/
-        │       │   ├── page.tsx             ← booking list
-        │       │   ├── book/page.tsx
-        │       │   └── [id]/page.tsx
+        │       │   ├── page.tsx             ← authorization list
+        │       │   ├── book/page.tsx        ← new travel authorization form
+        │       │   └── [id]/page.tsx        ← authorization detail + audit trail
         │       ├── expense/
         │       │   ├── page.tsx             ← expense list
-        │       │   ├── submit/page.tsx
-        │       │   └── [id]/page.tsx
+        │       │   ├── submit/page.tsx      ← submit form with budget indicator
+        │       │   └── [id]/page.tsx        ← expense detail
         │       ├── delegation/page.tsx
         │       └── admin/audit/page.tsx     ← Phase 7
         ├── components/
@@ -62,14 +78,9 @@ corporate-travel-portal/
         │   │   ├── AuditTrail.tsx
         │   │   ├── IdentityContextPanel.tsx
         │   │   └── Pagination.tsx
-        │   ├── travel/
-        │   │   ├── BookingTable.tsx
-        │   │   ├── BookingForm.tsx
-        │   │   └── BookingDetail.tsx
-        │   ├── expense/
-        │   │   ├── ExpenseTable.tsx
-        │   │   ├── ExpenseItemEditor.tsx    ← useFieldArray dynamic rows
-        │   │   └── ExpenseDetail.tsx
+        │   ├── dashboard/
+        │   │   ├── EmployeeDashboard.tsx
+        │   │   └── ManagerDashboard.tsx
         │   └── delegation/
         │       ├── DelegationTable.tsx
         │       ├── ConsentTable.tsx
@@ -82,11 +93,8 @@ corporate-travel-portal/
         │   │   ├── delegation.ts           ← /api/delegations/* (gateway)
         │   │   └── consent.ts              ← /api/consents/* (gateway)
         │   ├── auth/auth.ts                ← next-auth config
-        │   ├── hooks/
-        │   │   ├── useDelegationContext.ts
-        │   │   ├── useBookings.ts
-        │   │   ├── useExpenses.ts
-        │   │   └── useDelegations.ts
+        │   ├── context/
+        │   │   └── DelegationContext.tsx   ← React context + useDelegationContext hook
         │   └── types/
         │       ├── booking.ts
         │       ├── expense.ts
@@ -111,6 +119,46 @@ corporate-travel-portal/
 6. **Amber tint on delegated rows**: Any table row where `delegationId !== null` gets `bg-amber-50/10 hover:bg-amber-50/30`.
 7. **Role-based UI, never username-based**: All conditional rendering (manager approve buttons, delegation grant, assistant activation, admin dashboard) must derive from `session.user.roles` (`realm_access.roles` from JWT). Never branch on username. The same user can change roles; a new user can have any role.
 8. **Booking source is fixed**: The departure origin for all bookings is always "Office HQ — Mumbai, India". It is a display-only field, not editable by the user.
+9. **Bookings are travel authorizations, NOT transactions**: A booking records intent to travel with a pre-approved budget. It has NO `bookingType` (FLIGHT/HOTEL/CAR) and NO `totalAmount`. Actual costs (flight ticket, hotel nights, meals, taxi) are captured as expense line items. Do NOT add booking type radio buttons or estimated amount fields to any booking form — they were removed in the refactor and must not return.
+10. **Budget enforcement is two-layer**: Frontend disables "Submit for Approval" button when `runningTotal > approvedBudget`. Backend authoritatively enforces the ceiling in `ExpenseServiceImpl.submitExpense()` and returns HTTP 422 (`BudgetExceededException`) with `budget`/`total`/`overage`/`currency` fields in a RFC 7807 ProblemDetail.
+11. **Submit Expense pre-fill via URL params**: The travel detail page passes these params when linking to `/expense/submit`: `bookingId`, `destination`, `businessPurpose`, `budget`, `budgetCurrency`, `startDate`. The submit form reads all six from `useSearchParams()` and uses them for both form defaults and the budget indicator.
+12. **Internal budget endpoint**: `GET http://travel-service:8081/api/bookings/{id}/budget` is permitted without authentication (container-network-only, `permitAll()` in SecurityConfig). It returns `{ id, budget, budgetCurrency }`. Never call it from the frontend — it's for expense-service internal use only.
+
+---
+
+## Booking Type Reference (THE CORRECT MODEL)
+
+```typescript
+// lib/types/booking.ts — actual shape as of latest commit
+export type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "DRAFT";
+export type BudgetCurrency = "INR" | "USD" | "EUR" | "SGD";
+
+export interface Booking {
+  id: string;
+  tenantId: string;
+  userId: string;           // owner of the trip
+  createdBy: string;        // actor who created it (differs from userId when delegated)
+  updatedBy?: string;
+  destination: string;      // required
+  startDate: string;        // ISO date "2026-05-10" — required
+  endDate: string;          // ISO date "2026-05-17" — required
+  businessPurpose?: string; // why the trip is being made
+  notes?: string;           // visa info, special arrangements, etc.
+  status: BookingStatus;
+  budget: number;           // pre-approved spending ceiling — required
+  budgetCurrency: BudgetCurrency;
+  details?: string;         // JSON string for extra info
+  createdAt: string;
+  updatedAt: string;
+  delegationId?: string;
+}
+```
+
+**Fields that DO NOT EXIST on Booking** (do not reference them — they were removed):
+
+- ~~`bookingType`~~ — belonged on expense line items, not the authorization
+- ~~`totalAmount`~~ — replaced by `budget`
+- ~~`currency`~~ — replaced by `budgetCurrency`
 
 ---
 
@@ -120,9 +168,9 @@ corporate-travel-portal/
 |---|---|---|
 | Active delegation context | GET | `BFF /api/bff/delegation/context` |
 | Dashboard data | GET | `BFF /api/bff/dashboard` |
-| List bookings | GET | `BFF /api/bff/bookings` |
-| Create booking | POST | `BFF /api/bff/bookings` |
-| Get booking | GET | `BFF /api/bff/bookings/{id}` |
+| List travel authorizations | GET | `BFF /api/bff/bookings` |
+| Create travel authorization | POST | `BFF /api/bff/bookings` |
+| Get travel authorization | GET | `BFF /api/bff/bookings/{id}` |
 | Booking audit | GET | `GW /api/bookings/{id}/audit` |
 | List expenses | GET | `BFF /api/bff/expenses` |
 | Create expense | POST | `BFF /api/bff/expenses` |
@@ -154,295 +202,150 @@ Keycloak token endpoint: `POST http://localhost:8080/realms/corporate-travel/pro
 
 ---
 
-## Phase 0 — Dummy Data Seeding
+## Phase 0 — Dummy Data Seeding ✅ Done
 
 ### Goal
-Seed the backend with realistic travel data across 9 geographies so all booking and expense screens have meaningful content to display from Phase 3 onwards.
+Seed the backend with realistic travel authorization data across 9 geographies so all booking and expense screens have meaningful content to display.
 
-### Destinations (one per geography)
+### What was seeded
 
-| Geography | City | Destination Label |
+Each booking is a **travel authorization** with `destination`, `businessPurpose`, `budget`, and `budgetCurrency`. There are no booking types (FLIGHT/HOTEL/CAR) — those were removed. Actual costs appear as expense line items.
+
+| User | Authorizations | Expenses |
 |---|---|---|
-| India | Bengaluru | Bengaluru, India |
-| China | Shanghai | Shanghai, China |
-| Japan | Tokyo | Tokyo, Japan |
-| Australia | Sydney | Sydney, Australia |
-| United Kingdom | London | London, UK |
-| Germany | Berlin | Berlin, Germany |
-| France | Paris | Paris, France |
-| UAE | Dubai | Dubai, UAE |
-| USA | New York | New York, USA |
+| alice.employee | London ₹2,00,000 (CONFIRMED), Tokyo ₹1,80,000 (CONFIRMED), Paris ₹1,50,000 (DRAFT) | London (APPROVED), Tokyo (DRAFT) |
+| bob.manager | New York ₹2,20,000 (CONFIRMED), Sydney ₹1,20,000 (CONFIRMED) | NYC (SUBMITTED) |
+| carol.executive | Berlin ₹1,60,000 (CONFIRMED), Dubai ₹1,20,000 (DRAFT) | Berlin (APPROVED) |
+| carol via dave | Shanghai ₹2,00,000 (DRAFT), Bengaluru ₹50,000 (CONFIRMED) — delegated | Shanghai (DRAFT), Bengaluru (SUBMITTED) — delegated |
+| dave.assistant | Sydney ₹2,00,000 (CONFIRMED) | — |
+| eve.employee | Singapore ₹1,00,000 (CONFIRMED), Bengaluru ₹50,000 (DRAFT) — tenant-b | — |
 
-### What to seed
+The seed script is at `scripts/seed-data.sh`. Re-run with `bash scripts/seed-data.sh` (idempotent for delegations; creates new bookings/expenses on each run).
 
-For each of the 5 test users, create a varied mix of bookings and expenses that covers all booking types (FLIGHT, HOTEL, CAR), all booking statuses (DRAFT, CONFIRMED, COMPLETED, CANCELLED), all expense statuses (DRAFT, SUBMITTED, APPROVED, REJECTED, PAID), and at least 2 delegated bookings/expenses (actorId=dave.assistant, subjectId=carol.executive).
+### Notes
 
-Suggested seed breakdown per user:
-
-- **alice.employee**: 3 bookings (confirmed London, completed Tokyo, draft Paris), 2 expenses (approved+paid, draft)
-- **bob.manager**: 2 bookings (confirmed NYC, completed Sydney), 1 expense (submitted, pending approval)
-- **carol.executive**: 3 bookings (2 direct, 1 created-by-dave via delegation), 2 expenses (1 direct, 1 via delegation)
-- **dave.assistant**: 1 own booking, 2 bookings as delegate for carol
-- **eve.employee**: 2 bookings (different tenant — tenant-b; should never appear in tenant-a views)
-
-### How to seed
-
-Write a shell script `scripts/seed-data.sh` that:
-- Obtains a JWT for each user via Keycloak password grant
-- Uses `curl` calls against the Employee BFF (`localhost:8085`) for bookings/expenses
-- Uses `curl` against the API Gateway (`localhost:8000`) for delegation and consent records
-- Activates delegation before creating delegated bookings, deactivates after
-
-### Seeding notes
-
-- Source for all bookings: "Office HQ — Mumbai, India" (hardcoded, not a stored field)
-- Amounts should be realistic: flights INR 45,000–120,000, hotels INR 8,000–20,000/night, car INR 2,000–5,000/day
-- Expense items should reference realistic categories: TRAVEL (flight), ACCOMMODATION (hotel), MEALS, TRANSPORTATION (car/taxi)
-
-### Verification
-
-- Log in as `alice.employee` → booking list shows 3 bookings across 3 destinations
-- Log in as `bob.manager` → Pending Approvals dashboard has at least 1 submitted expense
-- Log in as `dave.assistant` → "Granted to Me" shows Carol's delegation; activate it → booking list shows Carol's bookings
+- Source for all bookings: "Office HQ — Mumbai, India" (hardcoded display only, not stored)
+- Expense items reference realistic categories: TRAVEL, ACCOMMODATION, MEALS, TRANSPORTATION
+- Budget must be ≥ expected expense total for submitted expenses (enforced at submit time)
 
 ---
 
-## Phase 1 — Project Scaffolding, Design System, and App Shell
+## Phase 1 — Project Scaffolding, Design System, and App Shell ✅ Done
 
 ### Goal
 A running Next.js app with the full visual chrome — top nav, dark sidebar, delegation banner placeholder — that looks identical to the mockups with no live data and no auth enforcement.
 
-### Steps
+### Phase 1 decisions
 
-**1. Scaffold** the Next.js app in `frontend/nextjs/`:
-```bash
-npx create-next-app@latest nextjs --typescript --tailwind --app --import-alias "@/*"
-cd nextjs
-npx shadcn@latest init   # Slate base, CSS variables ON
-npx shadcn@latest add button badge avatar separator tooltip
-npm install next-auth@beta @auth/core axios clsx react-hook-form zod @hookform/resolvers
-```
-
-**2. `tailwind.config.ts`**: Add `fontFamily: { sans: ['Inter', ...] }`. No custom color tokens needed — use Tailwind's built-in slate, blue, emerald, amber, sky, violet, red palettes.
-
-**3. `(app)/layout.tsx`** (AppShell): Renders `<TopNav>` (h-14, fixed top, white), conditional `<DelegationBanner>` (h-10, amber-50, fixed below nav), `<Sidebar>` (w-64, fixed left, top varies), and `<main>` (ml-64, pt varies). Use a `DelegationContextProvider` React context to share banner visibility state.
-
-**4. `TopNav.tsx`**: Left: TravelCorp logo (blue-600 rounded icon + text). Right: role badge derived from `session.user.roles` — priority order manager=violet, admin=purple, executive=emerald, assistant=amber, employee=blue — plus user name and avatar initials (same color as role badge). Never key off username.
-
-**5. `Sidebar.tsx`**: bg-slate-900. Nav links with active=`bg-slate-800 text-white`, inactive=`text-slate-400 hover:bg-slate-800 hover:text-white`. Role-conditional sections derived from `session.user.roles`:
-- All authenticated users: Dashboard, My Trips, My Expenses, Delegations
-- `roles.includes('manager')`: adds Team section with Pending Approvals (red count badge)
-- `roles.includes('admin')`: adds Administration section (Audit Log, System Health)
-- Sign out at bottom (border-t border-slate-800)
-
-**6. `DelegationBanner.tsx`**: amber-50 bg, amber-200 border-b. Shows `{actorName} is acting on behalf of {subjectName}` + mono IDs + purpose. Exit button calls deactivate API. Add `role="alert"` for accessibility.
-
-**7. `StatusBadge.tsx`**: Single component mapping status → color pair:
-- Confirmed, Approved, Active → emerald
-- Submitted, Pending → amber
-- Draft, Completed, Expired → slate
-- Rejected, Cancelled → red
-
-**8. `StatCard.tsx`**: White card, border-slate-200, rounded-xl, p-5. Props: `label`, `value`, `subtitle`, `icon`, `iconBgClass`.
-
-### shadcn/ui components
-`Button`, `Badge`, `Avatar`, `Separator`, `Tooltip`
-
-### Verification
-- `npm run dev` → `localhost:3000` shows full chrome with placeholder data
-- Set `MOCK_DELEGATION_ACTIVE = true` → amber banner appears, sidebar shifts to top-24
-- No Tailwind errors, Inter font loads, no console errors
+- `(app)/layout.tsx` is the AppShell: renders `<TopNav>` (h-14, fixed top, white), conditional `<DelegationBanner>` (h-10, amber-50, fixed below nav), `<Sidebar>` (w-64, fixed left, top varies), and `<main>` (ml-64, pt varies). Uses a `DelegationContextProvider` React context.
+- `TopNav.tsx`: Left — TravelCorp logo. Right — role badge derived from `session.user.roles` (priority: manager=violet, admin=purple, executive=emerald, assistant=amber, employee=blue) + user name and avatar initials.
+- `Sidebar.tsx`: bg-slate-900. Role-conditional sections from `session.user.roles`. Sign out at bottom.
+- `DelegationBanner.tsx`: amber-50 bg, shows actor/subject/purpose, Exit button calls deactivate API.
+- `StatusBadge.tsx`: Maps status → color (Confirmed/Approved/Active=emerald, Submitted/Pending=amber, Draft/Completed/Expired=slate, Rejected/Cancelled=red).
 
 ---
 
-## Phase 2 — Authentication (Keycloak OIDC via NextAuth)
+## Phase 2 — Authentication (Keycloak OIDC via NextAuth) ✅ Done
 
-### Goal
-Real login via Keycloak. JWT stored in NextAuth session. Every API call to BFF sends `Authorization: Bearer {access_token}`. Protected routes redirect to login.
+### Phase 2 decisions
 
-### Steps
-
-**1. `lib/auth/auth.ts`** — NextAuth v5 Keycloak provider:
-```typescript
-// issuer: process.env.KEYCLOAK_ISSUER
-// clientId: process.env.KEYCLOAK_CLIENT_ID
-// callbacks.jwt: store access_token, refresh_token
-// callbacks.session: expose accessToken, user.roles (from realm_access.roles),
-//                    user.tenantId, user.name, user.email
-```
-
-**2. `app/(auth)/login/page.tsx`**: Matches `auth/login.html`. Centered TravelCorp logo + "Continue with Corporate SSO" button calling `signIn('keycloak')`. Remove the "Quick access" mockup panel — that was prototype-only.
-
-**3. `middleware.ts`**: Protect all `/(app)/*` routes — redirect to `/login` if no session.
-
-**4. `lib/api/client.ts`** — Axios instance:
-- `baseURL`: `process.env.NEXT_PUBLIC_BFF_URL` (`:8085`)
-- `withCredentials: true` (critical for Spring session cookie)
-- Request interceptor: attach `Authorization: Bearer {accessToken}`
-- Response interceptor: 401 → `signOut()`, 403 → show toast "Not authorized"
-
-**5. `lib/hooks/useDelegationContext.ts`**:
-- Calls `GET /api/bff/delegation/context` on mount
-- Stores in React context (`DelegationContextProvider`)
-- Exposes: `{ delegationActive, actorId, subjectId, delegationId, consentId, expiresAt, exitDelegation() }`
-- `exitDelegation()` calls `DELETE /api/bff/delegation/deactivate` then refreshes
-
-**6. `.env.local`**:
-```
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=<random-string>
-KEYCLOAK_CLIENT_ID=employee-portal
-KEYCLOAK_CLIENT_SECRET=<from-keycloak-admin>
-KEYCLOAK_ISSUER=http://localhost:8080/realms/corporate-travel
-NEXT_PUBLIC_BFF_URL=http://localhost:8085
-NEXT_PUBLIC_GATEWAY_URL=http://localhost:8000
-```
-
-### shadcn/ui components
-`Toast` / `Sonner` (for 403 feedback)
-
-### Verification
-- `/dashboard` unauthenticated → redirects to `/login`
-- Login as `carol.executive` → TopNav shows name, role badge "Employee" (executive role)
-- Login as `bob.manager` → sidebar shows "Team" section with Pending Approvals
-- Network tab: BFF requests include `Authorization: Bearer ...`
-- 403 from BFF → toast appears, no crash
+- NextAuth v5 Keycloak provider; `callbacks.jwt` stores `access_token`; `callbacks.session` exposes `accessToken`, `user.roles`, `user.tenantId`, `user.name`, `user.email`.
+- `middleware.ts` protects all `/(app)/*` routes.
+- `lib/api/client.ts` Axios instance: `baseURL` = BFF, `withCredentials: true`, Bearer interceptor.
+- `lib/context/DelegationContext.tsx`: calls `GET /api/bff/delegation/context` on mount; exposes `delegationActive`, `actorId`, `actorName`, `subjectId`, `subjectName`, `delegationId`, `consentId`, `purpose`.
 
 ---
 
-## Phase 3 — Dashboard Pages (All Roles)
+## Phase 3 — Dashboard Pages (All Roles) ✅ Done
 
-### Goal
-Three role-specific dashboard views pulling live data from `GET /api/bff/dashboard`.
+### Phase 3 decisions
 
-### Steps
-
-**1. `app/(app)/dashboard/page.tsx`**: Read `session.user.roles` (from `realm_access.roles` in JWT — never from username). Render `<AdminDashboard>` if roles includes `admin`, `<ManagerDashboard>` if roles includes `manager`, otherwise `<EmployeeDashboard>`. Priority order: admin > manager > employee/executive/assistant.
-
-**2. Employee Dashboard** (from `dashboard/employee.html`):
-- Page header: "Good morning, {firstName}" + date
-- CTA buttons: "New Expense" → `/expense/submit`, "Book Trip" → `/travel/book`
-- 4 stat cards: Upcoming Trips (sky icon), Open Expenses (amber icon), Spent This Month (emerald icon), Delegations (amber icon)
-- Recent Trips table: Booking ID (link), Destination, Dates, Type badge, Amount, Status badge
-- Recent Expenses table: Report ID (link), Description, Submitted, Amount, Status badge
-- If delegation active: amber info card "Dave Wilson can act on your behalf"
-
-**3. Manager Dashboard** (from `dashboard/manager.html`):
-- Stat cards: Pending Approvals (red), Team Trips, Team Spend, Active Delegations
-- Pending Approvals table: Report ID, Employee (avatar + name + optional "delegate" badge if delegated row), Description, Amount, Submitted, Approve/Reject buttons
-- Delegated rows: amber-50/10 tint
-- Active Delegations table: Subject, Actor, Purpose (amber mono badge), Scopes, Expires, Status
-
-**4. Admin Dashboard** (from `dashboard/admin.html`):
-- Stat cards: Active Users, Active Delegations, OPA Decisions 24h, Policy Violations 24h
-- Service Health list: service name, port, status dot (green=UP/red=DOWN), latency — static placeholder in this phase, wired to live data in Phase 7
-- Recent Audit Events table: Time, Action, Actor (blue), Subject (amber), Resource, Result badge. DENY rows get red-50 background.
-
-**5. TypeScript interfaces**: `lib/types/booking.ts`, `lib/types/expense.ts` matching all API response shapes.
-
-### shadcn/ui components
-`Table`, `Card`, `Skeleton` (loading states), `DropdownMenu`
-
-### Verification
-- Employee role user → stat counts match live BFF data
-- Manager role user → Pending Approvals table shows real rows; clicking Approve → status updates
-- Admin role user → dashboard renders; service health shows static placeholder
-- Delegation notice card appears on employee dashboard when delegation is active
+- `dashboard/page.tsx` branches on `session.user.roles`. Priority: admin > manager > employee.
+- **EmployeeDashboard**: 4 stat cards (Upcoming Trips, Open Expenses, Spent This Month, Delegations). Recent Trips table columns: Authorization ID, Destination, Dates, **Budget** (emerald text), Status. (No Type or Amount columns — removed in refactor.)
+- **ManagerDashboard**: "Authorized Budget" stat card sums `booking.budget` across team bookings (not `totalAmount` — that field doesn't exist). Pending Approvals table with Approve/Reject buttons.
+- Both dashboards call `GET /api/bff/dashboard` which returns `{ bookings, expenses }`.
 
 ---
 
-## Phase 4 — Travel Bookings (List, Create, Detail)
+## Phase 4 — Travel Authorizations (List, Create, Detail) ✅ Done
 
-### Goal
-Full CRUD for bookings with delegation-aware UI.
+### Implemented UI — what it actually looks like
 
-### Steps
+**Travel List (`/travel`)**:
 
-**1. `app/(app)/travel/page.tsx`** (from `travel/list.html`):
-- When delegation active: subtitle "Showing bookings for {subjectName}" + "Book for {subjectName}" CTA button
-- Filter bar: Type select (FLIGHT/HOTEL/CAR), Status select, date range inputs, Filter/Reset
-- Table columns: Booking ID (link), Destination, Type badge, Dates, Amount, Booked By (amber "delegate" badge if `createdBy !== userId`), Status badge, View link
-- Delegated rows: `bg-amber-50/10 hover:bg-amber-50/30`
-- Pagination: "Showing N of M" + page number buttons
+- Page title: "Travel Authorizations" (not "My Trips")
+- Table columns: Authorization (mono link), Destination, Travel Dates, Purpose (truncated), Budget (formatted), Created By (with "delegate" badge if `createdBy !== userId`), Status, View link
+- Filters: Status dropdown + date range only — **no booking type filter** (removed)
+- CTA button: "New Authorization" (or "Authorize for {subjectName}" when delegation active)
 
-**2. `app/(app)/travel/book/page.tsx`** (from `travel/book.html`):
-- Booking type: 3-column radio card grid (Flight/Hotel/Car) using `RadioGroup` with custom `peer-checked` styled cards
+**Create Authorization (`/travel/book`)**:
+
+- Page title: "Request Travel Authorization"
 - Fields:
-  - **Source** (read-only): "Office HQ — Mumbai, India" — non-editable info field with lock icon
-  - **Destination** (required): text input with suggested destinations from Phase 0 seed data
-  - Departure Date (required), Return Date (required, must be ≥ departure)
-  - Business Purpose (required), Estimated Amount (number), Currency select (INR/USD/EUR/SGD), Notes (textarea)
-- Identity context panel (slate-50 card): shows userId/subject, createdBy/actor, delegationId, tenantId — values from session + `useDelegationContext()`
-- On success: `POST /api/bff/bookings` → redirect to new booking's detail page
+  - **Source** (read-only): "Office HQ — Mumbai, India"
+  - **Destination** (required): text input with autocomplete from suggested list
+  - **Departure Date** (required), **Return Date** (required, ≥ departure)
+  - **Business Purpose** (required)
+  - **Approved Budget** (required, > 0) + **Currency** select (INR/USD/EUR/SGD)
+  - **Notes** (optional textarea)
+- **NO booking type radio buttons** — these were removed in the refactor
+- Identity context panel at bottom showing userId/createdBy/delegationId/tenantId
+- POST payload: `{ destination, startDate, endDate, businessPurpose, notes, budget, budgetCurrency, tenantId, userId, status: "PENDING" }`
 
-**3. `app/(app)/travel/[id]/page.tsx`** (from `travel/detail.html`):
-- Header: destination as title, status badge, booking ID in monospace, "Submit Expense" button linking to `/expense/submit?bookingId=...`
-- Booking Details card: key-value rows for type, destination, travel dates, amount, created timestamp
-- Identity & Audit Trail card (amber-50 bg, only if `delegationId !== null`): userId/subject (amber text), createdBy/actor (blue text), delegationId, consentId, tenantId, purpose. Footer: "Headers forwarded: X-Delegated-Subject · X-Delegation-Id · X-Actor-Token"
-- Event Timeline: `<AuditTrail>` component with colored timeline dots
+**Authorization Detail (`/travel/[id]`)**:
 
-**4. `components/shared/AuditTrail.tsx`**: Vertical timeline component. Props: `events: Array<{ label, timestamp, actor, subject, color }>`.
-
-**5. `components/shared/IdentityContextPanel.tsx`**: Key-value panel. Renders with amber border when `delegationId` present; slate border otherwise.
-
-**6. `lib/api/bff.ts`** additions: `getBookings(filters)`, `createBooking(body)`, `getBooking(id)`.
-
-### shadcn/ui components
-`Select`, `Input`, `Textarea`, `RadioGroup`, `Breadcrumb`
-
-### Verification
-- Booking list loads from BFF; type and status filters send query params
-- Create form: client-side validation (destination required, return ≥ departure); source field is locked
-- Delegation booking detail: amber Identity panel appears; non-delegation booking: panel hidden
-- When delegation active, CTA reads "Book for {subjectName}"
+- Breadcrumb: "Travel Authorizations" → ID
+- Header: `{destination} — {businessPurpose}` + StatusBadge
+- Sub-header: `{id} · {startDate} – {endDate}` (no type segment)
+- Card title: "Authorization Details" (not "Booking Details")
+- Detail rows: Source, Destination, Travel dates, **Approved Budget** (emerald badge), Business purpose (if present), Notes (if present), Created
+- **NO "Booking type" row** and **NO "Total amount" row** — removed in refactor
+- "Submit Expense" button links to:
+  `/expense/submit?bookingId={id}&destination={enc}&businessPurpose={enc}&budget={n}&budgetCurrency={c}&startDate={d}`
+- Identity & Audit Trail panel (amber, shown only if `booking.delegationId` is set)
+- Event Timeline: `<AuditTrail>` pulling from `GET /api/bookings/{id}/audit`
 
 ---
 
-## Phase 5 — Expense Management (List, Submit, Approve)
+## Phase 5 — Expense Management (List, Submit, Detail) ✅ Done
 
-### Goal
-Complete expense flow: list, multi-item submission form, detail with approval chain, manager approve/reject.
+### Implemented UI
 
-### Steps
+**Expense List (`/expense`)**:
 
-**1. `app/(app)/expense/page.tsx`** (from `expense/list.html`):
 - Summary strip: 4 mini stat cards (Total Submitted, Approved & Paid, Pending Approval, Draft)
-- Status filter: segmented toggle (All / Draft / Submitted / Approved / Rejected)
-- Table columns: Report ID (link), Title (amber "via delegate" badge if `delegationId !== null`), Trip link (mono), Items count, Total, Submitted date, Status badge, Actions
-- Delegated rows: amber-50/10 tint
-- Footer note: "N report(s) submitted via delegation"
+- Status filter toggle
+- Table columns: Report ID, Title, Trip (mono link), Items count, Total, Submitted, Status, Actions
 
-**2. `app/(app)/expense/submit/page.tsx`** (from `expense/submit.html`):
-- When delegation active: subtitle "This report will be attributed to {subjectName}"
-- Report Details card: Title (required), Description (textarea), Linked Trip select (from `GET /api/bff/bookings`), Currency select
-- Expense Items section — dynamic `useFieldArray` rows: Category select (TRAVEL/ACCOMMODATION/MEALS/TRANSPORTATION/OTHER), Description input, Date input, Amount input, Delete button. Running total in section footer.
-- Identity context panel (amber-50 bg when delegation active, slate-50 otherwise)
-- "Save as Draft" → `POST /api/bff/expenses` with status DRAFT
-- "Submit for Approval" → create expense then `POST /api/expenses/{id}/submit` via gateway
+**Submit Expense (`/expense/submit`)**:
 
-**3. `app/(app)/expense/[id]/page.tsx`** (from `expense/detail.html`):
-- Header: title, status badge, optional "via delegate" amber badge, expense ID monospace
-- Report Details card + Expense Items table with total footer row
-- Approval Chain card: approver avatar + name + status. Approve and Reject buttons rendered only when `session.user.roles.includes('manager')` — calls `POST /api/expenses/{id}/approve|reject` via gateway. OPA enforces this server-side too; client-side is a UX courtesy only.
-- Identity & Audit Trail card (if `delegationId !== null`)
-- Event Timeline: `<AuditTrail>` component
+- Pre-fills from URL params when coming from the travel detail "Submit Expense" button:
+  - `title`: `{destination} — {businessPurpose}`
+  - `description`: `{businessPurpose}`
+  - `bookingId`: pre-selects the linked trip
+  - `currency`: `{budgetCurrency}` from the authorization
+  - First item `date`: `{startDate}` from the authorization
+  - `approvedBudget` state: `{budget}` — drives the budget indicator
+- **Budget indicator** (shown in running total footer when `approvedBudget > 0`):
+  - Green panel: "Approved budget: ₹X" + "Remaining: ₹Y"
+  - Red panel when over: "Approved budget: ₹X" + "Over budget by: ₹Z"
+- **"Submit for Approval" button is disabled** when `runningTotal > approvedBudget`
+- 422 error handling: parses `{ budget, total, overage, currency }` from backend and shows: "Expense total ₹X exceeds the approved travel budget of ₹Y (over by ₹Z). Reduce your items or request a higher budget."
+- Linked Trip select still shows all bookings (for standalone expenses not pre-filled from a trip)
+- When arriving without URL params but with a `bookingId`: fetches the booking to get `budget`/`budgetCurrency` for the indicator
 
-**4. `lib/api/bff.ts`** additions: `getExpenses(filters)`, `createExpense(body)`, `getExpense(id)`.
+**Expense Detail (`/expense/[id]`)**:
 
-**5. `lib/api/gateway.ts`**: New Axios instance pointing to `localhost:8000`. Used for expense approve/reject/submit and later delegation/consent CRUD. Same interceptors as BFF client.
-
-### shadcn/ui components
-`Form` (react-hook-form integration), `Label`, `Tabs`
-
-### Verification
-- Expense list loads with all statuses; filter toggle works
-- Submit form: add 3 items, running total updates; Save as Draft creates DRAFT visible in list; Submit transitions to SUBMITTED
-- Manager role on detail: Approve button appears and calls gateway correctly; non-manager: button hidden
-- Delegated expense detail: amber identity panel shows; non-delegated: hidden
+- Header: title + status badge + expense ID
+- Report Details card + Expense Items table with total footer
+- Approval Chain card (if submitted/approved/rejected)
+- Approve/Reject buttons only when `session.user.roles.includes('manager')`
+- Identity & Audit Trail panel (if `expense.delegationId !== null`)
+- Event Timeline from `GET /api/expenses/{id}/audit`
 
 ---
 
-## Phase 6 — Delegation and Consent Management
+## Phase 6 — Delegation and Consent Management ⏳ In Progress
 
 ### Goal
 The delegation management page with end-to-end token exchange activation flow wired up.
@@ -469,10 +372,8 @@ The delegation management page with end-to-end token exchange activation flow wi
 
 **5. `lib/api/consent.ts`**: `getMyConsents()`.
 
-### shadcn/ui components
-`Dialog`, `Checkbox`, `AlertDialog` (revoke confirmation)
+### Verification (Phase 6)
 
-### Verification
 - Executive role user: "Granted by Me" shows existing delegation; Revoke works; Grant modal creates new delegation
 - Assistant role user: "Granted to Me" shows delegations; clicking "Activate" → amber banner appears immediately
 - Banner shows delegation ID, purpose, consent ID, expiry correctly
@@ -481,7 +382,7 @@ The delegation management page with end-to-end token exchange activation flow wi
 
 ---
 
-## Phase 7 — Audit Trails and Admin Dashboard
+## Phase 7 — Audit Trails and Admin Dashboard 🔲 Pending
 
 ### Goal
 Live audit trail data on detail pages; admin dashboard with real service health polling; paginated full audit log.
@@ -489,27 +390,26 @@ Live audit trail data on detail pages; admin dashboard with real service health 
 ### Steps
 
 **1. Real audit trails on detail pages**:
+
 - `GET /api/bookings/{id}/audit` → map each entry to `<AuditTrail>` event shape
 - `GET /api/expenses/{id}/audit` → same
-- Handle all action types: `CREATE_BOOKING`, `ACTIVATE_DELEGATION`, `VIEW_BOOKINGS`, `CREATE_EXPENSE`, `APPROVE_EXPENSE`, `REJECT_EXPENSE`, `REVOKE_DELEGATION`
+- Handle all action types: `CREATE`, `ACTIVATE_DELEGATION`, `VIEW`, `UPDATE`, `SUBMIT`, `APPROVE`, `REJECT`, `REVOKE_DELEGATION`
 
 **2. Service health polling** (admin dashboard):
+
 - Create `app/api/health/route.ts` — Next.js API route that fans out server-side to each service's `/actuator/health` endpoint and aggregates into a JSON array (avoids browser CORS)
 - Admin dashboard polls this internal route
 - Green dot = UP, red dot = DOWN; show latency if endpoint provides it
 
 **3. `app/(app)/admin/audit/page.tsx`**:
+
 - Full-width paginated table: Time, Action, Actor (blue text), Subject (amber text), Resource, Result badge (ALLOW=emerald, DENY=red)
 - DENY rows: red-50 background
 - Filters: action type, actor, result, date range
 - Linked from "Full audit log →" button on admin dashboard
 
-**4. `AuditTrail.tsx`** refinement: ensure all action type variants render with appropriate label and dot color.
+### Verification (Phase 7)
 
-### shadcn/ui components
-`Alert`, `ScrollArea`
-
-### Verification
 - Create a booking → detail page timeline shows "Booking Created" event from real `/audit` endpoint
 - Approve an expense → "Expense Approved" appears with approver name and timestamp
 - Admin Service Health: stop one service → red dot appears within polling interval
@@ -517,7 +417,7 @@ Live audit trail data on detail pages; admin dashboard with real service health 
 
 ---
 
-## Phase 8 — Polish, Error Handling, Accessibility, and Final Config
+## Phase 8 — Polish, Error Handling, Accessibility, and Final Config 🔲 Pending
 
 ### Goal
 Production-grade quality: graceful error states everywhere, loading skeletons, form validation, accessibility audit pass.
@@ -525,21 +425,25 @@ Production-grade quality: graceful error states everywhere, loading skeletons, f
 ### Steps
 
 **1. Error handling**:
+
 - 403: render `<AccessDenied>` component ("You don't have permission to view this resource" + "Go to Dashboard" link) — never a blank page
 - 404: `not-found.tsx` per route segment for unknown booking/expense IDs
 - Network errors: 1 retry on GET calls, then toast "Connection error — please try again"
 - Expired delegation: `useDelegationContext` detects `expiresAt` → auto-deactivate with toast "Delegation session expired"
 
 **2. Loading states**:
+
 - `loading.tsx` in each route segment (Next.js convention)
 - `<Skeleton>` components for stat cards, table rows, and detail panels
 
 **3. Form validation** (zod schemas):
-- Booking: destination required, departure required, return ≥ departure
+
+- Authorization: destination required, departure required, return ≥ departure, budget > 0
 - Expense: title required, at least 1 line item, all amounts > 0
 - Delegation grant: delegate required, purpose required, at least 1 scope selected
 
 **4. Accessibility**:
+
 - All interactive elements have `aria-label` or visible text
 - `StatusBadge` has `role="status"`
 - All data tables have `aria-label` or `<caption>`
@@ -547,16 +451,18 @@ Production-grade quality: graceful error states everywhere, loading skeletons, f
 - Focus returns to trigger element when modals close
 
 **5. Final visual pass**: Side-by-side comparison of each mockup file against the implemented page. Verify:
+
 - Delegation row tints (amber-50/10 → amber-50/30 hover) in all three tables (travel, expense, manager approvals)
 - Status badge colors correct for all 8 status values
 - "Showing N of M" pagination footer on list pages
-- Type badges: Flight=sky, Hotel=violet, Car=teal
+- **Note**: The mockup shows FLIGHT/HOTEL/CAR type badges — these are obsolete. The implemented UI shows Budget (emerald) instead.
 
-### Verification
+### Verification (Phase 8)
+
 - Kill BFF service → every page shows graceful error state, no uncaught exceptions
 - Navigate to `/travel/BKG-DOES-NOT-EXIST` → 404 page with navigation link
-- Submit booking form empty → inline validation errors appear
-- Employee role visiting `/dashboard` with admin URL → AccessDenied renders
+- Submit authorization form empty → inline validation errors appear
+- Employee role visiting admin URL → AccessDenied renders
 - Lighthouse accessibility audit: no critical violations
 
 ---
@@ -565,17 +471,17 @@ Production-grade quality: graceful error states everywhere, loading skeletons, f
 
 All reference designs are at `frontend/mockups/`:
 
-| Page | Mockup File | Key patterns |
-|---|---|---|
+| Page | Mockup File | Notes |
+| --- | --- | --- |
 | Login | `auth/login.html` | SSO button layout |
-| Employee Dashboard | `dashboard/employee.html` | Stat cards, recent tables, delegation notice |
+| Employee Dashboard | `dashboard/employee.html` | Stat cards, recent tables, delegation notice. **Ignore** FLIGHT/HOTEL/CAR type badges — replaced by Budget |
 | Manager Dashboard | `dashboard/manager.html` | Approval queue, team delegation table |
 | Admin Dashboard | `dashboard/admin.html` | Service health, audit event table |
-| Booking List | `travel/list.html` | Delegation banner, amber row tint |
-| Book Trip | `travel/book.html` | Radio card grid, locked source field, identity panel |
-| Booking Detail | `travel/detail.html` | Identity & audit trail panel |
+| Booking List | `travel/list.html` | **Ignore** type filter and type column — replaced by Purpose + Budget |
+| Book Trip | `travel/book.html` | **Ignore** booking type radio buttons and amount — replaced by Approved Budget. Keep: locked source field, destination, dates, identity panel |
+| Booking Detail | `travel/detail.html` | **Ignore** "Booking type" and "Total amount" rows — replaced by "Approved budget" row |
 | Expense List | `expense/list.html` | Status filter toggle, mini stat strip |
-| Submit Expense | `expense/submit.html` | Dynamic line items, running total, identity panel |
+| Submit Expense | `expense/submit.html` | Dynamic line items, running total + **budget indicator**, identity panel |
 | Expense Detail | `expense/detail.html` | Approval chain, approve/reject buttons |
 | Delegation Management | `delegation/manage.html` | Grant modal, activate button, consent table |
 
@@ -587,8 +493,14 @@ All reference designs are at `frontend/mockups/`:
 |---|---|
 | `services/employee-bff/src/.../controller/DelegationBffController.java` | Token exchange activation/deactivation endpoints |
 | `services/employee-bff/src/.../model/DelegationContext.java` | Shape of delegation context returned by BFF |
-| `services/travel-service/src/.../controller/BookingController.java` | Booking API contract |
+| `services/travel-service/src/.../controller/BookingController.java` | Booking/authorization API contract |
+| `services/travel-service/src/.../model/entity/Booking.java` | Canonical booking entity — source of truth for field names |
+| `services/travel-service/src/main/resources/db/migration/V3__refactor_booking_to_travel_authorization.sql` | DB migration that removed bookingType/totalAmount |
+| `services/travel-service/src/main/resources/db/migration/V4__add_business_purpose_and_notes_to_bookings.sql` | DB migration that added businessPurpose/notes |
 | `services/expense-service/src/.../controller/ExpenseController.java` | Expense API contract |
+| `services/expense-service/src/.../exception/BudgetExceededException.java` | 422 error shape: budget/total/overage/currency |
+| `services/expense-service/src/.../client/TravelServiceClient.java` | Internal service-to-service budget fetch |
 | `infrastructure/opa/policies/authorization.rego` | Authorization rules per role |
 | `DELEGATION-FLOW.md` | Step-by-step end-to-end delegation walkthrough |
 | `services/employee-bff/README.md` | BFF architecture and token exchange details |
+| `frontend/nextjs/lib/types/booking.ts` | Canonical TypeScript booking type — check here before coding |
