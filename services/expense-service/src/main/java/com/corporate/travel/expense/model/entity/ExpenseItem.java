@@ -38,7 +38,6 @@ public class ExpenseItem {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "expense_id", nullable = false)
-    @NotNull
     @JsonIgnore
     private Expense expense;
     

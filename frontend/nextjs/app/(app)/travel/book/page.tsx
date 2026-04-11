@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { useDelegationContext } from "@/lib/context/DelegationContext";
 import { createBooking } from "@/lib/api/bff";
 import { setAccessToken } from "@/lib/api/client";
-import type { BookingType } from "@/lib/types/booking";
+import type { BudgetCurrency } from "@/lib/types/booking";
 
 const SUGGESTED_DESTINATIONS = [
   "Bengaluru, India",
@@ -21,51 +21,44 @@ const SUGGESTED_DESTINATIONS = [
   "New York, USA",
 ];
 
-type BookingTypeOption = {
-  value: BookingType;
-  label: string;
-  emoji: string;
-};
-
-const BOOKING_TYPES: BookingTypeOption[] = [
-  { value: "FLIGHT", label: "Flight",     emoji: "✈️" },
-  { value: "HOTEL",  label: "Hotel",      emoji: "🏨" },
-  { value: "CAR",    label: "Car Rental", emoji: "🚗" },
-];
+const CURRENCIES: BudgetCurrency[] = ["INR", "USD", "EUR", "SGD"];
 
 interface FormErrors {
-  destination?: string;
-  startDate?: string;
-  endDate?: string;
+  destination?:    string;
+  startDate?:      string;
+  endDate?:        string;
   businessPurpose?: string;
+  budget?:         string;
 }
 
 export default function BookTripPage() {
-  const router   = useRouter();
+  const router = useRouter();
   const { data: session } = useSession();
   const { delegationActive, subjectName, subjectId, delegationId } = useDelegationContext();
 
-  const [bookingType, setBookingType]         = useState<BookingType>("FLIGHT");
   const [destination, setDestination]         = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const destinationRef                        = useRef<HTMLDivElement>(null);
   const [startDate, setStartDate]             = useState("");
   const [endDate, setEndDate]                 = useState("");
   const [businessPurpose, setBusinessPurpose] = useState("");
-  const [totalAmount, setTotalAmount]         = useState("");
-  const [currency, setCurrency]               = useState("INR");
   const [notes, setNotes]                     = useState("");
+  const [budget, setBudget]                   = useState("");
+  const [budgetCurrency, setBudgetCurrency]   = useState<BudgetCurrency>("INR");
   const [errors, setErrors]                   = useState<FormErrors>({});
   const [submitting, setSubmitting]           = useState(false);
   const [serverError, setServerError]         = useState("");
 
   function validate(): boolean {
     const e: FormErrors = {};
-    if (!destination.trim()) e.destination = "Destination is required.";
-    if (!startDate)           e.startDate    = "Departure date is required.";
-    if (!endDate)             e.endDate      = "Return date is required.";
-    else if (startDate && endDate < startDate) e.endDate = "Return date must be on or after departure date.";
+    if (!destination.trim())     e.destination     = "Destination is required.";
+    if (!startDate)              e.startDate       = "Departure date is required.";
+    if (!endDate)                e.endDate         = "Return date is required.";
+    else if (startDate && endDate < startDate)
+                                 e.endDate         = "Return date must be on or after departure date.";
     if (!businessPurpose.trim()) e.businessPurpose = "Business purpose is required.";
+    if (!budget || Number(budget) <= 0)
+                                 e.budget          = "Approved budget must be greater than zero.";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -81,27 +74,26 @@ export default function BookTripPage() {
 
     try {
       const booking = await createBooking({
-        bookingType,
         destination,
         startDate,
         endDate,
-        totalAmount: totalAmount ? Number(totalAmount) : 0,
-        // tenantId and userId are overwritten by the service from the JWT context,
-        // but @Valid on the controller requires them to be non-null in the payload.
+        businessPurpose,
+        notes: notes || undefined,
+        budget:         Number(budget),
+        budgetCurrency,
+        // tenantId/userId/status are enforced by the service from JWT context,
+        // but @Valid on the controller requires them non-null in the payload.
         tenantId: session?.user?.tenantId ?? "placeholder",
         userId:   session?.user?.email    ?? "placeholder",
-        // status defaults to PENDING in the service, but @Valid requires it non-null.
-        status: "PENDING",
-        // businessPurpose, currency, notes stored in details JSON
-        details: JSON.stringify({ businessPurpose, currency, notes: notes || undefined }),
+        status:   "PENDING",
       });
       router.push(`/travel/${booking.id}`);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 403) {
-        setServerError("You don't have permission to create this booking.");
+        setServerError("You don't have permission to create this travel authorization.");
       } else {
-        setServerError("Failed to create booking. Please try again.");
+        setServerError("Failed to create travel authorization. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -120,12 +112,12 @@ export default function BookTripPage() {
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        <span className="text-slate-700 font-medium">Book a Trip</span>
+        <span className="text-slate-700 font-medium">New Travel Authorization</span>
       </nav>
 
       <div className="max-w-2xl space-y-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Book a New Trip</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Request Travel Authorization</h1>
           <p className="text-sm text-slate-400 mt-0.5">
             For: <strong className="text-slate-700">{subjectDisplay}</strong>
             {session?.user?.tenantId && ` · Tenant: ${session.user.tenantId}`}
@@ -135,44 +127,13 @@ export default function BookTripPage() {
         <form onSubmit={handleSubmit} noValidate>
           <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
 
-            {/* Booking Type */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Booking Type <span className="text-red-400">*</span>
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                {BOOKING_TYPES.map((t) => (
-                  <label key={t.value} className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="bookingType"
-                      value={t.value}
-                      checked={bookingType === t.value}
-                      onChange={() => setBookingType(t.value)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`border-2 rounded-xl p-3.5 text-center text-sm font-medium transition-colors ${
-                        bookingType === t.value
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-slate-200 text-slate-600 hover:border-slate-300"
-                      }`}
-                    >
-                      {t.emoji} {t.label}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             {/* Source (read-only) */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Source
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Source</label>
               <div className="flex items-center gap-2 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2.5 text-sm text-slate-500">
                 <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Office HQ — Mumbai, India
               </div>
@@ -186,15 +147,9 @@ export default function BookTripPage() {
               <input
                 type="text"
                 value={destination}
-                onChange={(e) => {
-                  setDestination(e.target.value);
-                  setShowSuggestions(true);
-                }}
+                onChange={(e) => { setDestination(e.target.value); setShowSuggestions(true); }}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => {
-                  // Delay so click on a suggestion fires before blur hides the list
-                  setTimeout(() => setShowSuggestions(false), 150);
-                }}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 placeholder="e.g. Tokyo, Japan"
                 autoComplete="off"
                 className={`w-full border rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
@@ -203,20 +158,17 @@ export default function BookTripPage() {
               />
               {showSuggestions && (
                 <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
-                  {SUGGESTED_DESTINATIONS.filter((d) =>
-                    d.toLowerCase().includes(destination.toLowerCase())
-                  ).map((d) => (
-                    <li
-                      key={d}
-                      onMouseDown={() => {
-                        setDestination(d);
-                        setShowSuggestions(false);
-                      }}
-                      className="px-3 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
-                    >
-                      {d}
-                    </li>
-                  ))}
+                  {SUGGESTED_DESTINATIONS
+                    .filter((d) => d.toLowerCase().includes(destination.toLowerCase()))
+                    .map((d) => (
+                      <li
+                        key={d}
+                        onMouseDown={() => { setDestination(d); setShowSuggestions(false); }}
+                        className="px-3 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+                      >
+                        {d}
+                      </li>
+                    ))}
                   {SUGGESTED_DESTINATIONS.filter((d) =>
                     d.toLowerCase().includes(destination.toLowerCase())
                   ).length === 0 && (
@@ -224,9 +176,7 @@ export default function BookTripPage() {
                   )}
                 </ul>
               )}
-              {errors.destination && (
-                <p className="mt-1 text-xs text-red-500">{errors.destination}</p>
-              )}
+              {errors.destination && <p className="mt-1 text-xs text-red-500">{errors.destination}</p>}
             </div>
 
             {/* Dates */}
@@ -272,7 +222,7 @@ export default function BookTripPage() {
                 type="text"
                 value={businessPurpose}
                 onChange={(e) => setBusinessPurpose(e.target.value)}
-                placeholder="e.g. Q2 Engineering Planning Meeting"
+                placeholder="e.g. Q2 client review meetings"
                 className={`w-full border rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
                   errors.businessPurpose ? "border-red-400" : "border-slate-300"
                 }`}
@@ -280,30 +230,36 @@ export default function BookTripPage() {
               {errors.businessPurpose && <p className="mt-1 text-xs text-red-500">{errors.businessPurpose}</p>}
             </div>
 
-            {/* Amount + Currency */}
+            {/* Approved Budget */}
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Estimated Amount</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Approved Budget <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="number"
-                  min="0"
-                  value={totalAmount}
-                  onChange={(e) => setTotalAmount(e.target.value)}
+                  min="1"
+                  step="1"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
                   placeholder="0"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className={`w-full border rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                    errors.budget ? "border-red-400" : "border-slate-300"
+                  }`}
                 />
+                {errors.budget && <p className="mt-1 text-xs text-red-500">{errors.budget}</p>}
+                <p className="mt-1 text-xs text-slate-400">
+                  Expense submission total cannot exceed this amount.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Currency</label>
                 <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
+                  value={budgetCurrency}
+                  onChange={(e) => setBudgetCurrency(e.target.value as BudgetCurrency)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option>INR</option>
-                  <option>USD</option>
-                  <option>EUR</option>
-                  <option>SGD</option>
+                  {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
             </div>
@@ -315,7 +271,7 @@ export default function BookTripPage() {
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Flight preferences, loyalty numbers, special requirements…"
+                placeholder="Visa requirements, special arrangements, preferences…"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition"
               />
             </div>
@@ -324,21 +280,18 @@ export default function BookTripPage() {
 
             {/* Identity Context Panel */}
             <div className={`border rounded-lg p-4 ${delegationActive ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
-              <p className="text-xs font-semibold text-slate-600 mb-2.5">Identity context for this booking</p>
+              <p className="text-xs font-semibold text-slate-600 mb-2.5">Identity context for this authorization</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs font-mono">
                 <span className="text-slate-400 font-sans">userId (subject)</span>
                 <span className="text-slate-700">{subjectId ?? session?.user?.email ?? "—"}</span>
-
                 <span className="text-slate-400 font-sans">createdBy (actor)</span>
                 <span className={delegationActive ? "text-blue-700 font-semibold" : "text-slate-700"}>
                   {session?.user?.email ?? "—"}
                 </span>
-
                 <span className="text-slate-400 font-sans">delegationId</span>
                 <span className={delegationId ? "text-amber-700" : "text-slate-400"}>
                   {delegationId ?? "— none"}
                 </span>
-
                 <span className="text-slate-400 font-sans">tenantId</span>
                 <span className="text-slate-700">{session?.user?.tenantId ?? "—"}</span>
               </div>
@@ -363,7 +316,7 @@ export default function BookTripPage() {
                 disabled={submitting}
                 className="flex-[2] bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
               >
-                {submitting ? "Confirming…" : "Confirm Booking"}
+                {submitting ? "Submitting…" : "Submit Authorization"}
               </button>
             </div>
           </div>

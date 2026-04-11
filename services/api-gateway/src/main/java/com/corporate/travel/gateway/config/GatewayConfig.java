@@ -11,6 +11,9 @@ import org.springframework.context.annotation.Configuration;
  *
  * Defines routes to backend microservices with path-based routing.
  * Routes are configured programmatically for better type safety and IDE support.
+ *
+ * All services expose routes under their own /api/<resource> prefix, so no
+ * path stripping is needed — the full path is forwarded as-is (stripPrefix(0)).
  */
 @Slf4j
 @Configuration
@@ -21,10 +24,9 @@ public class GatewayConfig {
         log.info("Configuring API Gateway routes");
 
         return builder.routes()
-            // Travel Service API Routes
-            .route("travel-service-api", r -> r
-                .path("/api/travel/**")
-                .filters(f -> f.stripPrefix(2))  // Remove /api/travel prefix
+            // Booking (Travel) Service — /api/bookings/**
+            .route("travel-service-bookings", r -> r
+                .path("/api/bookings/**")
                 .uri("http://travel-service:8081")
             )
 
@@ -34,7 +36,7 @@ public class GatewayConfig {
                 .filters(f -> f.rewritePath("/travel-service-docs", "/api-docs"))
                 .uri("http://travel-service:8081")
             )
-            
+
             // Travel Service OpenAPI Docs - With segments
             .route("travel-service-docs", r -> r
                 .path("/travel-service-docs/**")
@@ -42,10 +44,9 @@ public class GatewayConfig {
                 .uri("http://travel-service:8081")
             )
 
-            // Expense Service API Routes
+            // Expense Service — /api/expenses/**
             .route("expense-service-api", r -> r
                 .path("/api/expenses/**")
-                .filters(f -> f.stripPrefix(2))  // Remove /api/expenses prefix
                 .uri("http://expense-service:8082")
             )
 
@@ -55,7 +56,7 @@ public class GatewayConfig {
                 .filters(f -> f.rewritePath("/expense-service-docs", "/api-docs"))
                 .uri("http://expense-service:8082")
             )
-            
+
             // Expense Service OpenAPI Docs - With segments
             .route("expense-service-docs", r -> r
                 .path("/expense-service-docs/**")
@@ -63,8 +64,17 @@ public class GatewayConfig {
                 .uri("http://expense-service:8082")
             )
 
-            // Future routes for approval-service, delegation-service, consent-service
-            // can be added here when those services are implemented
+            // Delegation Service — /api/delegations/**
+            .route("delegation-service-api", r -> r
+                .path("/api/delegations/**")
+                .uri("http://delegation-service:8083")
+            )
+
+            // Consent Service — /api/consents/**
+            .route("consent-service-api", r -> r
+                .path("/api/consents/**")
+                .uri("http://consent-service:8084")
+            )
 
             .build();
     }

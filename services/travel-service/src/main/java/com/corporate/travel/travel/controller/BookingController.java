@@ -171,6 +171,30 @@ public class BookingController {
         return ResponseEntity.ok(updated);
     }
     
+    /**
+     * Internal service-to-service endpoint — returns only budget fields.
+     * Called by the expense service before allowing expense submission.
+     * No JWT required; protected by network isolation (internal Docker network only).
+     *
+     * GET /api/bookings/{id}/budget
+     */
+    @Operation(
+        summary = "Get booking budget (internal)",
+        description = "Returns budget and currency for a booking. Used internally by the expense service for submission validation."
+    )
+    @GetMapping("/{id}/budget")
+    public ResponseEntity<Map<String, Object>> getBookingBudget(
+            @Parameter(description = "Booking UUID", required = true)
+            @PathVariable UUID id) {
+
+        Booking booking = bookingService.getBookingById(id);
+        return ResponseEntity.ok(Map.of(
+            "id",             booking.getId().toString(),
+            "budget",         booking.getBudget(),
+            "budgetCurrency", booking.getBudgetCurrency()
+        ));
+    }
+
     @Operation(
         summary = "Get booking audit trail",
         description = "Returns all audit records for a booking, ordered by most recent first (ADR-011)"

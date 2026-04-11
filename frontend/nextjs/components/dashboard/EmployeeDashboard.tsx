@@ -34,12 +34,6 @@ function formatAmount(amount: number, currency = "INR"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
 }
 
-const TYPE_BADGE: Record<string, string> = {
-  FLIGHT: "text-sky-700 bg-sky-50 border border-sky-200",
-  HOTEL: "text-violet-700 bg-violet-50 border border-violet-200",
-  CAR: "text-teal-700 bg-teal-50 border border-teal-200",
-};
-
 function TableSkeleton({ cols, rows = 3 }: { cols: number; rows?: number }) {
   return (
     <>
@@ -262,17 +256,17 @@ export function EmployeeDashboard() {
         <table className="w-full" aria-label="Recent Trips">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              {["Booking", "Destination", "Dates", "Type", "Amount", "Status"].map((h) => (
+              {["Authorization", "Destination", "Dates", "Budget", "Status"].map((h) => (
                 <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <TableSkeleton cols={6} />
+              <TableSkeleton cols={5} />
             ) : recentTrips.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center">
+                <td colSpan={5} className="px-5 py-10 text-center">
                   <p className="text-sm text-slate-400 mb-3">No trips booked yet.</p>
                   <Link
                     href="/travel/book"
@@ -300,12 +294,7 @@ export function EmployeeDashboard() {
                   <td className="px-5 py-3.5 text-sm text-slate-500">
                     {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
                   </td>
-                  <td className="px-5 py-3.5">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE[trip.bookingType] ?? ""}`}>
-                      {trip.bookingType.charAt(0) + trip.bookingType.slice(1).toLowerCase()}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-slate-800">{formatAmount(trip.totalAmount)}</td>
+                  <td className="px-5 py-3.5 text-sm font-medium text-emerald-700">{formatAmount(trip.budget, trip.budgetCurrency)}</td>
                   <td className="px-5 py-3.5"><StatusBadge status={trip.status} /></td>
                 </tr>
               ))
@@ -360,7 +349,7 @@ export function EmployeeDashboard() {
               recentExpenses.map((exp) => (
                 <tr
                   key={exp.id}
-                  className={`hover:bg-slate-50/70 transition-colors ${exp.delegationId ? "bg-amber-50/10 hover:bg-amber-50/30" : ""}`}
+                  className={`hover:bg-slate-50/70 transition-colors ${exp.createdBy && exp.userId && exp.createdBy !== exp.userId ? "bg-amber-50/10 hover:bg-amber-50/30" : ""}`}
                 >
                   <td className="px-5 py-3.5">
                     <Link href={`/expense/${exp.id}`} className="text-xs font-mono text-blue-600 hover:text-blue-700 hover:underline">

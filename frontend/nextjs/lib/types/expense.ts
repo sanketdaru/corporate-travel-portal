@@ -14,17 +14,21 @@ export type ExpenseCategory =
 
 export interface ExpenseItem {
   id: string;
-  expenseId: string;
+  /** ISO date string — field name in backend is `date` */
+  date: string;
   category: ExpenseCategory;
   description: string;
   amount: number;
-  expenseDate: string;  // ISO date
+  currency: string;
+  receiptUrl?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Expense {
   id: string;
   tenantId: string;
+  /** The expense owner — in delegation scenarios this is the subject */
   userId: string;
   bookingId?: string;
   title: string;
@@ -38,7 +42,8 @@ export interface Expense {
   items: ExpenseItem[];
   createdAt: string;
   updatedAt: string;
+  /** The user who created the record — the actor in delegation scenarios */
   createdBy: string;
   updatedBy?: string;
-  delegationId?: string;
+  /** No delegationId on the backend — use `createdBy !== userId` to detect delegation */
 }

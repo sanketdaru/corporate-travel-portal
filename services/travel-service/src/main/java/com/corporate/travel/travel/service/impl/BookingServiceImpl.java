@@ -80,8 +80,9 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking created with ID: {}", saved.getId());
 
         Map<String, Object> auditDetails = new HashMap<>();
-        auditDetails.put("bookingType", saved.getBookingType().toString());
         auditDetails.put("destination", saved.getDestination());
+        auditDetails.put("budget", saved.getBudget().toPlainString());
+        auditDetails.put("budgetCurrency", saved.getBudgetCurrency());
         auditDetails.put("status", saved.getStatus().toString());
         auditService.record(saved.getId(), "CREATE", auditDetails, context);
 
@@ -187,6 +188,14 @@ public class BookingServiceImpl implements BookingService {
         return updated;
     }
     
+    @Override
+    @Transactional(readOnly = true)
+    public Booking getBookingById(UUID id) {
+        if (id == null) throw new BookingNotFoundException("Booking id must not be null");
+        return bookingRepository.findById(id)
+            .orElseThrow(() -> new BookingNotFoundException(id));
+    }
+
     @Override
     public void deleteBooking(UUID id, SecurityContext context) {
         log.info("Deleting booking {} by user {}", id, context.getUserId());

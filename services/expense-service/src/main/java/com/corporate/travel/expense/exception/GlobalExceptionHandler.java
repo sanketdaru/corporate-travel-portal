@@ -93,6 +93,25 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
     
+    @ExceptionHandler(BudgetExceededException.class)
+    public ProblemDetail handleBudgetExceeded(BudgetExceededException ex) {
+        log.warn("Budget exceeded: {}", ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            ex.getMessage()
+        );
+        problemDetail.setTitle("Budget Exceeded");
+        problemDetail.setType(URI.create("https://api.corporate-travel.com/errors/budget-exceeded"));
+        problemDetail.setProperty("timestamp", Instant.now());
+        problemDetail.setProperty("budget",    ex.getBudget());
+        problemDetail.setProperty("total",     ex.getTotal());
+        problemDetail.setProperty("overage",   ex.getOverage());
+        problemDetail.setProperty("currency",  ex.getCurrency());
+
+        return problemDetail;
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ProblemDetail handleIllegalState(IllegalStateException ex) {
         log.warn("Invalid state: {}", ex.getMessage());

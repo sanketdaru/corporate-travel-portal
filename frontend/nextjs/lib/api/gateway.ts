@@ -34,8 +34,10 @@ export interface ExpenseAudit {
   actorId: string;
   subjectId?: string;
   delegationId?: string;
+  consentId?: string;
+  tenantId?: string;
   details?: Record<string, unknown>;
-  createdAt: string;
+  timestamp: string;
 }
 
 export async function getExpenseAudit(expenseId: string): Promise<ExpenseAudit[]> {

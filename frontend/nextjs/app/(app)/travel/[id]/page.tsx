@@ -12,12 +12,6 @@ import { gatewayClient } from "@/lib/api/client";
 import { setAccessToken } from "@/lib/api/client";
 import type { Booking, BookingAudit } from "@/lib/types/booking";
 
-const TYPE_BADGE: Record<string, string> = {
-  FLIGHT: "text-sky-700 bg-sky-50 border border-sky-200",
-  HOTEL:  "text-violet-700 bg-violet-50 border border-violet-200",
-  CAR:    "text-teal-700 bg-teal-50 border border-teal-200",
-};
-
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
@@ -35,33 +29,42 @@ function formatAmount(amount: number, currency = "INR"): string {
 function auditActionToEvent(entry: BookingAudit): AuditEvent {
   const actor = entry.actorId ?? "unknown";
   const subject = entry.subjectId ?? entry.actorId ?? "unknown";
+  const hasSub = entry.subjectId && entry.subjectId !== actor;
+  const ts = formatDateTime(entry.timestamp);
 
   switch (entry.action) {
-    case "CREATE_BOOKING":
+    case "CREATE":
       return {
         label: "Booking created",
-        timestamp: formatDateTime(entry.createdAt),
-        detail: `Actor: ${actor}${entry.subjectId && entry.subjectId !== actor ? ` · Subject: ${subject}` : ""}`,
+        timestamp: ts,
+        detail: `Actor: ${actor}${hasSub ? ` · Subject: ${subject}` : ""}`,
         color: "emerald",
       };
     case "ACTIVATE_DELEGATION":
       return {
         label: "Delegation mode activated",
-        timestamp: formatDateTime(entry.createdAt),
+        timestamp: ts,
         detail: "Token exchange completed for audience: travel-service",
-        color: "blue",
+        color: "violet",
       };
-    case "VIEW_BOOKINGS":
+    case "VIEW":
       return {
-        label: "Bookings viewed",
-        timestamp: formatDateTime(entry.createdAt),
+        label: "Booking viewed",
+        timestamp: ts,
         detail: `Actor: ${actor}`,
         color: "slate",
+      };
+    case "UPDATE":
+      return {
+        label: "Booking updated",
+        timestamp: ts,
+        detail: `Actor: ${actor}`,
+        color: "blue",
       };
     default:
       return {
         label: entry.action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        timestamp: formatDateTime(entry.createdAt),
+        timestamp: ts,
         detail: `Actor: ${actor}`,
         color: "slate",
       };
@@ -103,7 +106,7 @@ export default function BookingDetailPage() {
         try {
           const auditRes = await gatewayClient.get<BookingAudit[]>(`/api/bookings/${params.id}/audit`);
           const events = auditRes.data
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .map(auditActionToEvent);
           setAuditEvents(events);
         } catch {
@@ -123,8 +126,8 @@ export default function BookingDetailPage() {
   if (notFound) {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-4">
-        <p className="text-slate-500 text-sm">Booking not found.</p>
-        <Link href="/travel" className="text-sm text-blue-600 hover:underline">← Back to My Trips</Link>
+        <p className="text-slate-500 text-sm">Travel authorization not found.</p>
+        <Link href="/travel" className="text-sm text-blue-600 hover:underline">← Back to Travel Authorizations</Link>
       </div>
     );
   }
@@ -135,7 +138,7 @@ export default function BookingDetailPage() {
     <div className="space-y-5">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-slate-400">
-        <Link href="/travel" className="hover:text-slate-700 transition-colors">My Trips</Link>
+        <Link href="/travel" className="hover:text-slate-700 transition-colors">Travel Authorizations</Link>
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
@@ -164,13 +167,13 @@ export default function BookingDetailPage() {
               <SkeletonBlock className="h-4 w-48 mt-1" />
             ) : booking ? (
               <p className="text-sm text-slate-400 font-mono mt-1">
-                {booking.id} · {booking.bookingType.charAt(0) + booking.bookingType.slice(1).toLowerCase()} · {formatDate(booking.startDate)} – {formatDate(booking.endDate)}
+                {booking.id} · {formatDate(booking.startDate)} – {formatDate(booking.endDate)}
               </p>
             ) : null}
           </div>
           {booking && (
             <Link
-              href={`/expense/submit?bookingId=${booking.id}`}
+              href={`/expense/submit?bookingId=${booking.id}&destination=${encodeURIComponent(booking.destination)}&businessPurpose=${encodeURIComponent(booking.businessPurpose ?? "")}&budget=${booking.budget}&budgetCurrency=${booking.budgetCurrency}&startDate=${booking.startDate}`}
               className="flex items-center gap-2 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-medium px-3.5 py-2 rounded-lg transition-colors flex-shrink-0"
             >
               Submit Expense
@@ -181,7 +184,7 @@ export default function BookingDetailPage() {
         {/* Booking Details Card */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Booking Details</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Authorization Details</h2>
           </div>
           <div className="divide-y divide-slate-100">
             {loading ? (
@@ -193,11 +196,6 @@ export default function BookingDetailPage() {
               ))
             ) : booking ? (
               <>
-                <DetailRow label="Booking type">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE[booking.bookingType] ?? ""}`}>
-                    {booking.bookingType.charAt(0) + booking.bookingType.slice(1).toLowerCase()}
-                  </span>
-                </DetailRow>
                 <DetailRow label="Source">
                   <span className="text-slate-500 text-sm">Office HQ — Mumbai, India</span>
                 </DetailRow>
@@ -207,12 +205,19 @@ export default function BookingDetailPage() {
                 <DetailRow label="Travel dates">
                   <span className="text-slate-700 text-sm">{formatDate(booking.startDate)} → {formatDate(booking.endDate)}</span>
                 </DetailRow>
-                <DetailRow label="Total amount">
-                  <span className="font-semibold text-slate-900 text-sm">{formatAmount(booking.totalAmount, booking.currency)}</span>
+                <DetailRow label="Approved budget">
+                  <span className="font-semibold text-emerald-700 text-sm bg-emerald-50 px-2 py-0.5 rounded-md">
+                    {formatAmount(booking.budget, booking.budgetCurrency)}
+                  </span>
                 </DetailRow>
                 {booking.businessPurpose && (
                   <DetailRow label="Business purpose">
                     <span className="text-slate-700 text-sm">{booking.businessPurpose}</span>
+                  </DetailRow>
+                )}
+                {booking.notes && (
+                  <DetailRow label="Notes">
+                    <span className="text-slate-600 text-sm">{booking.notes}</span>
                   </DetailRow>
                 )}
                 <DetailRow label="Created">

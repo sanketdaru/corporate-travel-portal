@@ -45,6 +45,10 @@ server:
 opa:
   url: http://opa:8181
 
+# Internal service URLs (container network — no gateway)
+travel-service:
+  url: http://localhost:8081
+
 # Logging
 logging:
   level:

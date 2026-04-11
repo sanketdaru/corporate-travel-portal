@@ -57,9 +57,20 @@ public interface BookingService {
     
     /**
      * Delete/cancel a booking
-     * 
+     *
      * @param id Booking ID
      * @param context Security context
      */
     void deleteBooking(UUID id, SecurityContext context);
+
+    /**
+     * Internal lookup by ID only — no tenant check, no OPA authorization.
+     * Used exclusively by the budget endpoint called from the expense service
+     * over the internal container network.
+     *
+     * @param id Booking ID
+     * @return Booking if found
+     * @throws BookingNotFoundException if not found
+     */
+    Booking getBookingById(UUID id);
 }

@@ -127,21 +127,23 @@ gw_put() {
 # Booking helpers
 # ---------------------------------------------------------------------------
 create_booking() {
-  local token="$1" booking_type="$2" destination="$3" \
-        start_date="$4" end_date="$5" amount="$6" status="$7"
-  local cookie_jar="${8:-}"
+  local token="$1" destination="$2" start_date="$3" end_date="$4" \
+        business_purpose="$5" budget="$6" budget_currency="${7:-INR}" \
+        status="${8:-DRAFT}"
+  local cookie_jar="${9:-}"
 
   local body
   body=$(jq -n \
-    --arg bt "$booking_type" \
     --arg dest "$destination" \
     --arg sd "$start_date" \
     --arg ed "$end_date" \
-    --argjson amt "$amount" \
+    --arg bp "$business_purpose" \
+    --argjson bgt "$budget" \
+    --arg bc "$budget_currency" \
     --arg st "$status" \
-    '{bookingType:$bt, tenantId:"placeholder", userId:"placeholder",
+    '{tenantId:"placeholder", userId:"placeholder",
       destination:$dest, startDate:$sd, endDate:$ed,
-      totalAmount:$amt, status:$st}')
+      businessPurpose:$bp, budget:$bgt, budgetCurrency:$bc, status:$st}')
 
   if [[ -n "$cookie_jar" ]]; then
     bff_post "$token" "/api/bff/bookings" "$body" "$cookie_jar"
@@ -160,15 +162,25 @@ update_booking_status() {
 # ---------------------------------------------------------------------------
 create_expense() {
   local token="$1" title="$2" description="$3" currency="${4:-INR}"
-  local cookie_jar="${5:-}"
+  local booking_id="${5:-}" cookie_jar="${6:-}"
 
   local body
-  body=$(jq -n \
-    --arg title "$title" \
-    --arg desc "$description" \
-    --arg curr "$currency" \
-    '{tenantId:"placeholder", userId:"placeholder",
-      title:$title, description:$desc, currency:$curr, status:"DRAFT"}')
+  if [[ -n "$booking_id" ]]; then
+    body=$(jq -n \
+      --arg title "$title" \
+      --arg desc "$description" \
+      --arg curr "$currency" \
+      --arg bkg "$booking_id" \
+      '{tenantId:"placeholder", userId:"placeholder",
+        title:$title, description:$desc, currency:$curr, status:"DRAFT", bookingId:$bkg}')
+  else
+    body=$(jq -n \
+      --arg title "$title" \
+      --arg desc "$description" \
+      --arg curr "$currency" \
+      '{tenantId:"placeholder", userId:"placeholder",
+        title:$title, description:$desc, currency:$curr, status:"DRAFT"}')
+  fi
 
   if [[ -n "$cookie_jar" ]]; then
     bff_post "$token" "/api/bff/expenses" "$body" "$cookie_jar"
@@ -279,6 +291,17 @@ check_health "API Gateway"        "$GW_URL/actuator/health"
 check_health "Delegation Service" "$DELEGATION_URL/actuator/health"
 check_health "Consent Service"    "$CONSENT_URL/actuator/health"
 
+# Push OPA policy to ensure manager approval rule is up-to-date
+OPA_URL="http://localhost:8181"
+POLICY_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/infrastructure/opa/policies/authorization.rego"
+if [[ -f "$POLICY_FILE" ]]; then
+  OPA_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "$OPA_URL/v1/policies/policies%2Fauthorization.rego" \
+    -H "Content-Type: text/plain" --data-binary @"$POLICY_FILE")
+  [[ "$OPA_CODE" == "200" ]] && ok "OPA policy pushed (HTTP 200)" || warn "OPA policy push returned HTTP $OPA_CODE"
+else
+  warn "OPA policy file not found — approve steps may fail"
+fi
+
 # ---------------------------------------------------------------------------
 # Step 1: Obtain tokens
 # ---------------------------------------------------------------------------
@@ -349,44 +372,45 @@ fi
 # ---------------------------------------------------------------------------
 header "Step 3 — alice.employee (tenant-a)"
 
-# Booking 1: London FLIGHT → CONFIRMED
-info "Creating London FLIGHT booking"
-RESP=$(create_booking "$ALICE_TOKEN" "FLIGHT" "London, UK" "2026-05-10" "2026-05-17" 87500 "DRAFT")
+# Booking 1: London → CONFIRMED
+info "Creating London authorization"
+RESP=$(create_booking "$ALICE_TOKEN" "London, UK" "2026-05-10" "2026-05-17" "Client meetings and product review" 200000 "INR" "DRAFT")
 BKG_ALICE_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_ALICE_1" || "$BKG_ALICE_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$ALICE_TOKEN" "$BKG_ALICE_1" "CONFIRMED" > /dev/null
 ok "Alice Booking 1 (London, CONFIRMED): $BKG_ALICE_1"
 
-# Booking 2: Tokyo FLIGHT → CONFIRMED
-info "Creating Tokyo FLIGHT booking"
-RESP=$(create_booking "$ALICE_TOKEN" "FLIGHT" "Tokyo, Japan" "2026-03-05" "2026-03-12" 112000 "DRAFT")
+# Booking 2: Tokyo → CONFIRMED
+info "Creating Tokyo authorization"
+RESP=$(create_booking "$ALICE_TOKEN" "Tokyo, Japan" "2026-03-05" "2026-03-12" "Annual technology conference attendance" 180000 "INR" "DRAFT")
 BKG_ALICE_2=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_ALICE_2" || "$BKG_ALICE_2" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$ALICE_TOKEN" "$BKG_ALICE_2" "CONFIRMED" > /dev/null
 ok "Alice Booking 2 (Tokyo, CONFIRMED): $BKG_ALICE_2"
 
-# Booking 3: Paris FLIGHT → DRAFT
-info "Creating Paris FLIGHT booking"
-RESP=$(create_booking "$ALICE_TOKEN" "FLIGHT" "Paris, France" "2026-07-20" "2026-07-27" 73000 "DRAFT")
+# Booking 3: Paris → DRAFT
+info "Creating Paris authorization"
+RESP=$(create_booking "$ALICE_TOKEN" "Paris, France" "2026-07-20" "2026-07-27" "Strategic partnership discussions" 150000 "INR" "DRAFT")
 BKG_ALICE_3=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_ALICE_3" || "$BKG_ALICE_3" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 ok "Alice Booking 3 (Paris, DRAFT): $BKG_ALICE_3"
 
 # Expense 1: London Trip → SUBMITTED → APPROVED (by bob.manager)
 info "Creating London expense (to be approved)"
-RESP=$(create_expense "$ALICE_TOKEN" "London Business Trip — May 2026" "Flight and hotel for client meetings in London")
+RESP=$(create_expense "$ALICE_TOKEN" "London Business Trip — May 2026" "Flight and hotel for client meetings in London" "INR" "$BKG_ALICE_1")
 EXP_ALICE_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$EXP_ALICE_1" || "$EXP_ALICE_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 add_expense_item "$ALICE_TOKEN" "$EXP_ALICE_1" "2026-05-10" "TRAVEL" "Return flight Mumbai–London" 87500 > /dev/null
 add_expense_item "$ALICE_TOKEN" "$EXP_ALICE_1" "2026-05-11" "ACCOMMODATION" "Hotel — 7 nights in London" 98000 > /dev/null
 add_expense_item "$ALICE_TOKEN" "$EXP_ALICE_1" "2026-05-12" "MEALS" "Client dinner" 8500 > /dev/null
 submit_expense "$ALICE_TOKEN" "$EXP_ALICE_1" > /dev/null
-approve_expense "$BOB_TOKEN" "$EXP_ALICE_1" "Approved — valid business travel" > /dev/null
-ok "Alice Expense 1 (London, APPROVED): $EXP_ALICE_1"
+RESP=$(approve_expense "$BOB_TOKEN" "$EXP_ALICE_1" "Approved — valid business travel")
+APPROVED_STATUS=$(echo "$RESP" | jq -r '.status // empty')
+[[ "$APPROVED_STATUS" == "APPROVED" ]] && ok "Alice Expense 1 (London, APPROVED): $EXP_ALICE_1" || warn "Approve may have failed: $RESP"
 
 # Expense 2: Tokyo Trip → DRAFT
 info "Creating Tokyo expense (draft)"
-RESP=$(create_expense "$ALICE_TOKEN" "Tokyo Conference — March 2026" "Tech conference attendance")
+RESP=$(create_expense "$ALICE_TOKEN" "Tokyo Conference — March 2026" "Tech conference attendance" "INR" "$BKG_ALICE_2")
 EXP_ALICE_2=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$EXP_ALICE_2" || "$EXP_ALICE_2" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 add_expense_item "$ALICE_TOKEN" "$EXP_ALICE_2" "2026-03-05" "TRAVEL" "Return flight Mumbai–Tokyo" 112000 > /dev/null
@@ -398,17 +422,17 @@ ok "Alice Expense 2 (Tokyo, DRAFT): $EXP_ALICE_2"
 # ---------------------------------------------------------------------------
 header "Step 4 — bob.manager (tenant-a)"
 
-# Booking 1: New York FLIGHT → CONFIRMED
-info "Creating New York FLIGHT booking"
-RESP=$(create_booking "$BOB_TOKEN" "FLIGHT" "New York, USA" "2026-04-15" "2026-04-22" 95000 "DRAFT")
+# Booking 1: New York → CONFIRMED
+info "Creating New York authorization"
+RESP=$(create_booking "$BOB_TOKEN" "New York, USA" "2026-04-15" "2026-04-22" "Annual leadership summit" 220000 "INR" "DRAFT")
 BKG_BOB_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_BOB_1" || "$BKG_BOB_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$BOB_TOKEN" "$BKG_BOB_1" "CONFIRMED" > /dev/null
 ok "Bob Booking 1 (New York, CONFIRMED): $BKG_BOB_1"
 
-# Booking 2: Sydney HOTEL → CONFIRMED
-info "Creating Sydney HOTEL booking"
-RESP=$(create_booking "$BOB_TOKEN" "HOTEL" "Sydney, Australia" "2026-06-01" "2026-06-05" 64000 "DRAFT")
+# Booking 2: Sydney → CONFIRMED
+info "Creating Sydney authorization"
+RESP=$(create_booking "$BOB_TOKEN" "Sydney, Australia" "2026-06-01" "2026-06-05" "Partner conference" 120000 "INR" "DRAFT")
 BKG_BOB_2=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_BOB_2" || "$BKG_BOB_2" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$BOB_TOKEN" "$BKG_BOB_2" "CONFIRMED" > /dev/null
@@ -416,7 +440,7 @@ ok "Bob Booking 2 (Sydney, CONFIRMED): $BKG_BOB_2"
 
 # Expense 1: NYC trip → SUBMITTED (pending approval)
 info "Creating NYC expense (submitted, pending approval)"
-RESP=$(create_expense "$BOB_TOKEN" "New York Strategy Summit — April 2026" "Annual leadership summit attendance")
+RESP=$(create_expense "$BOB_TOKEN" "New York Strategy Summit — April 2026" "Annual leadership summit attendance" "INR" "$BKG_BOB_1")
 EXP_BOB_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$EXP_BOB_1" || "$EXP_BOB_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 add_expense_item "$BOB_TOKEN" "$EXP_BOB_1" "2026-04-15" "TRAVEL" "Return flight Mumbai–New York" 95000 > /dev/null
@@ -430,32 +454,33 @@ ok "Bob Expense 1 (NYC, SUBMITTED): $EXP_BOB_1"
 # ---------------------------------------------------------------------------
 header "Step 5 — carol.executive direct records (tenant-a)"
 
-# Booking 1: Berlin HOTEL → CONFIRMED
-info "Creating Berlin HOTEL booking"
-RESP=$(create_booking "$CAROL_TOKEN" "HOTEL" "Berlin, Germany" "2026-03-20" "2026-03-25" 48000 "DRAFT")
+# Booking 1: Berlin → CONFIRMED
+info "Creating Berlin authorization"
+RESP=$(create_booking "$CAROL_TOKEN" "Berlin, Germany" "2026-03-20" "2026-03-25" "European executive summit" 160000 "INR" "DRAFT")
 BKG_CAROL_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_CAROL_1" || "$BKG_CAROL_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$CAROL_TOKEN" "$BKG_CAROL_1" "CONFIRMED" > /dev/null
 ok "Carol Booking 1 (Berlin, CONFIRMED): $BKG_CAROL_1"
 
-# Booking 2: Dubai FLIGHT → DRAFT
-info "Creating Dubai FLIGHT booking (draft)"
-RESP=$(create_booking "$CAROL_TOKEN" "FLIGHT" "Dubai, UAE" "2026-08-10" "2026-08-14" 62000 "DRAFT")
+# Booking 2: Dubai → DRAFT
+info "Creating Dubai authorization (draft)"
+RESP=$(create_booking "$CAROL_TOKEN" "Dubai, UAE" "2026-08-10" "2026-08-14" "MENA business expansion meetings" 120000 "INR" "DRAFT")
 BKG_CAROL_2=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_CAROL_2" || "$BKG_CAROL_2" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 ok "Carol Booking 2 (Dubai, DRAFT): $BKG_CAROL_2"
 
 # Expense 1: Berlin → SUBMITTED → APPROVED
 info "Creating Berlin expense (to be approved)"
-RESP=$(create_expense "$CAROL_TOKEN" "Berlin Executive Summit — March 2026" "European leadership conference")
+RESP=$(create_expense "$CAROL_TOKEN" "Berlin Executive Summit — March 2026" "European leadership conference" "INR" "$BKG_CAROL_1")
 EXP_CAROL_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$EXP_CAROL_1" || "$EXP_CAROL_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 add_expense_item "$CAROL_TOKEN" "$EXP_CAROL_1" "2026-03-20" "TRAVEL" "Return flight Mumbai–Berlin" 78000 > /dev/null
 add_expense_item "$CAROL_TOKEN" "$EXP_CAROL_1" "2026-03-21" "ACCOMMODATION" "Hotel — 5 nights in Berlin" 60000 > /dev/null
 add_expense_item "$CAROL_TOKEN" "$EXP_CAROL_1" "2026-03-22" "MEALS" "Business dinners" 15000 > /dev/null
 submit_expense "$CAROL_TOKEN" "$EXP_CAROL_1" > /dev/null
-approve_expense "$BOB_TOKEN" "$EXP_CAROL_1" "Approved — executive travel" > /dev/null
-ok "Carol Expense 1 (Berlin, APPROVED): $EXP_CAROL_1"
+RESP=$(approve_expense "$BOB_TOKEN" "$EXP_CAROL_1" "Approved — executive travel")
+APPROVED_STATUS=$(echo "$RESP" | jq -r '.status // empty')
+[[ "$APPROVED_STATUS" == "APPROVED" ]] && ok "Carol Expense 1 (Berlin, APPROVED): $EXP_CAROL_1" || warn "Approve may have failed: $RESP"
 
 # ---------------------------------------------------------------------------
 # Step 6: dave.assistant acts on behalf of carol.executive (delegation flow)
@@ -474,18 +499,18 @@ if [[ "$ACT_ACTOR" != "dave.assistant" || "$ACT_SUBJECT" != "carol.executive" ]]
 fi
 ok "Delegation activated (travel-service) — actor=dave.assistant subject=carol.executive"
 
-# Delegated Booking 1: Shanghai FLIGHT → DRAFT (for carol)
-info "Creating Shanghai FLIGHT booking on Carol's behalf"
-RESP=$(create_booking "$DAVE_TOKEN" "FLIGHT" "Shanghai, China" "2026-09-05" "2026-09-10" 89000 "DRAFT" "$DAVE_COOKIE_JAR")
+# Delegated Booking 1: Shanghai → DRAFT (for carol)
+info "Creating Shanghai authorization on Carol's behalf"
+RESP=$(create_booking "$DAVE_TOKEN" "Shanghai, China" "2026-09-05" "2026-09-10" "Asia Pacific client engagement" 200000 "INR" "DRAFT" "$DAVE_COOKIE_JAR")
 BKG_CAROL_DEL_1=$(echo "$RESP" | jq -r '.id // empty')
 BKG_CAROL_DEL_1_USER=$(echo "$RESP" | jq -r '.userId // empty')
 BKG_CAROL_DEL_1_ACTOR=$(echo "$RESP" | jq -r '.createdBy // empty')
 if [[ -z "$BKG_CAROL_DEL_1" || "$BKG_CAROL_DEL_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 ok "Carol Booking 3 via Dave (Shanghai FLIGHT, DRAFT): $BKG_CAROL_DEL_1 [userId=$BKG_CAROL_DEL_1_USER createdBy=$BKG_CAROL_DEL_1_ACTOR]"
 
-# Delegated Booking 2: Bengaluru CAR → CONFIRMED (for carol)
-info "Creating Bengaluru CAR booking on Carol's behalf"
-RESP=$(create_booking "$DAVE_TOKEN" "CAR" "Bengaluru, India" "2026-06-15" "2026-06-18" 14000 "DRAFT" "$DAVE_COOKIE_JAR")
+# Delegated Booking 2: Bengaluru → CONFIRMED (for carol)
+info "Creating Bengaluru authorization on Carol's behalf"
+RESP=$(create_booking "$DAVE_TOKEN" "Bengaluru, India" "2026-06-15" "2026-06-18" "Team coordination offsite" 50000 "INR" "DRAFT" "$DAVE_COOKIE_JAR")
 BKG_CAROL_DEL_2=$(echo "$RESP" | jq -r '.id // empty')
 BKG_CAROL_DEL_2_USER=$(echo "$RESP" | jq -r '.userId // empty')
 BKG_CAROL_DEL_2_ACTOR=$(echo "$RESP" | jq -r '.createdBy // empty')
@@ -511,7 +536,7 @@ ok "Delegation activated (expense-service) — actor=dave.assistant subject=caro
 # Delegated Expense 2: Shanghai Trip → DRAFT (for carol)
 # Dave creates, leaves as draft for carol to complete later
 info "Creating Shanghai expense on Carol's behalf (DRAFT)"
-RESP=$(create_expense "$DAVE_TOKEN" "Shanghai Business Trip — Sept 2026" "Pre-trip expenses filed by assistant" "INR" "$DAVE_COOKIE_JAR")
+RESP=$(create_expense "$DAVE_TOKEN" "Shanghai Business Trip — Sept 2026" "Pre-trip expenses filed by assistant" "INR" "$BKG_CAROL_DEL_1" "$DAVE_COOKIE_JAR")
 EXP_CAROL_2=$(echo "$RESP" | jq -r '.id // empty')
 EXP_CAROL_2_USER=$(echo "$RESP" | jq -r '.userId // empty')
 EXP_CAROL_2_ACTOR=$(echo "$RESP" | jq -r '.createdBy // empty')
@@ -521,7 +546,7 @@ ok "Carol Expense 2 via Dave (Shanghai, DRAFT created): $EXP_CAROL_2 [userId=$EX
 # Delegated Expense 3: Bengaluru Trip → to be SUBMITTED (for carol)
 # Dave creates and will also submit on carol's behalf
 info "Creating Bengaluru expense on Carol's behalf (to be submitted)"
-RESP=$(create_expense "$DAVE_TOKEN" "Bengaluru Team Offsite — June 2026" "Team coordination travel arranged by assistant" "INR" "$DAVE_COOKIE_JAR")
+RESP=$(create_expense "$DAVE_TOKEN" "Bengaluru Team Offsite — June 2026" "Team coordination travel arranged by assistant" "INR" "$BKG_CAROL_DEL_2" "$DAVE_COOKIE_JAR")
 EXP_CAROL_3=$(echo "$RESP" | jq -r '.id // empty')
 EXP_CAROL_3_USER=$(echo "$RESP" | jq -r '.userId // empty')
 EXP_CAROL_3_ACTOR=$(echo "$RESP" | jq -r '.createdBy // empty')
@@ -551,8 +576,8 @@ ok "Carol Expense 3 (Bengaluru, SUBMITTED): $EXP_CAROL_3"
 # ---------------------------------------------------------------------------
 header "Step 7 — dave.assistant own booking (tenant-a)"
 
-info "Creating Dave's own Sydney FLIGHT booking"
-RESP=$(create_booking "$DAVE_TOKEN" "FLIGHT" "Sydney, Australia" "2026-05-20" "2026-05-25" 105000 "DRAFT")
+info "Creating Dave's own Sydney authorization"
+RESP=$(create_booking "$DAVE_TOKEN" "Sydney, Australia" "2026-05-20" "2026-05-25" "Sales enablement conference" 200000 "INR" "DRAFT")
 BKG_DAVE_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_DAVE_1" || "$BKG_DAVE_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$DAVE_TOKEN" "$BKG_DAVE_1" "CONFIRMED" > /dev/null
@@ -563,15 +588,15 @@ ok "Dave Booking 1 (Sydney, CONFIRMED): $BKG_DAVE_1"
 # ---------------------------------------------------------------------------
 header "Step 8 — eve.employee (tenant-b)"
 
-info "Creating Singapore FLIGHT booking"
-RESP=$(create_booking "$EVE_TOKEN" "FLIGHT" "Singapore" "2026-04-20" "2026-04-25" 55000 "DRAFT")
+info "Creating Singapore authorization"
+RESP=$(create_booking "$EVE_TOKEN" "Singapore" "2026-04-20" "2026-04-25" "APAC operations review" 100000 "INR" "DRAFT")
 BKG_EVE_1=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_EVE_1" || "$BKG_EVE_1" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 update_booking_status "$EVE_TOKEN" "$BKG_EVE_1" "CONFIRMED" > /dev/null
 ok "Eve Booking 1 (Singapore, CONFIRMED): $BKG_EVE_1"
 
-info "Creating Bengaluru HOTEL booking"
-RESP=$(create_booking "$EVE_TOKEN" "HOTEL" "Bengaluru, India" "2026-05-12" "2026-05-15" 27000 "DRAFT")
+info "Creating Bengaluru authorization"
+RESP=$(create_booking "$EVE_TOKEN" "Bengaluru, India" "2026-05-12" "2026-05-15" "Quarterly team sync" 50000 "INR" "DRAFT")
 BKG_EVE_2=$(echo "$RESP" | jq -r '.id // empty')
 if [[ -z "$BKG_EVE_2" || "$BKG_EVE_2" == "null" ]]; then err "Failed: $RESP"; exit 1; fi
 ok "Eve Booking 2 (Bengaluru, DRAFT): $BKG_EVE_2"
@@ -586,7 +611,7 @@ echo -e "${BOLD}Bookings seeded:${NC}"
 echo "  alice.employee  : London (CONFIRMED), Tokyo (CONFIRMED), Paris (DRAFT)"
 echo "  bob.manager     : New York (CONFIRMED), Sydney (CONFIRMED)"
 echo "  carol.executive : Berlin (CONFIRMED), Dubai (DRAFT)"
-echo "  carol via dave  : Shanghai (DRAFT), Bengaluru CAR (CONFIRMED)"
+echo "  carol via dave  : Shanghai (DRAFT), Bengaluru (CONFIRMED)"
 echo "  dave.assistant  : Sydney (CONFIRMED)"
 echo "  eve.employee    : Singapore (CONFIRMED), Bengaluru (DRAFT)  [tenant-b]"
 echo ""

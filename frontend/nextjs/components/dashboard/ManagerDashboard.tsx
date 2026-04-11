@@ -126,7 +126,7 @@ export function ManagerDashboard() {
     const d = new Date(b.startDate);
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   });
-  const teamSpend = ownBookings.reduce((sum, b) => sum + (b.totalAmount ?? 0), 0);
+  const teamSpend = ownBookings.reduce((sum, b) => sum + (b.budget ?? 0), 0);
 
   async function handleApprove(id: string) {
     setApprovingId(id);
@@ -188,9 +188,9 @@ export function ManagerDashboard() {
           iconBgClass="bg-sky-50"
         />
         <StatCard
-          label="Team Spend"
+          label="Authorized Budget"
           value={loading ? "—" : formatAmount(teamSpend)}
-          subtitle="Approved this month"
+          subtitle="Pre-approved travel ceiling"
           icon={<CurrencyIcon />}
           iconBgClass="bg-emerald-50"
         />
@@ -232,7 +232,7 @@ export function ManagerDashboard() {
               </tr>
             ) : (
               pendingApprovals.map((exp) => {
-                const isDelegated = !!exp.delegationId || exp.createdBy !== exp.userId;
+                const isDelegated = exp.createdBy !== exp.userId;
                 return (
                   <tr
                     key={exp.id}

@@ -31,6 +31,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/actuator/**", "/health/**").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                // Internal service-to-service: expense service reads booking budget before submission
+                .requestMatchers("/api/bookings/*/budget").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

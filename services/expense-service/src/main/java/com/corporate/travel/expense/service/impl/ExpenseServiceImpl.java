@@ -1,5 +1,7 @@
 package com.corporate.travel.expense.service.impl;
 
+import com.corporate.travel.expense.client.TravelServiceClient;
+import com.corporate.travel.expense.exception.BudgetExceededException;
 import com.corporate.travel.expense.exception.ExpenseItemNotFoundException;
 import com.corporate.travel.expense.exception.ExpenseNotFoundException;
 import com.corporate.travel.expense.exception.InvalidExpenseStatusException;
@@ -37,6 +39,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     private final ExpenseItemRepository expenseItemRepository;
     private final OpaClient opaClient;
     private final ExpenseAuditService auditService;
+    private final TravelServiceClient travelServiceClient;
     
     @Override
     public Expense createExpense(Expense expense, SecurityContext context) {
@@ -230,28 +233,42 @@ public class ExpenseServiceImpl implements ExpenseService {
     public Expense submitExpense(UUID id, SecurityContext context) {
         Expense expense = expenseRepository.findByIdAndTenantId(id, context.getTenantId())
             .orElseThrow(() -> new ExpenseNotFoundException(id));
-        
+
         if (expense.getStatus() != ExpenseStatus.DRAFT) {
             throw new InvalidExpenseStatusException("Can only submit expenses in DRAFT status");
         }
-        
+
         if (expense.getItems().isEmpty()) {
             throw new IllegalStateException("Cannot submit expense without any items");
         }
-        
+
         Map<String, Object> resource = Map.of("type", "expense", "id", expense.getId().toString(),
             "tenant_id", expense.getTenantId(), "user_id", expense.getUserId(), "status", expense.getStatus().toString());
-        
+
         if (!opaClient.authorize(context, "submit_expense", resource)) {
             throw new AccessDeniedException("Not authorized to submit this expense");
         }
-        
+
+        // Budget enforcement: if the expense is linked to a travel authorization,
+        // its total must not exceed the pre-approved budget.
+        if (expense.getBookingId() != null) {
+            travelServiceClient.getBookingBudget(expense.getBookingId()).ifPresent(bb -> {
+                if (expense.getTotalAmount() != null &&
+                        expense.getTotalAmount().compareTo(bb.budget()) > 0) {
+                    throw new BudgetExceededException(bb.budget(), expense.getTotalAmount(), bb.budgetCurrency());
+                }
+            });
+        }
+
         expense.setStatus(ExpenseStatus.SUBMITTED);
         expense.setSubmissionDate(LocalDateTime.now());
         expense.setUpdatedBy(context.getUserId());
 
         Expense submitted = expenseRepository.save(expense);
-        auditService.record(submitted.getId(), "SUBMIT", Map.of("itemCount", submitted.getItems().size()), context);
+        auditService.record(submitted.getId(), "SUBMIT",
+            Map.of("itemCount", submitted.getItems().size(),
+                   "totalAmount", submitted.getTotalAmount() != null ? submitted.getTotalAmount().toPlainString() : "0"),
+            context);
         return submitted;
     }
     

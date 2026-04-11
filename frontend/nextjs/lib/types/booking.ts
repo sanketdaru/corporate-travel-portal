@@ -1,5 +1,3 @@
-export type BookingType = "FLIGHT" | "HOTEL" | "CAR";
-
 export type BookingStatus =
   | "PENDING"
   | "CONFIRMED"
@@ -7,20 +5,21 @@ export type BookingStatus =
   | "CANCELLED"
   | "DRAFT";
 
+export type BudgetCurrency = "INR" | "USD" | "EUR" | "SGD";
+
 export interface Booking {
   id: string;
   tenantId: string;
   userId: string;
-  bookingType: BookingType;
   destination: string;
-  startDate: string;   // ISO date: "2024-01-15"
-  endDate: string;     // ISO date
-  status: BookingStatus;
-  totalAmount: number;
-  currency?: string;
-  details?: string;    // JSON string with extra info
+  startDate: string;           // ISO date: "2026-05-10"
+  endDate: string;             // ISO date: "2026-05-17"
   businessPurpose?: string;
   notes?: string;
+  status: BookingStatus;
+  budget: number;              // pre-approved spending ceiling
+  budgetCurrency: BudgetCurrency;
+  details?: string;            // JSON string for extra info
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -37,6 +36,5 @@ export interface BookingAudit {
   delegationId?: string;
   consentId?: string;
   details?: Record<string, unknown>;
-  createdAt: string;
+  timestamp: string;
 }
-

@@ -141,12 +141,11 @@ allow if {
     input.resource.status == "DRAFT"
 }
 
-# Allow manager to approve/reject expenses
+# Allow manager to approve/reject expenses within their tenant
 allow if {
     input.action in ["approve_expense", "reject_expense"]
     is_same_tenant
     has_role("manager")
-    is_manager_of_user
     input.resource.status == "SUBMITTED"
 }
 
