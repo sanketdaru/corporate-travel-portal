@@ -104,7 +104,7 @@ public class OpaClient {
             return List.of();
         }
         return switch (purpose) {
-            case "book_travel" -> List.of("book_travel", "view_booking");
+            case "book_travel" -> List.of("book_travel", "view_booking", "create_expenses", "submit_expenses");
             case "approve_expenses" -> List.of("approve_expenses", "view_expense");
             case "manage_team" -> List.of("view_booking", "view_expense", "approve_expenses");
             default -> List.of();

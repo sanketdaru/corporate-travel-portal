@@ -64,11 +64,10 @@ public class BookingServiceImpl implements BookingService {
         }
         
         // Authorization check - can user create bookings?
-        Map<String, Object> resource = Map.of(
-            "type", "booking",
-            "tenant_id", booking.getTenantId(),
-            "user_id", booking.getUserId()
-        );
+        Map<String, Object> resource = new HashMap<>();
+        resource.put("type", "booking");
+        resource.put("tenant_id", booking.getTenantId());
+        resource.put("user_id", booking.getUserId());
         
         if (!opaClient.authorize(context, "create_booking", resource)) {
             log.warn("Authorization denied for user {} to create booking in tenant {}", 
@@ -99,14 +98,13 @@ public class BookingServiceImpl implements BookingService {
             .orElseThrow(() -> new BookingNotFoundException(id));
         
         // Build resource context for OPA
-        Map<String, Object> resource = Map.of(
-            "type", "booking",
-            "id", booking.getId().toString(),
-            "tenant_id", booking.getTenantId(),
-            "user_id", booking.getUserId(),
-            "status", booking.getStatus().toString()
-        );
-        
+        Map<String, Object> resource = new HashMap<>();
+        resource.put("type", "booking");
+        resource.put("id", booking.getId().toString());
+        resource.put("tenant_id", booking.getTenantId());
+        resource.put("user_id", booking.getUserId());
+        resource.put("status", booking.getStatus().toString());
+
         // Check authorization with OPA
         if (!opaClient.authorize(context, "view_booking", resource)) {
             log.warn("Authorization denied for user {} to view booking {}", 
@@ -131,11 +129,10 @@ public class BookingServiceImpl implements BookingService {
         log.debug("targetUserId: {}", targetUserId);
         
         // Authorization check - can user list bookings?
-        Map<String, Object> resource = Map.of(
-            "type", "booking",
-            "tenant_id", context.getTenantId(),
-            "user_id", targetUserId
-        );
+        Map<String, Object> resource = new HashMap<>();
+        resource.put("type", "booking");
+        resource.put("tenant_id", context.getTenantId());
+        resource.put("user_id", targetUserId);
         
         if (!opaClient.authorize(context, "view_booking", resource)) {
             log.warn("Authorization denied for user {} to list bookings", context.getUserId());
@@ -157,14 +154,13 @@ public class BookingServiceImpl implements BookingService {
             .orElseThrow(() -> new BookingNotFoundException(id));
         
         // Build resource context
-        Map<String, Object> resource = Map.of(
-            "type", "booking",
-            "id", booking.getId().toString(),
-            "tenant_id", booking.getTenantId(),
-            "user_id", booking.getUserId(),
-            "current_status", booking.getStatus().toString(),
-            "new_status", status.toString()
-        );
+        Map<String, Object> resource = new HashMap<>();
+        resource.put("type", "booking");
+        resource.put("id", booking.getId().toString());
+        resource.put("tenant_id", booking.getTenantId());
+        resource.put("user_id", booking.getUserId());
+        resource.put("current_status", booking.getStatus().toString());
+        resource.put("new_status", status.toString());
         
         // Check authorization
         if (!opaClient.authorize(context, "update_booking", resource)) {
@@ -205,14 +201,13 @@ public class BookingServiceImpl implements BookingService {
             .orElseThrow(() -> new BookingNotFoundException(id));
         
         // Build resource context
-        Map<String, Object> resource = Map.of(
-            "type", "booking",
-            "id", booking.getId().toString(),
-            "tenant_id", booking.getTenantId(),
-            "user_id", booking.getUserId(),
-            "status", booking.getStatus().toString()
-        );
-        
+        Map<String, Object> resource = new HashMap<>();
+        resource.put("type", "booking");
+        resource.put("id", booking.getId().toString());
+        resource.put("tenant_id", booking.getTenantId());
+        resource.put("user_id", booking.getUserId());
+        resource.put("status", booking.getStatus().toString());
+
         // Check authorization
         if (!opaClient.authorize(context, "delete_booking", resource)) {
             log.warn("Authorization denied for user {} to delete booking {}", 

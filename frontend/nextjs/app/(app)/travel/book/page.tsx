@@ -286,7 +286,7 @@ export default function BookTripPage() {
                 <span className="text-slate-700">{subjectId ?? session?.user?.email ?? "—"}</span>
                 <span className="text-slate-400 font-sans">createdBy (actor)</span>
                 <span className={delegationActive ? "text-blue-700 font-semibold" : "text-slate-700"}>
-                  {session?.user?.email ?? "—"}
+                  {session?.user?.name ?? "—"}
                 </span>
                 <span className="text-slate-400 font-sans">delegationId</span>
                 <span className={delegationId ? "text-amber-700" : "text-slate-400"}>

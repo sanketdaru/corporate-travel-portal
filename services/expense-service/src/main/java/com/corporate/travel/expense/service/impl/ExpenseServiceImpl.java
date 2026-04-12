@@ -61,6 +61,10 @@ public class ExpenseServiceImpl implements ExpenseService {
             throw new AccessDeniedException("Not authorized to create expenses");
         }
         
+        // Wire the back-reference so Hibernate can populate expense_id on each item.
+        // Items arrive via JSON deserialization without the @ManyToOne reference set.
+        expense.getItems().forEach(item -> item.setExpense(expense));
+
         Expense saved = expenseRepository.save(expense);
 
         Map<String, Object> auditDetails = new HashMap<>();

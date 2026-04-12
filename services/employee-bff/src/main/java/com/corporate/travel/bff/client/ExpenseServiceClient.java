@@ -63,6 +63,24 @@ public class ExpenseServiceClient {
             .block();
     }
 
+    public JsonNode getExpenseAudit(String expenseId, String bearerToken, Optional<DelegationContext> delegationContext) {
+        return applyDelegationHeaders(
+                expenseServiceWebClient.get().uri("/api/expenses/{id}/audit", expenseId),
+                bearerToken, delegationContext)
+            .retrieve()
+            .bodyToMono(JsonNode.class)
+            .block();
+    }
+
+    public JsonNode submitExpense(String expenseId, String bearerToken, Optional<DelegationContext> delegationContext) {
+        return applyDelegationHeaders(
+                expenseServiceWebClient.post().uri("/api/expenses/{id}/submit", expenseId),
+                bearerToken, delegationContext)
+            .retrieve()
+            .bodyToMono(JsonNode.class)
+            .block();
+    }
+
     /**
      * Applies Authorization plus delegation headers when a delegation context is active.
      * Headers are only added when delegation is present — they must never be sent as blank
@@ -80,6 +98,12 @@ public class ExpenseServiceClient {
                 .header("X-Delegated-Subject", ctx.getSubjectId())
                 .header("X-Delegation-Id", ctx.getDelegationId())
                 .header("X-Actor-Token", ctx.getActorToken());
+            if (ctx.getConsentId() != null) {
+                spec = spec.header("X-Consent-Id", ctx.getConsentId());
+            }
+            if (ctx.getPurpose() != null) {
+                spec = spec.header("X-Delegation-Purpose", ctx.getPurpose());
+            }
         }
         return spec;
     }

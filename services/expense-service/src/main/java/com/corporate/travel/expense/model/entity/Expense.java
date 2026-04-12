@@ -40,18 +40,16 @@ public class Expense {
     private UUID id;
     
     /**
-     * Tenant ID for multi-tenant isolation
+     * Tenant ID for multi-tenant isolation — populated server-side from JWT; not expected from client
      */
     @Column(name = "tenant_id", nullable = false, length = 255)
-    @NotNull
     private String tenantId;
-    
+
     /**
      * User ID - owner of the expense report
-     * In delegation scenarios, this is the subject
+     * In delegation scenarios, this is the subject — populated server-side from SecurityContext
      */
     @Column(name = "user_id", nullable = false, length = 255)
-    @NotNull
     private String userId;
     
     /**

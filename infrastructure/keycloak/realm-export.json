@@ -1228,7 +1228,8 @@
       "attributes": {
         "realm_client": "false",
         "post.logout.redirect.uris": "+",
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "standard.token.exchange.enabled": "true"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
@@ -1241,6 +1242,19 @@
         "approval",
         "travel-booking",
         "delegation"
+      ],
+      "protocolMappers": [
+        {
+          "name": "bff-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "employee-bff",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
       ]
     },
     {
@@ -1283,7 +1297,7 @@
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [],
+      "defaultClientScopes": ["user-attributes"],
       "optionalClientScopes": [
         "offline_access"
       ]
@@ -1413,7 +1427,7 @@
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [],
+      "defaultClientScopes": ["user-attributes"],
       "optionalClientScopes": [
         "offline_access"
       ]

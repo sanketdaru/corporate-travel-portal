@@ -65,6 +65,20 @@ public class BookingBffController {
         return ResponseEntity.ok(travelServiceClient.getBooking(bookingId, token, ctx));
     }
 
+    @GetMapping("/{bookingId}/audit")
+    @Operation(summary = "Get booking audit trail",
+        description = "Returns the audit trail for a booking, threading delegation headers so an actor " +
+                      "can view the audit trail for a booking they created on behalf of a subject.")
+    public ResponseEntity<JsonNode> getBookingAudit(
+            @PathVariable String bookingId,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpSession session) {
+
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(travelServiceClient.getBookingAudit(bookingId, token, ctx));
+    }
+
     /**
      * Returns the active, non-expired delegation context from the session if one exists.
      * The full context — not just a token string — is required so that delegation headers

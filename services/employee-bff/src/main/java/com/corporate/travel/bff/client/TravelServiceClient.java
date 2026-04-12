@@ -63,6 +63,15 @@ public class TravelServiceClient {
             .block();
     }
 
+    public JsonNode getBookingAudit(String bookingId, String bearerToken, Optional<DelegationContext> delegationContext) {
+        return applyDelegationHeaders(
+                travelServiceWebClient.get().uri("/api/bookings/{id}/audit", bookingId),
+                bearerToken, delegationContext)
+            .retrieve()
+            .bodyToMono(JsonNode.class)
+            .block();
+    }
+
     /**
      * Applies Authorization plus delegation headers when a delegation context is active.
      * Headers are only added when delegation is present — they must never be sent as blank

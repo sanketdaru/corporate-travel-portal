@@ -31,9 +31,15 @@ public class SecurityConfig {
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
             )
-            // Keep sessions for delegation context storage
+            // Keep sessions for delegation context storage.
+            // sessionFixation().none() prevents ChangeSessionIdAuthenticationStrategy from
+            // rotating the JSESSIONID on every JWT-authenticated request. JWT auth re-creates
+            // the authentication token on each request (stateless token validation), which
+            // would otherwise trigger session fixation protection on every call and orphan
+            // the delegation context stored in the previous session.
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                .sessionFixation().none()
             )
             .csrf(csrf -> csrf.disable());
 

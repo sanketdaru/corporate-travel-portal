@@ -73,12 +73,10 @@ public class TokenExchangeService {
         delegation.path("scopes").forEach(s -> scopes.add(s.asText()));
         if (scopes.isEmpty()) { scopes.add("view_bookings"); }
 
+        // Step 2 throws TokenExchangeException directly on any failure (HTTP error, unreachable,
+        // or valid=false with a reason). No silent swallowing here.
         ConsentCheckResult consentResult = consentServiceClient.hasConsentForScopes(
             subjectId, actorId, purpose, scopes, actorToken);
-        if (!consentResult.isValid()) {
-            throw new TokenExchangeException(
-                "No active consent found for actor=" + actorId + " acting on behalf of subject=" + subjectId);
-        }
 
         // Step 3: Perform Standard Token Exchange V2 — actorToken is the mandatory subject_token.
         // audience scopes the token to the target service. No requested_subject (ADR-004).

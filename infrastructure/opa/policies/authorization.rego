@@ -129,7 +129,7 @@ allow if {
     is_same_tenant
     has_active_delegation
     input.consent.valid == true
-    "manage_expenses" in input.consent.scopes
+    "create_expenses" in input.consent.scopes
     input.resource.status == "DRAFT"
 }
 
@@ -138,6 +138,16 @@ allow if {
     input.action == "submit_expense"
     is_same_tenant
     is_resource_owner
+    input.resource.status == "DRAFT"
+}
+
+# Allow delegate to submit expense on behalf of another (with consent)
+allow if {
+    input.action == "submit_expense"
+    is_same_tenant
+    has_active_delegation
+    input.consent.valid == true
+    "create_expenses" in input.consent.scopes
     input.resource.status == "DRAFT"
 }
 

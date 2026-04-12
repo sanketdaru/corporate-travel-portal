@@ -8,8 +8,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { AuditTrail, type AuditEvent } from "@/components/shared/AuditTrail";
 import { IdentityContextPanel } from "@/components/shared/IdentityContextPanel";
 import { getBooking } from "@/lib/api/bff";
-import { gatewayClient } from "@/lib/api/client";
-import { setAccessToken } from "@/lib/api/client";
+import { bffClient, setAccessToken } from "@/lib/api/client";
 import type { Booking, BookingAudit } from "@/lib/types/booking";
 
 function formatDate(iso: string): string {
@@ -102,9 +101,9 @@ export default function BookingDetailPage() {
         const b = await getBooking(params.id);
         setBooking(b);
 
-        // Fetch audit trail from gateway (best-effort; ignore if unavailable)
+        // Fetch audit trail via BFF so delegation headers are forwarded
         try {
-          const auditRes = await gatewayClient.get<BookingAudit[]>(`/api/bookings/${params.id}/audit`);
+          const auditRes = await bffClient.get<BookingAudit[]>(`/api/bff/bookings/${params.id}/audit`);
           const events = auditRes.data
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .map(auditActionToEvent);

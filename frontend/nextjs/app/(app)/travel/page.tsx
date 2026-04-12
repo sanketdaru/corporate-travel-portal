@@ -66,7 +66,7 @@ export default function TravelPage() {
       .then((data) => setAllBookings(data))
       .catch(() => { setError(true); setAllBookings([]); })
       .finally(() => setLoading(false));
-  }, [session?.accessToken]);
+  }, [session?.accessToken, delegationActive]);
 
   function applyFilters() {
     setAppliedStatus(pendingStatus);

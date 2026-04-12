@@ -65,6 +65,31 @@ public class ExpenseBffController {
         return ResponseEntity.ok(expenseServiceClient.getExpense(expenseId, token, ctx));
     }
 
+    @GetMapping("/{expenseId}/audit")
+    @Operation(summary = "Get expense audit trail")
+    public ResponseEntity<JsonNode> getExpenseAudit(
+            @PathVariable String expenseId,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpSession session) {
+
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(expenseServiceClient.getExpenseAudit(expenseId, token, ctx));
+    }
+
+    @PostMapping("/{expenseId}/submit")
+    @Operation(summary = "Submit expense for approval",
+        description = "Submits an expense. Threads delegation headers so an actor can submit on behalf of a subject.")
+    public ResponseEntity<JsonNode> submitExpense(
+            @PathVariable String expenseId,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpSession session) {
+
+        Optional<DelegationContext> ctx = resolveDelegationContext(session);
+        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
+        return ResponseEntity.ok(expenseServiceClient.submitExpense(expenseId, token, ctx));
+    }
+
     /**
      * Returns the active, non-expired delegation context from the session if one exists.
      * The full context — not just a token string — is required so that delegation headers

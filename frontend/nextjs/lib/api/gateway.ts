@@ -1,4 +1,4 @@
-import { gatewayClient } from "./client";
+import { gatewayClient, bffClient } from "./client";
 import type { Expense } from "@/lib/types/expense";
 import type { BookingAudit } from "@/lib/types/booking";
 
@@ -13,7 +13,7 @@ export async function rejectExpense(id: string): Promise<Expense> {
 }
 
 export async function submitExpense(id: string): Promise<Expense> {
-  const res = await gatewayClient.post<Expense>(`/api/expenses/${id}/submit`);
+  const res = await bffClient.post<Expense>(`/api/bff/expenses/${id}/submit`);
   return res.data;
 }
 
@@ -41,19 +41,32 @@ export interface ExpenseAudit {
 }
 
 export async function getExpenseAudit(expenseId: string): Promise<ExpenseAudit[]> {
-  const res = await gatewayClient.get<ExpenseAudit[]>(`/api/expenses/${expenseId}/audit`);
+  const res = await bffClient.get<ExpenseAudit[]>(`/api/bff/expenses/${expenseId}/audit`);
   return res.data;
 }
 
 export interface Delegation {
   id: string;
+  tenantId: string;
   delegatorId: string;
   delegateId: string;
   purpose: string;
   scopes: string[];
-  status: "ACTIVE" | "REVOKED" | "EXPIRED";
-  expiresAt: string;
+  // Backend sends active + valid booleans, not a status string
+  active: boolean;
+  valid: boolean;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  revokedBy: string | null;
+  grantedAt: string;
   createdAt: string;
+}
+
+/** Derive a display status from the backend's boolean fields. */
+export function delegationStatus(d: Delegation): "ACTIVE" | "REVOKED" | "EXPIRED" {
+  if (!d.active && d.revokedAt) return "REVOKED";
+  if (!d.active || !d.valid)    return "EXPIRED";
+  return "ACTIVE";
 }
 
 export async function getMyDelegations(): Promise<Delegation[]> {
@@ -77,17 +90,37 @@ export async function revokeDelegation(id: string): Promise<void> {
 
 export interface Consent {
   id: string;
+  tenantId: string;
   grantorId: string;
   granteeId: string;
-  delegationId: string;
+  delegationId: string | null;
   purpose: string;
   scopes: string[];
   status: "ACTIVE" | "REVOKED" | "EXPIRED";
-  validUntil: string;
+  expiresAt: string | null;  // backend field name (was incorrectly typed as validUntil)
   createdAt: string;
+  valid: boolean;
 }
 
 export async function getMyConsents(): Promise<Consent[]> {
   const res = await gatewayClient.get<Consent[]>("/api/consents/my-consents");
   return res.data;
+}
+
+export interface CreateConsentBody {
+  grantorId: string;
+  granteeId: string;
+  delegationId: string;
+  purpose: string;
+  scopes: string[];
+  expiresAt?: string;
+}
+
+export async function createConsent(body: CreateConsentBody): Promise<Consent> {
+  const res = await gatewayClient.post<Consent>("/api/consents", body);
+  return res.data;
+}
+
+export async function revokeConsent(id: string): Promise<void> {
+  await gatewayClient.delete(`/api/consents/${id}`);
 }
