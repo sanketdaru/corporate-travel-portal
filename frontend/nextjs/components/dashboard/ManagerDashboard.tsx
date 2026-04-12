@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getDashboard } from "@/lib/api/bff";
-import { getExpenses, approveExpense, rejectExpense, getMyDelegations, type Delegation } from "@/lib/api/gateway";
+import { getExpenses, approveExpense, rejectExpense, getMyDelegations, delegationStatus, type Delegation } from "@/lib/api/gateway";
 import type { Expense } from "@/lib/types/expense";
 import type { Booking } from "@/lib/types/booking";
 
@@ -116,7 +116,7 @@ export function ManagerDashboard() {
         setPendingApprovals(expResult.value.filter((e) => e.status === "SUBMITTED"));
       }
       if (delResult.status === "fulfilled") {
-        setDelegations(delResult.value.filter((d) => d.status === "ACTIVE"));
+        setDelegations(delResult.value.filter((d) => delegationStatus(d) === "ACTIVE"));
       }
     }).finally(() => setLoading(false));
   }, []);
@@ -323,8 +323,9 @@ export function ManagerDashboard() {
               </tr>
             ) : (
               delegations.map((d) => {
-                const isNearExpiry =
-                  new Date(d.expiresAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+                const isNearExpiry = d.expiresAt
+                  ? new Date(d.expiresAt).getTime() - Date.now() < 24 * 60 * 60 * 1000
+                  : false;
                 return (
                   <tr key={d.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-5 py-3.5 text-sm text-slate-800">{formatDisplayName(d.delegatorId)}</td>
@@ -336,10 +337,10 @@ export function ManagerDashboard() {
                     </td>
                     <td className="px-5 py-3.5 text-xs text-slate-500">{d.scopes.join(" · ")}</td>
                     <td className={`px-5 py-3.5 text-xs font-medium ${isNearExpiry ? "text-amber-600" : "text-slate-500"}`}>
-                      {formatDate(d.expiresAt)}
+                      {d.expiresAt ? formatDate(d.expiresAt) : "No expiry"}
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={d.status} />
+                      <StatusBadge status={delegationStatus(d)} />
                     </td>
                   </tr>
                 );

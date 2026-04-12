@@ -1,5 +1,6 @@
 package com.corporate.travel.bff.client;
 
+import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.List;
 
@@ -64,14 +66,27 @@ public class ConsentServiceClient {
                 .block();
 
             if (response == null || !response.path("valid").asBoolean(false)) {
-                return new ConsentCheckResult(false, null);
+                // Consent-service returned HTTP 200 but valid=false — surface the reason so the
+                // caller can show a meaningful error instead of a generic "no consent" message.
+                String reason = response != null ? response.path("reason").asText("No active consent found") : "Empty response from consent service";
+                throw new TokenExchangeException("Consent validation failed: " + reason);
             }
 
             String consentId = response.path("consentId").asText(null);
             return new ConsentCheckResult(true, consentId);
+        } catch (TokenExchangeException e) {
+            throw e; // already formatted — let it propagate
+        } catch (WebClientResponseException e) {
+            // HTTP error from consent-service (4xx/5xx). Extract the response body so the real
+            // cause (e.g. OPA 403, NPE 500) is visible in the frontend error message.
+            String body = e.getResponseBodyAsString();
+            log.error("Consent check failed for grantor={} grantee={}: HTTP {} - {}",
+                grantorId, granteeId, e.getStatusCode(), body);
+            throw new TokenExchangeException(
+                "Consent service returned HTTP " + e.getStatusCode().value() + ": " + body);
         } catch (Exception e) {
-            log.warn("Consent check failed for grantor={} grantee={}: {}", grantorId, granteeId, e.getMessage());
-            return new ConsentCheckResult(false, null);
+            log.error("Consent check failed for grantor={} grantee={}: {}", grantorId, granteeId, e.getMessage(), e);
+            throw new TokenExchangeException("Consent service unreachable: " + e.getMessage());
         }
     }
 }

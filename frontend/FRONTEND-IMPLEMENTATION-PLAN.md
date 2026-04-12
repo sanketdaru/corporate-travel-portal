@@ -18,7 +18,7 @@ The frontend must surface a sophisticated identity model where an assistant (Dav
 | 3 | Dashboard pages (all roles) | ✅ Done |
 | 4 | Travel authorizations (list, create, detail) | ✅ Done |
 | 5 | Expense management (list, submit, approve) | ✅ Done |
-| 6 | Delegation and consent management | ⏳ In progress |
+| 6 | Delegation and consent management | ✅ Done |
 | 7 | Audit trails and admin dashboard | 🔲 Pending |
 | 8 | Polish, error handling, accessibility | 🔲 Pending |
 

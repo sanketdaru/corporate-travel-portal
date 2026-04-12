@@ -24,10 +24,11 @@ const STATUS_MAP: Record<string, StatusConfig> = {
 
   REJECTED:  { className: "text-red-700 bg-red-50 border border-red-200",         dotClass: "bg-red-500" },
   CANCELLED: { className: "text-red-700 bg-red-50 border border-red-200",         dotClass: "bg-red-500" },
+  REVOKED:   { className: "text-red-700 bg-red-50 border border-red-200",         dotClass: "bg-red-500" },
 };
 
 export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
-  const config = STATUS_MAP[status.toUpperCase()] ?? {
+  const config = STATUS_MAP[status?.toUpperCase() ?? ""] ?? {
     className: "text-slate-600 bg-slate-100 border border-slate-200",
     dotClass: "bg-slate-400",
   };
@@ -38,7 +39,7 @@ export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
       className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.className} ${className}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${config.dotClass}`} />
-      {status.charAt(0) + status.slice(1).toLowerCase()}
+      {status ? status.charAt(0) + status.slice(1).toLowerCase() : "Unknown"}
     </span>
   );
 }
