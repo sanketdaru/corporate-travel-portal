@@ -102,8 +102,21 @@ public class BookingController {
     }
     
     /**
+     * Get all bookings in the tenant — admin role only.
+     *
+     * GET /api/bookings/all
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<Booking>> getAllTenantBookings(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        return ResponseEntity.ok(bookingService.getTenantBookings(context));
+    }
+
+    /**
      * Get a specific booking by ID
-     * 
+     *
      * GET /api/bookings/{id}
      */
     @Operation(

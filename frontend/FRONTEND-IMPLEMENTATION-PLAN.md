@@ -19,7 +19,7 @@ The frontend must surface a sophisticated identity model where an assistant (Dav
 | 4 | Travel authorizations (list, create, detail) | ✅ Done |
 | 5 | Expense management (list, submit, approve) | ✅ Done |
 | 6 | Delegation and consent management | ✅ Done |
-| 7 | Audit trails and admin dashboard | 🔲 Pending |
+| 7 | Audit trails and admin dashboard | ✅ Done |
 | 8 | Polish, error handling, accessibility | 🔲 Pending |
 
 ---
@@ -345,7 +345,7 @@ A running Next.js app with the full visual chrome — top nav, dark sidebar, del
 
 ---
 
-## Phase 6 — Delegation and Consent Management ⏳ In Progress
+## Phase 6 — Delegation and Consent Management ✅ Done
 
 ### Goal
 The delegation management page with end-to-end token exchange activation flow wired up.
@@ -382,7 +382,7 @@ The delegation management page with end-to-end token exchange activation flow wi
 
 ---
 
-## Phase 7 — Audit Trails and Admin Dashboard 🔲 Pending
+## Phase 7 — Audit Trails and Admin Dashboard ✅ Done
 
 ### Goal
 Live audit trail data on detail pages; admin dashboard with real service health polling; paginated full audit log.

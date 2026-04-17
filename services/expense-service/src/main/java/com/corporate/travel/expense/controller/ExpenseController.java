@@ -83,9 +83,18 @@ public class ExpenseController {
 
         SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
         log.debug("Fetching expenses for user: {}, isDelegated: {}", context.getUserId(), context.isDelegated());
-        
+
         List<Expense> expenses = expenseService.getUserExpenses(context);
         return ResponseEntity.ok(expenses);
+    }
+
+    /** GET /api/expenses/all — admin role only, returns all tenant expenses */
+    @GetMapping("/all")
+    public ResponseEntity<List<Expense>> getAllTenantExpenses(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        SecurityContext context = JwtAuthenticationConverter.extractSecurityContext(jwt, request);
+        return ResponseEntity.ok(expenseService.getTenantExpenses(context));
     }
     
     @Operation(

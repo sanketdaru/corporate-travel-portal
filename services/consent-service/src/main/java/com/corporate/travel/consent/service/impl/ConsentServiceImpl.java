@@ -60,7 +60,12 @@ public class ConsentServiceImpl implements ConsentService {
         // Validate request
         validateConsentRequest(request, context);
 
-        // Check for duplicate active consent
+        // Auto-revoke expired consents for the same pair so they don't block re-grant
+        revokeExpiredConsentsForPair(
+                request.getGrantorId(), request.getGranteeId(),
+                request.getPurpose(), context.getTenantId(), context);
+
+        // Check for duplicate active (non-expired) consent
         if (consentRepository.existsActiveDuplicateConsent(
                 request.getGrantorId(),
                 request.getGranteeId(),
@@ -251,6 +256,30 @@ public class ConsentServiceImpl implements ConsentService {
     }
 
     // Private helper methods
+
+    /**
+     * Auto-revoke expired consents for the same grantor-grantee-purpose triple so they
+     * don't block re-granting consent after a delegation is renewed.
+     */
+    private void revokeExpiredConsentsForPair(
+            String grantorId, String granteeId, String purpose, String tenantId, SecurityContext context) {
+        List<Consent> expired = consentRepository.findExpiredConsentsForPair(
+                grantorId, granteeId, purpose, tenantId);
+        if (expired.isEmpty()) {
+            return;
+        }
+        logger.info("Auto-revoking {} expired consent(s) for pair grantor={}, grantee={}, purpose={}",
+                expired.size(), grantorId, granteeId, purpose);
+        for (Consent c : expired) {
+            c.setStatus(ConsentStatus.REVOKED);
+            c.setRevokedAt(LocalDateTime.now());
+            c.setRevokedBy(context.getActorId());
+            c.setUpdatedBy(context.getActorId());
+            consentRepository.save(c);
+            createAuditRecord(c.getId(), "AUTO_REVOKED", context,
+                    Map.of("reason", "expired_before_re_grant"));
+        }
+    }
 
     private void validateConsentRequest(CreateConsentRequest request, SecurityContext context) {
         if (request.getGrantorId().equals(request.getGranteeId())) {

@@ -140,9 +140,19 @@ public class BookingServiceImpl implements BookingService {
         }
         
         return bookingRepository.findByTenantIdAndUserId(
-            context.getTenantId(), 
+            context.getTenantId(),
             targetUserId
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Booking> getTenantBookings(SecurityContext context) {
+        if (context.getRoles() == null || !context.getRoles().contains("admin")) {
+            throw new AccessDeniedException("Only admin role can list all tenant bookings");
+        }
+        log.debug("Admin {} fetching all bookings in tenant {}", context.getUserId(), context.getTenantId());
+        return bookingRepository.findByTenantId(context.getTenantId());
     }
     
     @Override

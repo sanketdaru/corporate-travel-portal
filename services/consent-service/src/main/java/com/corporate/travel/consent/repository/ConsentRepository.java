@@ -49,14 +49,26 @@ public interface ConsentRepository extends JpaRepository<Consent, UUID> {
     List<Consent> findByDelegationIdAndStatusAndTenantId(UUID delegationId, ConsentStatus status, String tenantId);
 
     /**
-     * Check if an active duplicate consent exists
+     * Check if an active, non-expired duplicate consent exists
      */
     @Query("SELECT COUNT(c) > 0 FROM Consent c WHERE c.grantorId = :grantorId AND c.granteeId = :granteeId " +
-           "AND c.purpose = :purpose AND c.status = 'ACTIVE' AND c.tenantId = :tenantId")
+           "AND c.purpose = :purpose AND c.status = 'ACTIVE' AND c.tenantId = :tenantId " +
+           "AND (c.expiresAt IS NULL OR c.expiresAt > CURRENT_TIMESTAMP)")
     boolean existsActiveDuplicateConsent(@Param("grantorId") String grantorId,
                                          @Param("granteeId") String granteeId,
                                          @Param("purpose") String purpose,
                                          @Param("tenantId") String tenantId);
+
+    /**
+     * Find expired consents (status=ACTIVE but expiresAt in the past) for a specific pair and purpose
+     */
+    @Query("SELECT c FROM Consent c WHERE c.grantorId = :grantorId AND c.granteeId = :granteeId " +
+           "AND c.purpose = :purpose AND c.status = 'ACTIVE' AND c.tenantId = :tenantId " +
+           "AND c.expiresAt IS NOT NULL AND c.expiresAt <= CURRENT_TIMESTAMP")
+    List<Consent> findExpiredConsentsForPair(@Param("grantorId") String grantorId,
+                                             @Param("granteeId") String granteeId,
+                                             @Param("purpose") String purpose,
+                                             @Param("tenantId") String tenantId);
 
     /**
      * Find all expired consents that need status update

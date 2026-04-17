@@ -86,4 +86,17 @@ public interface DelegationRepository extends JpaRepository<Delegation, UUID> {
         @Param("delegateId") String delegateId,
         @Param("now") LocalDateTime now
     );
+
+    /**
+     * Find expired delegations (still active=true but past expiresAt) for a specific pair
+     */
+    @Query("SELECT d FROM Delegation d WHERE d.tenantId = :tenantId " +
+           "AND d.delegatorId = :delegatorId AND d.delegateId = :delegateId " +
+           "AND d.active = true AND d.expiresAt IS NOT NULL AND d.expiresAt < :now")
+    List<Delegation> findExpiredDelegationsForPair(
+        @Param("tenantId") String tenantId,
+        @Param("delegatorId") String delegatorId,
+        @Param("delegateId") String delegateId,
+        @Param("now") LocalDateTime now
+    );
 }

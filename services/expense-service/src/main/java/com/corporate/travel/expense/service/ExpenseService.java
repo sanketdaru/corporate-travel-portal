@@ -28,6 +28,11 @@ public interface ExpenseService {
     List<Expense> getUserExpenses(SecurityContext context);
     
     /**
+     * Get all expenses in the tenant — admin only.
+     */
+    List<Expense> getTenantExpenses(SecurityContext context);
+
+    /**
      * Update expense (only in DRAFT status)
      */
     Expense updateExpense(UUID id, Expense expenseUpdate, SecurityContext context);

@@ -65,6 +65,13 @@ function ServerIcon() {
     </svg>
   );
 }
+function TableIcon() {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+    </svg>
+  );
+}
 function LogoutIcon() {
   return (
     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,6 +99,8 @@ const managerNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+  { href: "/admin/bookings", label: "All Bookings", icon: <PlaneIcon /> },
+  { href: "/admin/expenses", label: "All Expenses", icon: <TableIcon /> },
   { href: "/admin/audit", label: "Audit Log", icon: <ClockIcon /> },
   { href: "/admin/health", label: "System Health", icon: <ServerIcon /> },
 ];
@@ -152,6 +161,9 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+        <div className="px-3 pb-1">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">My Work</p>
+        </div>
         {coreNavItems.map((item) => (
           <NavLink key={item.href} {...item} active={pathname === item.href || pathname.startsWith(item.href + "/")} />
         ))}

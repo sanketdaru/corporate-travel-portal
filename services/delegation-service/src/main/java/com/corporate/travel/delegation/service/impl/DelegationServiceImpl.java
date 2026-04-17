@@ -71,7 +71,10 @@ public class DelegationServiceImpl implements DelegationService {
             throw new AccessDeniedException("Not authorized to create delegation");
         }
 
-        // 3. Check for duplicate active delegation
+        // 3. Auto-revoke expired delegations for the same pair
+        revokeExpiredDelegationsForPair(context.getTenantId(), context.getUserId(), request.getDelegateId());
+
+        // 4. Check for duplicate active delegation
         if (delegationRepository.existsActiveDelegation(
                 context.getTenantId(),
                 context.getUserId(),
@@ -81,7 +84,7 @@ public class DelegationServiceImpl implements DelegationService {
                 "Active delegation already exists between these users");
         }
 
-        // 4. Create PostgreSQL entity
+        // 5. Create PostgreSQL entity
         Delegation delegation = Delegation.builder()
             .tenantId(context.getTenantId())
             .delegatorId(context.getUserId())
@@ -96,10 +99,10 @@ public class DelegationServiceImpl implements DelegationService {
         delegation = delegationRepository.save(delegation);
         logger.info("Delegation created in PostgreSQL: id={}", delegation.getId());
 
-        // 5. Sync to Neo4j asynchronously
+        // 6. Sync to Neo4j asynchronously
         syncToGraph(delegation);
 
-        // 6. Return response
+        // 7. Return response
         return toResponse(delegation);
     }
 
@@ -248,6 +251,26 @@ public class DelegationServiceImpl implements DelegationService {
             delegateId,
             LocalDateTime.now()
         );
+    }
+
+    /**
+     * Auto-revoke expired delegations for the same delegator-delegate pair.
+     * Called before creating a new delegation so stale expired records don't accumulate.
+     */
+    private void revokeExpiredDelegationsForPair(String tenantId, String delegatorId, String delegateId) {
+        List<Delegation> expired = delegationRepository.findExpiredDelegationsForPair(
+            tenantId, delegatorId, delegateId, LocalDateTime.now()
+        );
+        if (expired.isEmpty()) {
+            return;
+        }
+        logger.info("Auto-revoking {} expired delegation(s) for pair delegator={}, delegate={}",
+            expired.size(), delegatorId, delegateId);
+        for (Delegation d : expired) {
+            d.revoke(delegatorId);
+            delegationRepository.save(d);
+            updateGraphRelationshipStatus(d.getId().toString(), false);
+        }
     }
 
     /**

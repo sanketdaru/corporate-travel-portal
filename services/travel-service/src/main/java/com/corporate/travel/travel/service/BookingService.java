@@ -64,6 +64,14 @@ public interface BookingService {
     void deleteBooking(UUID id, SecurityContext context);
 
     /**
+     * Get all bookings in the tenant — admin only.
+     *
+     * @param context Security context (must have admin role)
+     * @return All bookings in the tenant
+     */
+    List<Booking> getTenantBookings(SecurityContext context);
+
+    /**
      * Internal lookup by ID only — no tenant check, no OPA authorization.
      * Used exclusively by the budget endpoint called from the expense service
      * over the internal container network.

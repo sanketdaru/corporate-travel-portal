@@ -104,6 +104,15 @@ public class ExpenseServiceImpl implements ExpenseService {
         
         return expenseRepository.findByTenantIdAndUserId(context.getTenantId(), targetUserId);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Expense> getTenantExpenses(SecurityContext context) {
+        if (context.getRoles() == null || !context.getRoles().contains("admin")) {
+            throw new AccessDeniedException("Only admin role can list all tenant expenses");
+        }
+        return expenseRepository.findByTenantId(context.getTenantId());
+    }
     
     @Override
     public Expense updateExpense(UUID id, Expense expenseUpdate, SecurityContext context) {

@@ -1,6 +1,6 @@
 import { gatewayClient, bffClient } from "./client";
 import type { Expense } from "@/lib/types/expense";
-import type { BookingAudit } from "@/lib/types/booking";
+import type { Booking, BookingAudit } from "@/lib/types/booking";
 
 export async function approveExpense(id: string): Promise<Expense> {
   const res = await gatewayClient.post<Expense>(`/api/expenses/${id}/approve`);
@@ -24,6 +24,18 @@ export async function getExpenses(): Promise<Expense[]> {
 
 export async function getBookingAudit(bookingId: string): Promise<BookingAudit[]> {
   const res = await gatewayClient.get<BookingAudit[]>(`/api/bookings/${bookingId}/audit`);
+  return res.data;
+}
+
+/** Admin: list all bookings in the tenant. Requires admin role; uses dedicated /all endpoint. */
+export async function getAllBookings(): Promise<Booking[]> {
+  const res = await gatewayClient.get<Booking[]>("/api/bookings/all");
+  return res.data;
+}
+
+/** Admin: list all expenses in the tenant. Requires admin role; uses dedicated /all endpoint. */
+export async function getAllExpenses(): Promise<Expense[]> {
+  const res = await gatewayClient.get<Expense[]>("/api/expenses/all");
   return res.data;
 }
 
