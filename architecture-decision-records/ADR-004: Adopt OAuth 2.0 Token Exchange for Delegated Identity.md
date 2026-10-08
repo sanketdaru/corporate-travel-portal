@@ -16,6 +16,8 @@ Keycloak 24+ deprecates the previous "naked" token exchange mechanism. The **Sta
 
 This gap is intentional design space for the PoC: we build the delegation identity chain at the application layer, making it explicit and inspectable at every service boundary. When Keycloak ships native `act` claim support, the application-layer headers become a drop-in replacement.
 
+> **Update 2026-10-08:** Keycloak 26.8 ships RFC 8693 delegation (`actor_token`, `may_act`, `act`) as a preview feature. A spike showed it works, but only with the delegator's live token — or an offline token captured at grant time — which does not fit this platform's long-lived delegations without significant redesign. See **ADR-024**. This ADR remains in force; since the upgrade's Phase 4, every service also validates `aud`, and the BFF holds one audience-scoped token per downstream service.
+
 ## Decision
 
 Delegated identity will be implemented using a **two-layer approach**:

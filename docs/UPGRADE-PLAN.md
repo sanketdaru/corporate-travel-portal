@@ -383,6 +383,13 @@ Exit: a token without the right `aud` is rejected (new tests); e2e gate passes.
 
 **If the spike fails:** keep the header model, document why with the concrete blocker, and revisit at the next Keycloak minor.
 
+**Phase 5 spike result (2026-10-08):** see ADR-024 for the full table. Script: `scripts/spikes/keycloak-delegation-spike.sh`.
+
+- The mechanism works on 26.8.0: `employee-bff` exchanges Carol's `may_act` token plus Dave's token into `sub`=Carol, `act.sub`=Dave, and `audience` scoping works on the delegated exchange too.
+- It requires **Carol's live token** at exchange time. Normal tokens stop working once her SSO session ends; only an **offline token** obtained at grant time (with a consent screen) bridges this platform's asynchronous delegation model.
+- Adoption therefore needs a new grant ceremony client, encrypted server-side storage of the subject's offline refresh token, revocation wiring, FGAP v2 permissions duplicating delegation-service data, and UUID→username mapping for `act.sub` — on a preview feature.
+- Recommendation: keep the hardened header model for this upgrade; treat native delegation as a separate feature (ADR-024 options B/C). **Decision pending.**
+
 ### Phase 6 — Frontend
 
 1. `next` 16.4.x, `eslint-config-next` 16.4.x, `react` / `react-dom` 19.3.x.
