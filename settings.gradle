@@ -1,3 +1,8 @@
+plugins {
+    // Downloads the Java toolchain (see build.gradle) when no matching local JDK exists
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'corporate-travel-portal'
 
 // Shared libraries

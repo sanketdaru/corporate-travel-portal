@@ -2,7 +2,7 @@
 # Best practices: multi-platform support, layer caching, minimal image size, security
 
 # Stage 1: Build dependencies (cached layer)
-FROM gradle:9.3-jdk17 AS dependencies
+FROM gradle:9.8-jdk25-noble AS dependencies
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY services/api-gateway/build.gradle services/api-gateway/build.gradle
 RUN gradle dependencies --no-daemon || return 0
 
 # Stage 2: Build application
-FROM gradle:9.3-jdk17 AS builder
+FROM gradle:9.8-jdk25-noble AS builder
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ COPY services/api-gateway ./services/api-gateway
 RUN gradle :services:api-gateway:build -x test --no-daemon
 
 # Stage 3: Runtime (minimal multi-platform image)
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:25-jre-noble
 
 # Add metadata
 LABEL maintainer="corporate-travel-platform"
