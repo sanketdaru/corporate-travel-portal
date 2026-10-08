@@ -32,8 +32,8 @@ services:
     container_name: corporate-travel-neo4j
     environment:
       NEO4J_AUTH: neo4j/password123
-      NEO4J_dbms_memory_pagecache_size: 512M
-      NEO4J_dbms_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512M
+      NEO4J_server_memory_heap_max__size: 1G
     ports:
       - "7474:7474"  # HTTP
       - "7687:7687"  # Bolt
@@ -57,7 +57,7 @@ services:
 
   # Keycloak - Identity and Access Management
   keycloak:
-    image: quay.io/keycloak/keycloak:26.5.6
+    image: quay.io/keycloak/keycloak:26.8.0
     container_name: corporate-travel-keycloak
     command: start-dev --import-realm
     environment:
@@ -66,15 +66,14 @@ services:
       KC_DB_USERNAME: admin
       KC_DB_PASSWORD: admin123
       KC_DB_SCHEMA: keycloak
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin123
-      KC_HTTP_PORT: 8080
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin123
       KC_HOSTNAME: localhost
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
+      # Health endpoints are served on the management port (9000), not published to the host.
       KC_HEALTH_ENABLED: "true"
-      KC_FEATURES: "token-exchange-standard"
+      # Standard Token Exchange V2 is enabled by default since Keycloak 26.2; no KC_FEATURES needed.
     ports:
       - "8080:8080"
     volumes:
@@ -91,7 +90,7 @@ services:
         reservations:
           memory: 512m
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/corporate-travel HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -101,7 +100,6 @@ services:
   opa:
     image: openpolicyagent/opa:1.21.1
     container_name: corporate-travel-opa
-    platform: linux/amd64
     command:
       - "run"
       - "--server"

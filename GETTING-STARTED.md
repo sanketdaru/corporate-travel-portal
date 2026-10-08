@@ -279,7 +279,7 @@ open http://localhost:8080/realms/corporate-travel
 **Problem**: `./scripts/get-token.sh` fails
 
 **Solutions**:
-1. Verify Keycloak is running: `curl http://localhost:8080/health/ready`
+1. Verify Keycloak is running: `podman inspect --format '{{.State.Health.Status}}' corporate-travel-keycloak` (health endpoints are on the unpublished management port 9000), or `curl -f http://localhost:8080/realms/corporate-travel`
 2. Check username/password are correct
 3. Verify realm is configured: `open http://localhost:8080/admin`
 

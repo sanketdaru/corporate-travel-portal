@@ -231,6 +231,17 @@ Exit: CI green; e2e script passes on pinned images.
 
 Exit: e2e gate passes on Keycloak 26.8.0 with the existing `--import-realm`.
 
+**Phase 1 result (2026-10-08):**
+
+- Keycloak 26.5.6 → 26.8.0. The existing database migrated in place (realm model 26.5 → 26.6.2 → 26.7.0 → 26.8.0).
+- Compose: `KC_BOOTSTRAP_ADMIN_*`; removed `KC_HOSTNAME_STRICT_HTTPS`, `KC_HTTP_PORT`, `KC_FEATURES`; Keycloak healthcheck on management port 9000 `/health/ready`; Neo4j `server.memory.*` names; OPA runs native arm64 (`platform:` removed).
+- Rego: `default allow := false`, `future.keywords` imports removed. `opa check --strict` passes on 1.21.1. The two `audit_entry = {...} if` rules keep `=` because `:=` rules cannot have multiple definitions. `opa fmt` would only change indentation; not applied.
+- OPA kept on the non-static `1.21.1` image: both variants are distroless, and the `-static` variant brings no benefit here. The OPA healthcheck stays `opa version` because the image has no shell or HTTP client.
+- Verified: OPA policy tests 5/5; e2e 71/71 on the migrated stack; fresh import into a clean Keycloak 26.8.0 + `validate-realm-export.sh` 65/65.
+- New warning for Phase 2: Keycloak logs "WebAuthn policy option 'requireResidentKey' is deprecated … use 'residentKey'". It comes from the realm export.
+- Postgres data volume: no action needed. The stack was already on Postgres 18 (pinned in Phase 0).
+- Doc references to `KC_FEATURES=token-exchange-standard` and `platform: linux/amd64` remain in `README.md`, `IMPLEMENTATION.md`, `ADR-IMPLEMENTATION-PLAN.md`, ADR-004 and `memory-bank/`. They are handled in Phase 7.
+
 ### Phase 2 — Realm-as-code
 
 1. Curate a realm definition from `realm-export.json`:

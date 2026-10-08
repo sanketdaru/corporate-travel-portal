@@ -1,10 +1,9 @@
 package corporate.travel.authorization
 
-import future.keywords.if
-import future.keywords.in
+# Rego v1 (OPA 1.x default): `if`, `in`, `contains` and `every` are built-in keywords.
 
 # Default deny
-default allow = false
+default allow := false
 
 # Helper functions
 is_same_tenant if {
