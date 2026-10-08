@@ -529,7 +529,7 @@ class DelegationServiceImplTest {
             
             when(delegationRepository.findByIdAndTenantId(delegationId, context.getTenantId()))
                     .thenReturn(Optional.of(delegation));
-            when(opaClient.authorize(eq(context), eq("view_delegation"), anyMap())).thenReturn(true);
+            when(opaClient.authorize(eq(context), eq("view_delegations"), anyMap())).thenReturn(true);
             
             // When
             DelegationResponse result = delegationService.getDelegation(delegationId, context);
@@ -539,7 +539,7 @@ class DelegationServiceImplTest {
             assertThat(result.getId()).isEqualTo(delegationId);
             assertThat(result.getDelegatorId()).isEqualTo(DelegationTestFixtures.CAROL_USER_ID);
             assertThat(result.getDelegateId()).isEqualTo(DelegationTestFixtures.DAVE_USER_ID);
-            verify(opaClient).authorize(eq(context), eq("view_delegation"), anyMap());
+            verify(opaClient).authorize(eq(context), eq("view_delegations"), anyMap());
         }
         
         @Test
@@ -629,7 +629,7 @@ class DelegationServiceImplTest {
             
             // Then
             ArgumentCaptor<Map<String, Object>> resourceCaptor = ArgumentCaptor.forClass(Map.class);
-            verify(opaClient).authorize(eq(context), eq("view_delegation"), resourceCaptor.capture());
+            verify(opaClient).authorize(eq(context), eq("view_delegations"), resourceCaptor.capture());
             
             Map<String, Object> resourceContext = resourceCaptor.getValue();
             assertThat(resourceContext).containsEntry("resource_type", "delegation");

@@ -52,7 +52,9 @@ class TokenExchangeServiceTest {
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
         // ConsentServiceClient now returns ConsentCheckResult, not boolean (ADR-011: consentId required)
-        when(consentServiceClient.hasConsentForScopes("carol-user-id", "dave-user-id", List.of("book_travel"), "dave-token"))
+        // Delegation has no purpose/scopes, so the service falls back to "book_travel" / ["view_bookings"]
+        when(consentServiceClient.hasConsentForScopes(
+                "carol-user-id", "dave-user-id", "book_travel", List.of("view_bookings"), "dave-token"))
             .thenReturn(new ConsentCheckResult(true, "consent-uuid-abc"));
 
         TokenExchangeResponse exchangeResponse = new TokenExchangeResponse();
@@ -98,8 +100,9 @@ class TokenExchangeServiceTest {
 
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
-        when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyList(), anyString()))
-            .thenReturn(new ConsentCheckResult(false, null));
+        // ConsentServiceClient throws on valid=false rather than returning a negative result
+        when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyString(), anyList(), anyString()))
+            .thenThrow(new TokenExchangeException("Consent validation failed: No active consent found"));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
             "delegation-123", "dave-token", "dave-user-id", "travel-service"))
@@ -116,7 +119,7 @@ class TokenExchangeServiceTest {
 
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
-        when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyList(), anyString()))
+        when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyString(), anyList(), anyString()))
             .thenReturn(new ConsentCheckResult(true, "consent-uuid"));
         when(keycloakTokenExchangeClient.exchangeToken(anyString(), anyString()))
             .thenThrow(new TokenExchangeException("Token exchange rejected by Keycloak"));

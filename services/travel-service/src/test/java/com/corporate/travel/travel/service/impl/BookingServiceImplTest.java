@@ -6,6 +6,7 @@ import com.corporate.travel.security.SecurityContext;
 import com.corporate.travel.travel.exception.BookingNotFoundException;
 import com.corporate.travel.travel.model.entity.Booking;
 import com.corporate.travel.travel.repository.BookingRepository;
+import com.corporate.travel.travel.service.BookingAuditService;
 import com.corporate.travel.travel.testutil.BookingTestDataBuilder;
 import com.corporate.travel.travel.testutil.BookingTestFixtures;
 import com.corporate.travel.travel.testutil.SecurityContextTestUtil;
@@ -44,7 +45,10 @@ class BookingServiceImplTest {
     
     @Mock
     private OpaClient opaClient;
-    
+
+    @Mock
+    private BookingAuditService auditService;
+
     @InjectMocks
     private BookingServiceImpl bookingService;
     
