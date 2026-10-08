@@ -205,6 +205,18 @@ Each phase ends green on the regression gate from Phase 0 before the next phase 
 
 Exit: CI green; e2e script passes on pinned images.
 
+**Phase 0 result (2026-10-08):**
+
+- CI green on GitHub (backend, frontend, scripts). Local: 225 unit tests pass across 5 services.
+- e2e baseline: `run-delegation-flow.sh` passes 71/71 checks on the pinned stack, after `seed-data.sh`.
+- Pre-existing breakage fixed on the way: stale unit tests in travel-service, employee-bff and delegation-service; the e2e booking payload still used `totalAmount` / `bookingType` instead of the required `budget` field introduced by the travel-authorization refactor.
+- Observations to carry forward:
+  - Flyway 10.17 warns that PostgreSQL 18.6 is untested ("latest supported version of PostgreSQL is 16"). Resolved by the BOM-managed Flyway in Phase 3.
+  - Neo4j 2026.09 logs deprecation warnings for `dbms.memory.*` settings. Rename in Phase 1.
+  - Keycloak logs `KEYCLOAK_ADMIN` deprecation warnings. Fix in Phase 1.
+  - employee-bff turns a downstream 400 into a 500 (`GlobalExceptionHandler` "Unexpected error"). It should pass through 4xx from `WebClientResponseException`. Fix in Phase 4.
+  - Seed and e2e scripts hardcode 2026 dates, now mostly in the past. No server-side date validation exists, so they still pass.
+
 ### Phase 1 — Infrastructure modernization
 
 1. Bump Keycloak to `quay.io/keycloak/keycloak:26.8.0`; switch OPA to `1.21.1-static` (Postgres and Neo4j were pinned in Phase 0).

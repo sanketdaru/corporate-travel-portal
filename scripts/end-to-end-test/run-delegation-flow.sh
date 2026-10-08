@@ -487,14 +487,15 @@ BOOKING_RESPONSE=$(curl -s -X POST "$BFF_URL/api/bff/bookings" \
   -H "Content-Type: application/json" \
   -b /tmp/e2e-bff-session.txt -c /tmp/e2e-bff-session.txt \
   -d '{
-    "bookingType": "FLIGHT",
-    "tenantId":    "placeholder",
-    "userId":      "placeholder",
-    "status":      "PENDING",
-    "destination": "New York",
-    "startDate":   "2026-05-01",
-    "endDate":     "2026-05-05",
-    "totalAmount": 1500.00
+    "tenantId":        "placeholder",
+    "userId":          "placeholder",
+    "status":          "PENDING",
+    "destination":     "New York",
+    "startDate":       "2027-05-01",
+    "endDate":         "2027-05-05",
+    "businessPurpose": "Board meeting (e2e delegated booking)",
+    "budget":          150000.00,
+    "budgetCurrency":  "INR"
   }')
 
 BOOKING_ID=$(echo "$BOOKING_RESPONSE" | jq -r '.id // empty')
