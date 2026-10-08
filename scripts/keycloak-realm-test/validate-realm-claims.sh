@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Realm Export Validation Script
+# Realm Claims Validation Script
 # =============================================================================
 #
-# Validates that realm-export.json imports correctly into a fresh Keycloak
-# instance with all users, roles, attributes, clients, and token exchange
-# working as expected.
+# Validates that the realm-as-code definition (infrastructure/keycloak/config/)
+# produces the expected users, roles, attributes, clients, and token exchange
+# behaviour on a Keycloak instance it has been applied to.
 #
-# What this script tests (realm-export scope):
+# Normally run by validate-realm-config.sh, which starts a throwaway Keycloak,
+# applies the config with keycloak-config-cli and checks idempotency first.
+#
+# What this script tests:
 #   Phase 0  — Realm reachability
 #   Phase 1  — Import completeness: users, roles, attributes, clients,
 #              service accounts (via client credential grant)
@@ -24,7 +27,7 @@
 #   integration is covered by run-delegation-flow.sh against the live env.
 #
 # Usage:
-#   ./scripts/kc-realm-export-test/validate-realm-export.sh [KC_URL]
+#   ./scripts/keycloak-realm-test/validate-realm-claims.sh [KC_URL]
 #   Default KC_URL: http://localhost:8090
 #
 # Requirements: curl, jq

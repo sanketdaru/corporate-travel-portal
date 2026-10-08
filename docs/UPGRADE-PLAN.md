@@ -260,6 +260,32 @@ Exit: e2e gate passes on Keycloak 26.8.0 with the existing `--import-realm`.
 
 Exit: `podman compose up` on an existing database applies realm changes; second run is a no-op; e2e gate passes.
 
+**Phase 2 result (2026-10-08):**
+
+- New `keycloak-config` one-shot compose service (`adorsys/keycloak-config-cli:6.5.1-26.5.5`) applies `infrastructure/keycloak/config/corporate-travel.json` on every `up`. All six app services wait for it with `service_completed_successfully`. Keycloak now runs plain `start-dev`.
+- `realm-export.json` deleted. It was a database dump that contained the realm's **RSA private keys and HMAC/AES secrets**. The curated definition has no keys (Keycloak generates them), no built-in clients, no service-account users and no password hashes. The old keys remain in git history and in the existing database; they are demo keys only.
+- The config-cli build targets Keycloak 26.5.5. Against 26.8.0 it works for everything this realm uses; no compatibility errors were seen.
+- Realm fixes made while curating:
+  - `employee_id`, `reports_to`, `assists` declared in the user profile. They were previously dropped, so `employee_id` was missing from tokens.
+  - Standard scopes `basic`, `profile`, `email`, `roles`, `web-origins`, `acr`, `service_account` defined and assigned. Tokens now carry `email` and `name`. Roles, `sub` and `preferred_username` come from the standard scopes; `user-attributes` keeps only `employee_id` and `tenant_id`.
+  - `standard.token.exchange.enabled` is `"true"` on `employee-bff` only and explicitly `"false"` elsewhere. Keycloak 26.8 rejects it on the public `employee-portal`.
+  - Users list `default-roles-corporate-travel`, matching what Keycloak assigns to new users. Tokens now also carry `offline_access`, `uma_authorization` and an `account` audience.
+- config-cli gotchas found and handled:
+  - The `userProfile` block is skipped unless the realm attribute `userProfileEnabled` is set.
+  - Attributes merge, so a stale value must be overwritten explicitly, not omitted.
+  - Mapper config defaults that Keycloak adds on create (`userinfo.token.claim`) must be declared, or a second apply removes them.
+  - Remote state (default) means config-cli only deletes what it created; Keycloak's own default scopes are left alone.
+- `seed-data.sh` no longer patches Keycloak via the Admin API. Its premise was wrong: the browser path (portal PKCE token exchanged by `employee-bff`) needs the flag only on the requester, which `validate-realm-config.sh` now proves.
+- `scripts/kc-realm-export-test/` renamed to `scripts/keycloak-realm-test/`. `validate-realm-export.sh` renamed to `validate-realm-claims.sh`. New `validate-realm-config.sh` starts a throwaway Keycloak, applies twice, diffs, runs the claim checks and the PKCE exchange check. Added as a CI job.
+- Verified:
+  - Migrated live realm: apply succeeds, forced re-apply leaves realm and users unchanged.
+  - Fresh realm: `validate-realm-config.sh` 8/8 (including 65/65 claim checks).
+  - Live stack: `podman compose up -d` orders correctly; seed OK; e2e 71/71; OPA 5/5.
+- Not done:
+  - Realm split into several files (optional step 8). One 1,180-line file is still readable.
+  - The WebAuthn `requireResidentKey` deprecation warning still appears for the migrated realm. The curated config does not set WebAuthn policy, so it doesn't fix stored values. Harmless; a fresh realm uses current defaults.
+  - Docs referencing `realm-export.json` and the old script paths (`README.md`, `ADR-IMPLEMENTATION-PLAN.md`, `memory-bank/progress.md`) are left for Phase 7. `README.md` has uncommitted user edits.
+
 ### Phase 3 — Backend platform (Java 25, Gradle 9.8, Boot 4.1)
 
 Do this in two steps so failures are easy to attribute.

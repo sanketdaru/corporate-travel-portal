@@ -61,6 +61,14 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  keycloak-realm:
+    name: Keycloak realm-as-code (apply, idempotency, claims)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate realm config against a throwaway Keycloak
+        run: ./scripts/keycloak-realm-test/validate-realm-config.sh
+
   scripts:
     name: Shell scripts (syntax)
     runs-on: ubuntu-latest

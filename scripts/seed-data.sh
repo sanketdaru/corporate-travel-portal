@@ -313,61 +313,9 @@ else
   warn "OPA policy file not found — approve steps may fail"
 fi
 
-# Ensure employee-portal has standard.token.exchange.enabled so that the
-# frontend's PKCE access tokens can be used as subject_token during delegation
-# activation. The realm export sets this flag, but --import-realm only runs on
-# first start; apply via Admin API so the fix takes effect on a running Keycloak.
-KEYCLOAK_ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
-KEYCLOAK_ADMIN_PASS="${KEYCLOAK_ADMIN_PASS:-admin123}"
-ADMIN_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
-  -d "client_id=admin-cli" \
-  -d "username=$KEYCLOAK_ADMIN_USER" \
-  -d "password=$KEYCLOAK_ADMIN_PASS" \
-  -d "grant_type=password" | jq -r '.access_token // empty')
-
-if [[ -n "$ADMIN_TOKEN" && "$ADMIN_TOKEN" != "null" ]]; then
-  PORTAL_CLIENT_UUID=$(curl -s "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=employee-portal" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[0].id // empty')
-
-  if [[ -n "$PORTAL_CLIENT_UUID" ]]; then
-    # Fetch current client representation and patch standard.token.exchange.enabled
-    PORTAL_CLIENT_JSON=$(curl -s "$KEYCLOAK_URL/admin/realms/$REALM/clients/$PORTAL_CLIENT_UUID" \
-      -H "Authorization: Bearer $ADMIN_TOKEN")
-    PATCHED=$(echo "$PORTAL_CLIENT_JSON" | jq '.attributes["standard.token.exchange.enabled"] = "true"')
-    PATCH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-      "$KEYCLOAK_URL/admin/realms/$REALM/clients/$PORTAL_CLIENT_UUID" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$PATCHED")
-    [[ "$PATCH_CODE" == "204" ]] \
-      && ok "employee-portal: standard.token.exchange.enabled=true (HTTP 204)" \
-      || warn "employee-portal patch returned HTTP $PATCH_CODE — delegation activation may fail from the UI"
-
-    # Ensure employee-portal issues tokens with employee-bff in the audience.
-    # Keycloak Standard Token Exchange V2 requires the performing client (employee-bff)
-    # to be in the aud claim of the subject_token; without this the exchange fails with
-    # "Client is not within the token audience".
-    EXISTING_MAPPERS=$(curl -s "$KEYCLOAK_URL/admin/realms/$REALM/clients/$PORTAL_CLIENT_UUID/protocol-mappers/models" \
-      -H "Authorization: Bearer $ADMIN_TOKEN")
-    MAPPER_EXISTS=$(echo "$EXISTING_MAPPERS" | jq -r '[.[] | select(.name == "bff-audience")] | length')
-    if [[ "$MAPPER_EXISTS" == "0" ]]; then
-      MAPPER_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-        -X POST "$KEYCLOAK_URL/admin/realms/$REALM/clients/$PORTAL_CLIENT_UUID/protocol-mappers/models" \
-        -H "Authorization: Bearer $ADMIN_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d '{"name":"bff-audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","consentRequired":false,"config":{"included.client.audience":"employee-bff","access.token.claim":"true","id.token.claim":"false"}}')
-      [[ "$MAPPER_CODE" == "201" ]] \
-        && ok "employee-portal: bff-audience mapper added (HTTP 201)" \
-        || warn "employee-portal bff-audience mapper returned HTTP $MAPPER_CODE"
-    else
-      ok "employee-portal: bff-audience mapper already present"
-    fi
-  else
-    warn "Could not find employee-portal client UUID — delegation activation may fail from the UI"
-  fi
-else
-  warn "Could not obtain Keycloak admin token — delegation activation may fail from the UI"
-fi
+# Keycloak realm configuration (clients, audience mappers, token exchange settings) is
+# applied declaratively by the keycloak-config compose service from
+# infrastructure/keycloak/config/. This script only seeds application data.
 
 # ---------------------------------------------------------------------------
 # Step 1: Obtain tokens
