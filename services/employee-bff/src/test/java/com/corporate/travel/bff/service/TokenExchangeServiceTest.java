@@ -3,6 +3,7 @@ package com.corporate.travel.bff.service;
 import com.corporate.travel.bff.client.ConsentServiceClient;
 import com.corporate.travel.bff.client.DelegationServiceClient;
 import com.corporate.travel.bff.client.KeycloakTokenExchangeClient;
+import com.corporate.travel.bff.config.BffProperties;
 import com.corporate.travel.bff.exception.DelegationNotFoundException;
 import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.ConsentCheckResult;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,7 +41,7 @@ class TokenExchangeServiceTest {
     @BeforeEach
     void setUp() {
         tokenExchangeService = new TokenExchangeService(
-            delegationServiceClient, consentServiceClient, keycloakTokenExchangeClient);
+            delegationServiceClient, consentServiceClient, keycloakTokenExchangeClient, new BffProperties());
     }
 
     @Test
@@ -57,23 +59,24 @@ class TokenExchangeServiceTest {
                 "carol-user-id", "dave-user-id", "book_travel", List.of("view_bookings"), "dave-token"))
             .thenReturn(new ConsentCheckResult(true, "consent-uuid-abc"));
 
-        TokenExchangeResponse exchangeResponse = new TokenExchangeResponse();
-        exchangeResponse.setAccessToken("delegation-token-abc");
-        exchangeResponse.setExpiresIn(300L);
-
-        // KeycloakTokenExchangeClient no longer accepts requestedSubject (ADR-004: Standard V2 is audience-scoping only)
+        // One audience-scoped exchange per downstream service (default delegation.audiences);
+        // no requestedSubject (ADR-004: Standard V2 is audience-scoping only)
         when(keycloakTokenExchangeClient.exchangeToken("dave-token", "travel-service"))
-            .thenReturn(exchangeResponse);
+            .thenReturn(tokenResponse("travel-token", 300L));
+        when(keycloakTokenExchangeClient.exchangeToken("dave-token", "expense-service"))
+            .thenReturn(tokenResponse("expense-token", 120L));
 
         DelegationContext result = tokenExchangeService.exchangeForDelegation(
-            "delegation-123", "dave-token", "dave-user-id", "travel-service");
+            "delegation-123", "dave-token", "dave-user-id");
 
         assertThat(result.getDelegationId()).isEqualTo("delegation-123");
         assertThat(result.getActorId()).isEqualTo("dave-user-id");
         assertThat(result.getSubjectId()).isEqualTo("carol-user-id");
-        assertThat(result.getAudience()).isEqualTo("travel-service");
-        assertThat(result.getDelegationToken()).isEqualTo("delegation-token-abc");
-        assertThat(result.getExpiresAt()).isNotNull();
+        assertThat(result.getAudiences()).containsExactly("travel-service", "expense-service");
+        assertThat(result.tokenFor("travel-service")).isEqualTo("travel-token");
+        assertThat(result.tokenFor("expense-service")).isEqualTo("expense-token");
+        // Context expires with the earliest token (expense-service, 120 s)
+        assertThat(result.getExpiresAt()).isBefore(Instant.now().plusSeconds(121));
         // ADR-004: actorToken stored for X-Actor-Token header threading
         assertThat(result.getActorToken()).isEqualTo("dave-token");
         // ADR-011: consentId stored for downstream audit records
@@ -86,7 +89,7 @@ class TokenExchangeServiceTest {
             .thenReturn(null);
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
-            "missing-id", "dave-token", "dave-id", "travel-service"))
+            "missing-id", "dave-token", "dave-id"))
             .isInstanceOf(DelegationNotFoundException.class)
             .hasMessageContaining("missing-id");
 
@@ -105,7 +108,7 @@ class TokenExchangeServiceTest {
             .thenThrow(new TokenExchangeException("Consent validation failed: No active consent found"));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
-            "delegation-123", "dave-token", "dave-user-id", "travel-service"))
+            "delegation-123", "dave-token", "dave-user-id"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("No active consent");
 
@@ -125,8 +128,15 @@ class TokenExchangeServiceTest {
             .thenThrow(new TokenExchangeException("Token exchange rejected by Keycloak"));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
-            "delegation-123", "dave-token", "dave-user-id", "travel-service"))
+            "delegation-123", "dave-token", "dave-user-id"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Token exchange rejected by Keycloak");
+    }
+
+    private static TokenExchangeResponse tokenResponse(String token, long expiresIn) {
+        TokenExchangeResponse response = new TokenExchangeResponse();
+        response.setAccessToken(token);
+        response.setExpiresIn(expiresIn);
+        return response;
     }
 }

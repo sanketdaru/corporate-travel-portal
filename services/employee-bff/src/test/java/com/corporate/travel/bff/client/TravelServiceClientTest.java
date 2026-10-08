@@ -1,6 +1,7 @@
 package com.corporate.travel.bff.client;
 
 import com.corporate.travel.bff.model.DelegationContext;
+import com.corporate.travel.security.InternalHttpClientConfig;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -8,9 +9,11 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -35,11 +38,12 @@ class TravelServiceClientTest {
         wireMockServer = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
         wireMockServer.start();
 
-        WebClient webClient = WebClient.builder()
+        RestClient restClient = RestClient.builder()
+            .requestFactory(InternalHttpClientConfig.http11().build())
             .baseUrl("http://localhost:" + wireMockServer.port())
             .build();
 
-        client = new TravelServiceClient(webClient);
+        client = new TravelServiceClient(restClient);
     }
 
     @AfterEach
@@ -72,7 +76,7 @@ class TravelServiceClientTest {
                 .withHeader("Content-Type", "application/json")
                 .withBody("[]")));
 
-        client.getBookings(DELEGATION_TOKEN, Optional.of(buildDelegationContext()));
+        client.getBookings(BEARER_TOKEN, Optional.of(buildDelegationContext()));
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/bookings"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
@@ -110,7 +114,7 @@ class TravelServiceClientTest {
 
         ObjectNode body = JsonNodeFactory.instance.objectNode();
         body.put("destination", "London");
-        client.createBooking(body, DELEGATION_TOKEN, Optional.of(buildDelegationContext()));
+        client.createBooking(body, BEARER_TOKEN, Optional.of(buildDelegationContext()));
 
         wireMockServer.verify(postRequestedFor(urlPathEqualTo("/api/bookings"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
@@ -144,7 +148,7 @@ class TravelServiceClientTest {
                 .withHeader("Content-Type", "application/json")
                 .withBody("{}")));
 
-        client.getBooking("booking-1", DELEGATION_TOKEN, Optional.of(buildDelegationContext()));
+        client.getBooking("booking-1", BEARER_TOKEN, Optional.of(buildDelegationContext()));
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/bookings/booking-1"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
@@ -160,8 +164,9 @@ class TravelServiceClientTest {
             .delegationId(DELEGATION_ID)
             .actorId("dave-user-id")
             .subjectId(SUBJECT_ID)
-            .audience("travel-service")
-            .delegationToken(DELEGATION_TOKEN)
+            .audiences(List.of("travel-service", "expense-service"))
+            // A token for the other service too: the client must pick the one for its own audience
+            .delegationTokens(Map.of("travel-service", DELEGATION_TOKEN, "expense-service", "token-for-expense-service"))
             .actorToken(ACTOR_TOKEN)
             .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))

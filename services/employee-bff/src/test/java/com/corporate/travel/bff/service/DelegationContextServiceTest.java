@@ -9,6 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,18 +38,18 @@ class DelegationContextServiceTest {
             .delegationId("delegation-123")
             .actorId("dave-id")
             .subjectId("carol-id")
-            .audience("travel-service")
-            .delegationToken("delegation-token")
+            .audiences(List.of("travel-service", "expense-service"))
+            .delegationTokens(Map.of("travel-service", "travel-token", "expense-service", "expense-token"))
             .actorToken("dave-original-token")
             .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))
             .build();
 
-        when(tokenExchangeService.exchangeForDelegation("delegation-123", "dave-token", "dave-id", "travel-service"))
+        when(tokenExchangeService.exchangeForDelegation("delegation-123", "dave-token", "dave-id"))
             .thenReturn(context);
 
         DelegationContext result = delegationContextService.activateDelegation(
-            "delegation-123", "dave-token", "dave-id", "travel-service", session);
+            "delegation-123", "dave-token", "dave-id", session);
 
         assertThat(result).isEqualTo(context);
         verify(session).setAttribute(DelegationContextService.SESSION_KEY, context);
@@ -83,7 +85,7 @@ class DelegationContextServiceTest {
             .delegationId("delegation-123")
             .actorId("dave-id")
             .subjectId("carol-id")
-            .delegationToken("some-token")
+            .delegationTokens(Map.of("travel-service", "some-token"))
             .actorToken("dave-original-token")
             .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))
@@ -112,7 +114,7 @@ class DelegationContextServiceTest {
             .delegationId("delegation-123")
             .actorId("dave-id")
             .subjectId("carol-id")
-            .delegationToken("expired-token")
+            .delegationTokens(Map.of("travel-service", "expired-token"))
             .actorToken("dave-original-token")
             .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().minusSeconds(60))

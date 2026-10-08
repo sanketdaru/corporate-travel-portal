@@ -5,7 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,7 +20,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OpaClient {
 
-    private final WebClient.Builder webClientBuilder;
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() {};
+
+    private final RestClient.Builder restClientBuilder;
     private final ObjectMapper objectMapper;
 
     @Value("${opa.url:http://opa:8181}")
@@ -34,14 +37,11 @@ public class OpaClient {
             
             Map<String, Object> request = Map.of("input", input);
 
-            WebClient webClient = webClientBuilder.baseUrl(opaUrl).build();
-            
-            Map<String, Object> response = webClient.post()
+            Map<String, Object> response = restClientBuilder.clone().baseUrl(opaUrl).build().post()
                     .uri("/v1/data/corporate/travel/authorization/allow")
-                    .bodyValue(request)
+                    .body(request)
                     .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
+                    .body(JSON_OBJECT);
 
             if (response != null && response.containsKey("result")) {
                 Boolean allowed = (Boolean) response.get("result");

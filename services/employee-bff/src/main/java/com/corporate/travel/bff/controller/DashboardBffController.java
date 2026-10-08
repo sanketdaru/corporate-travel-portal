@@ -37,7 +37,6 @@ public class DashboardBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = delegationContextService.getActiveContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(apiAggregationService.getDashboard(token, ctx));
+        return ResponseEntity.ok(apiAggregationService.getDashboard(jwt.getTokenValue(), ctx));
     }
 }

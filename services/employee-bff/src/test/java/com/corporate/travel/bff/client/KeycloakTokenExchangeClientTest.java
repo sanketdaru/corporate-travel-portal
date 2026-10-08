@@ -3,12 +3,12 @@ package com.corporate.travel.bff.client;
 import com.corporate.travel.bff.config.BffProperties;
 import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.TokenExchangeResponse;
+import com.corporate.travel.security.InternalHttpClientConfig;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,11 +32,7 @@ class KeycloakTokenExchangeClientTest {
         keycloak.setClientSecret("test-secret");
         properties.setKeycloak(keycloak);
 
-        WebClient webClient = WebClient.builder()
-            .baseUrl("http://localhost:" + wireMockServer.port())
-            .build();
-
-        client = new KeycloakTokenExchangeClient(webClient, properties);
+        client = new KeycloakTokenExchangeClient(properties, InternalHttpClientConfig.http11());
     }
 
     @AfterEach
@@ -68,6 +64,11 @@ class KeycloakTokenExchangeClientTest {
             .withRequestBody(containing("subject_token=dave-actor-token"))
             .withRequestBody(containing("audience=travel-service"))
             .withRequestBody(containing("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange"))
+            // Keycloak Standard V2 only accepts access tokens as subject_token
+            .withRequestBody(containing("subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token"))
+            .withRequestBody(containing("client_id=employee-bff"))
+            .withRequestBody(containing("client_secret=test-secret"))
+            .withRequestBody(notContaining("actor_token"))
             .withRequestBody(notContaining("requested_subject")));
     }
 

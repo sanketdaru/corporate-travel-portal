@@ -3,6 +3,7 @@ package com.corporate.travel.bff.service;
 import com.corporate.travel.bff.client.ConsentServiceClient;
 import com.corporate.travel.bff.client.DelegationServiceClient;
 import com.corporate.travel.bff.client.KeycloakTokenExchangeClient;
+import com.corporate.travel.bff.config.BffProperties;
 import com.corporate.travel.bff.exception.DelegationNotFoundException;
 import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.ConsentCheckResult;
@@ -14,7 +15,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Orchestrates OAuth 2.0 Standard Token Exchange V2 for delegation flows.
@@ -23,9 +27,10 @@ import java.util.List;
  * <ol>
  *   <li>Resolve delegation record from delegation-service → get subject's user ID</li>
  *   <li>Validate consent exists and capture the consentId (ADR-011 audit requirement)</li>
- *   <li>Call Keycloak Standard Token Exchange V2 with actor's token as subject_token (chain of trust).
- *       Audience-scoped only — no requested_subject (ADR-004).</li>
- *   <li>Return a DelegationContext carrying the issued token, actorToken, and consentId
+ *   <li>Call Keycloak Standard Token Exchange V2 with actor's token as subject_token (chain of trust),
+ *       once per downstream audience in {@code delegation.audiences}. Each service validates
+ *       {@code aud}, so each needs its own token. No requested_subject (ADR-004).</li>
+ *   <li>Return a DelegationContext carrying the issued tokens, actorToken, and consentId
  *       so the BFF can thread all delegation headers on downstream calls.</li>
  * </ol>
  */
@@ -37,22 +42,21 @@ public class TokenExchangeService {
     private final DelegationServiceClient delegationServiceClient;
     private final ConsentServiceClient consentServiceClient;
     private final KeycloakTokenExchangeClient keycloakTokenExchangeClient;
+    private final BffProperties properties;
 
     /**
-     * Performs Standard Token Exchange V2 for the given delegation and target audience.
+     * Performs Standard Token Exchange V2 for the given delegation, once per configured audience.
      *
      * @param delegationId   ID of the delegation record in delegation-service
      * @param actorToken     The actor's current access token (Dave's JWT) — mandatory chain of trust;
      *                       stored in context as X-Actor-Token for downstream audit (ADR-004, ADR-011)
      * @param actorId        The actor's user ID (Dave)
-     * @param targetAudience The resource server audience (e.g. "travel-service")
-     * @return DelegationContext with the issued delegation token, actorToken, and consentId
+     * @return DelegationContext with the issued delegation tokens, actorToken, and consentId
      */
     public DelegationContext exchangeForDelegation(
             String delegationId,
             String actorToken,
-            String actorId,
-            String targetAudience) {
+            String actorId) {
 
         // Step 1: Resolve delegation → get subject's user ID
         JsonNode delegation = delegationServiceClient.getDelegation(delegationId, actorToken);
@@ -65,11 +69,12 @@ public class TokenExchangeService {
             throw new TokenExchangeException("Delegation record is missing delegatorId: " + delegationId);
         }
 
-        log.debug("Token exchange: actor={}, subject={}, audience={}", actorId, subjectId, targetAudience);
+        List<String> audiences = properties.getDelegation().getAudiences();
+        log.debug("Token exchange: actor={}, subject={}, audiences={}", actorId, subjectId, audiences);
 
         // Step 2: Validate consent and capture consentId for downstream audit records (ADR-011)
         String purpose = delegation.path("purpose").asString("book_travel");
-        List<String> scopes = new java.util.ArrayList<>();
+        List<String> scopes = new ArrayList<>();
         delegation.path("scopes").forEach(s -> scopes.add(s.asString()));
         if (scopes.isEmpty()) { scopes.add("view_bookings"); }
 
@@ -78,22 +83,28 @@ public class TokenExchangeService {
         ConsentCheckResult consentResult = consentServiceClient.hasConsentForScopes(
             subjectId, actorId, purpose, scopes, actorToken);
 
-        // Step 3: Perform Standard Token Exchange V2 — actorToken is the mandatory subject_token.
-        // audience scopes the token to the target service. No requested_subject (ADR-004).
-        TokenExchangeResponse exchangeResponse = keycloakTokenExchangeClient.exchangeToken(
-            actorToken, targetAudience);
+        // Step 3: Perform Standard Token Exchange V2 per audience — actorToken is the mandatory
+        // subject_token. Each token is scoped to one service. No requested_subject (ADR-004).
+        Map<String, String> tokens = new LinkedHashMap<>();
+        Instant expiresAt = null;
+        for (String audience : audiences) {
+            TokenExchangeResponse exchangeResponse = keycloakTokenExchangeClient.exchangeToken(actorToken, audience);
+            tokens.put(audience, exchangeResponse.getAccessToken());
+            Instant tokenExpiry = Instant.now().plusSeconds(
+                exchangeResponse.getExpiresIn() != null ? exchangeResponse.getExpiresIn() : 300);
+            expiresAt = expiresAt == null || tokenExpiry.isBefore(expiresAt) ? tokenExpiry : expiresAt;
+        }
 
         return DelegationContext.builder()
             .delegationId(delegationId)
             .actorId(actorId)
             .subjectId(subjectId)
-            .audience(targetAudience)
+            .audiences(List.copyOf(audiences))
             .purpose(purpose)
-            .delegationToken(exchangeResponse.getAccessToken())
+            .delegationTokens(Map.copyOf(tokens))
             .actorToken(actorToken)
             .consentId(consentResult.getConsentId())
-            .expiresAt(Instant.now().plusSeconds(
-                exchangeResponse.getExpiresIn() != null ? exchangeResponse.getExpiresIn() : 300))
+            .expiresAt(expiresAt)
             .build();
     }
 }

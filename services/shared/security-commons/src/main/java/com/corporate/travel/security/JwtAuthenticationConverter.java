@@ -50,11 +50,12 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
                 .tenantId(jwt.getClaimAsString("tenant_id"))
                 .roles(extractRoles(jwt));
 
-        // Check for delegation context (actor/subject pattern)
-        String actToken = jwt.getClaimAsString("act");
-        if (actToken != null) {
+        // RFC 8693 §4.1: "act" is a JSON object identifying the current actor; the token's own
+        // subject is the party being acted for. Nested "act" members are prior actors in the chain.
+        String actorId = extractActorId(jwt);
+        if (actorId != null) {
             builder.isDelegated(true)
-                   .actorId(jwt.getClaimAsString("act_sub"))
+                   .actorId(actorId)
                    .subjectId(userId);
         } else {
             builder.isDelegated(false)
@@ -113,6 +114,22 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
                 .consentId(consentId)
                 .purpose(purpose)
                 .build();
+    }
+
+    /**
+     * Returns the current actor from the RFC 8693 {@code act} claim, or {@code null} if the token
+     * is not a delegation token. Prefers {@code preferred_username} (the identifier used across
+     * this platform) and falls back to {@code sub}.
+     */
+    static String extractActorId(Jwt jwt) {
+        Object act = jwt.getClaim("act");
+        if (!(act instanceof Map<?, ?> actClaim)) {
+            return null;
+        }
+        Object username = actClaim.get("preferred_username");
+        Object sub = actClaim.get("sub");
+        Object actor = username != null ? username : sub;
+        return actor != null && StringUtils.hasText(actor.toString()) ? actor.toString() : null;
     }
 
     private static List<String> extractRoles(Jwt jwt) {

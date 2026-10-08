@@ -32,6 +32,7 @@ BFF_CLIENT_ID="employee-bff"
 BFF_CLIENT_SECRET="bff-service-secret-change-in-production"
 
 TRAVEL_SERVICE_URL="http://localhost:8081"
+EXPENSE_SERVICE_URL="http://localhost:8082"
 DELEGATION_SERVICE_URL="http://localhost:8083"
 CONSENT_SERVICE_URL="http://localhost:8084"
 BFF_URL="http://localhost:8085"
@@ -442,31 +443,30 @@ opa_check "list_consents_to_me — any tenant member is allowed" \
 # ---------------------------------------------------------------------------
 header "Phase 6 — BFF delegation activation (ADR-018)"
 
-info "Dave activates delegation mode via BFF (audience=travel-service)"
+info "Dave activates delegation mode via BFF (one token per downstream audience)"
 ACTIVATION_RESPONSE=$(curl -s -X POST \
-  "$BFF_URL/api/bff/delegation/activate/$DELEGATION_ID?audience=travel-service" \
+  "$BFF_URL/api/bff/delegation/activate/$DELEGATION_ID" \
   -H "Authorization: Bearer $DAVE_TOKEN" \
   -c /tmp/e2e-bff-session.txt)
 
 assert_http "Activation actorId=Dave"    "$ACTIVATION_RESPONSE" '.actorId'   "$DAVE_USER"
 assert_http "Activation subjectId=Carol" "$ACTIVATION_RESPONSE" '.subjectId' "$CAROL_USER"
-assert_http "Activation audience"        "$ACTIVATION_RESPONSE" '.audience'  "travel-service"
+assert_http "Activation audiences include travel-service" \
+  "$ACTIVATION_RESPONSE" '.audiences | index("travel-service") != null' "true"
+assert_http "Activation audiences include expense-service" \
+  "$ACTIVATION_RESPONSE" '.audiences | index("expense-service") != null' "true"
 assert_http "Activation purpose"         "$ACTIVATION_RESPONSE" '.purpose'   "$DELEGATION_PURPOSE"
 
 BFF_CONSENT_ID=$(echo "$ACTIVATION_RESPONSE" | jq -r '.consentId')
 assert_not_empty "Activation captures consentId" "$BFF_CONSENT_ID"
 assert_eq "Activation consentId matches known consent" "$CONSENT_ID" "$BFF_CONSENT_ID"
 
-DELEGATION_TOKEN=$(echo "$ACTIVATION_RESPONSE" | jq -r '.delegationToken')
-assert_not_empty "Activation issues a delegation token" "$DELEGATION_TOKEN"
+# Delegation tokens stay in the BFF session; the browser never sees backend-scoped credentials
+assert_eq "Activation response exposes no tokens" "false" \
+  "$(echo "$ACTIVATION_RESPONSE" | jq -r 'has("delegationTokens") or has("delegationToken") or has("actorToken")')"
 
-if [[ -n "$DELEGATION_TOKEN" && "$DELEGATION_TOKEN" != "null" ]]; then
-  DT_CLAIMS=$(decode_jwt "$DELEGATION_TOKEN")
-  assert_eq "Delegation token aud=travel-service" \
-    "travel-service" "$(echo "$DT_CLAIMS" | jq -r '.aud')"
-  assert_eq "Delegation token actor identity preserved (preferred_username=Dave)" \
-    "$DAVE_USER" "$(echo "$DT_CLAIMS" | jq -r '.preferred_username')"
-fi
+# Direct-call phases below use the travel-service-scoped token from Phase 2 (same exchange the BFF performs)
+DELEGATION_TOKEN="$EXCHANGED_TOKEN"
 
 info "Dave checks session context"
 CTX_RESPONSE=$(curl -s "$BFF_URL/api/bff/delegation/context" \
@@ -550,6 +550,22 @@ assert_http "Single booking createdBy=Dave" \
   "$SINGLE_BOOKING" '.createdBy' "$DAVE_USER"
 assert_http "Single booking tenantId=tenant-a" \
   "$SINGLE_BOOKING" '.tenantId'  "tenant-a"
+
+# ---------------------------------------------------------------------------
+# Phase 8b: Audience enforcement (RFC 7519 aud)
+# ---------------------------------------------------------------------------
+header "Phase 8b — Audience enforcement"
+
+info "A travel-service-scoped token must be rejected by expense-service"
+AUD_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$EXPENSE_SERVICE_URL/api/expenses" \
+  -H "Authorization: Bearer $DELEGATION_TOKEN")
+assert_eq "expense-service rejects token with aud=travel-service (HTTP 401)" "401" "$AUD_HTTP_CODE"
+
+info "Delegated expense listing via BFF uses the expense-service-scoped token"
+DELEGATED_EXPENSES_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BFF_URL/api/bff/expenses" \
+  -H "Authorization: Bearer $DAVE_TOKEN" \
+  -b /tmp/e2e-bff-session.txt -c /tmp/e2e-bff-session.txt)
+assert_eq "BFF delegated expense list succeeds (HTTP 200)" "200" "$DELEGATED_EXPENSES_CODE"
 
 # ---------------------------------------------------------------------------
 # Phase 9: Isolation checks

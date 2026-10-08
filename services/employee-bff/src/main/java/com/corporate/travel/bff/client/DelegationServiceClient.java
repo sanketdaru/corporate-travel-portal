@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 /**
  * Client for delegation-service — retrieves delegation records to resolve
@@ -15,11 +15,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Slf4j
 public class DelegationServiceClient {
 
-    private final WebClient delegationServiceWebClient;
+    private final RestClient delegationServiceRestClient;
 
     public DelegationServiceClient(
-            @Qualifier("delegationServiceWebClient") WebClient delegationServiceWebClient) {
-        this.delegationServiceWebClient = delegationServiceWebClient;
+            @Qualifier("delegationServiceRestClient") RestClient delegationServiceRestClient) {
+        this.delegationServiceRestClient = delegationServiceRestClient;
     }
 
     /**
@@ -31,11 +31,10 @@ public class DelegationServiceClient {
      */
     public JsonNode getDelegation(String delegationId, String bearerToken) {
         log.debug("Fetching delegation: {}", delegationId);
-        return delegationServiceWebClient.get()
+        return delegationServiceRestClient.get()
             .uri("/api/delegations/{id}", delegationId)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
             .retrieve()
-            .bodyToMono(JsonNode.class)
-            .block();
+            .body(JsonNode.class);
     }
 }

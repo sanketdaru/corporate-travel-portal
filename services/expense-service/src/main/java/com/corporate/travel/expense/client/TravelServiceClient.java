@@ -4,7 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -25,14 +26,14 @@ import java.util.UUID;
 @Slf4j
 public class TravelServiceClient {
 
-    private final RestTemplate restTemplate;
-    private final String travelServiceUrl;
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() {};
+
+    private final RestClient restClient;
 
     public TravelServiceClient(
-            RestTemplate restTemplate,
+            RestClient.Builder restClientBuilder,
             @Value("${travel-service.url:http://travel-service:8081}") String travelServiceUrl) {
-        this.restTemplate = restTemplate;
-        this.travelServiceUrl = travelServiceUrl;
+        this.restClient = restClientBuilder.clone().baseUrl(travelServiceUrl).build();
     }
 
     /**
@@ -46,11 +47,12 @@ public class TravelServiceClient {
      * Returns empty if the booking cannot be found or the travel service is
      * unavailable. The caller decides whether a missing budget means allow or deny.
      */
-    @SuppressWarnings("unchecked")
     public Optional<BookingBudget> getBookingBudget(UUID bookingId) {
-        String url = travelServiceUrl + "/api/bookings/" + bookingId + "/budget";
         try {
-            Map<String, Object> body = restTemplate.getForObject(url, Map.class);
+            Map<String, Object> body = restClient.get()
+                    .uri("/api/bookings/{id}/budget", bookingId)
+                    .retrieve()
+                    .body(JSON_OBJECT);
             if (body == null) return Optional.empty();
 
             BigDecimal budget = new BigDecimal(body.get("budget").toString());

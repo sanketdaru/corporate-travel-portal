@@ -1,5 +1,6 @@
 package com.corporate.travel.bff.config;
 
+import com.corporate.travel.security.InternalHttpClientConfig;
 import com.corporate.travel.security.JwtAuthenticationConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,7 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
-@Import(JwtAuthenticationConverter.class)
+@Import({JwtAuthenticationConverter.class, InternalHttpClientConfig.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;

@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,8 +63,8 @@ class ApiAggregationServiceTest {
             .delegationId("delegation-uuid")
             .actorId("dave-id")
             .subjectId("carol-id")
-            .audience("travel-service")
-            .delegationToken("delegation-token")
+            .audiences(List.of("travel-service", "expense-service"))
+            .delegationTokens(Map.of("travel-service", "travel-token", "expense-service", "expense-token"))
             .actorToken("dave-original-token")
             .consentId("consent-uuid-abc")
             .expiresAt(Instant.now().plusSeconds(300))
@@ -71,15 +73,15 @@ class ApiAggregationServiceTest {
         ObjectNode bookings = objectMapper.createObjectNode();
         ObjectNode expenses = objectMapper.createObjectNode();
 
-        when(travelServiceClient.getBookings(eq("delegation-token"), eq(Optional.of(ctx))))
+        when(travelServiceClient.getBookings(eq("user-token"), eq(Optional.of(ctx))))
             .thenReturn(bookings);
-        when(expenseServiceClient.getExpenses(eq("delegation-token"), eq(Optional.of(ctx))))
+        when(expenseServiceClient.getExpenses(eq("user-token"), eq(Optional.of(ctx))))
             .thenReturn(expenses);
 
-        apiAggregationService.getDashboard("delegation-token", Optional.of(ctx));
+        apiAggregationService.getDashboard("user-token", Optional.of(ctx));
 
         // Verify delegation context was forwarded to both downstream clients (ADR-004, ADR-018)
-        verify(travelServiceClient).getBookings("delegation-token", Optional.of(ctx));
-        verify(expenseServiceClient).getExpenses("delegation-token", Optional.of(ctx));
+        verify(travelServiceClient).getBookings("user-token", Optional.of(ctx));
+        verify(expenseServiceClient).getExpenses("user-token", Optional.of(ctx));
     }
 }

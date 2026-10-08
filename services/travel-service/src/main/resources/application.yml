@@ -38,6 +38,9 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://keycloak:8080/realms/corporate-travel
+          # Reject tokens not issued for this service (RFC 7519 aud); see docs/UPGRADE-PLAN.md Phase 4
+          audiences:
+            - travel-service
 
 server:
   port: 8081

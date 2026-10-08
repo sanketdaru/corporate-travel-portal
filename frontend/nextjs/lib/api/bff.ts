@@ -42,10 +42,9 @@ export async function getExpense(id: string): Promise<Expense> {
   return res.data;
 }
 
-export async function activateDelegation(delegationId: string, audience = "travel-service"): Promise<void> {
-  await bffClient.post(`/api/bff/delegation/activate/${delegationId}`, null, {
-    params: { audience },
-  });
+// The BFF exchanges one audience-scoped token per downstream service and keeps them server-side.
+export async function activateDelegation(delegationId: string): Promise<void> {
+  await bffClient.post(`/api/bff/delegation/activate/${delegationId}`);
 }
 
 export async function deactivateDelegation(): Promise<void> {

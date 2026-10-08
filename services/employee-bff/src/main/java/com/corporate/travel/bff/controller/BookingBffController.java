@@ -34,8 +34,7 @@ public class BookingBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(travelServiceClient.getBookings(token, ctx));
+        return ResponseEntity.ok(travelServiceClient.getBookings(jwt.getTokenValue(), ctx));
     }
 
     @PostMapping
@@ -49,8 +48,7 @@ public class BookingBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(travelServiceClient.createBooking(requestBody, token, ctx));
+        return ResponseEntity.ok(travelServiceClient.createBooking(requestBody, jwt.getTokenValue(), ctx));
     }
 
     @GetMapping("/{bookingId}")
@@ -61,8 +59,7 @@ public class BookingBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(travelServiceClient.getBooking(bookingId, token, ctx));
+        return ResponseEntity.ok(travelServiceClient.getBooking(bookingId, jwt.getTokenValue(), ctx));
     }
 
     @GetMapping("/{bookingId}/audit")
@@ -75,8 +72,7 @@ public class BookingBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(travelServiceClient.getBookingAudit(bookingId, token, ctx));
+        return ResponseEntity.ok(travelServiceClient.getBookingAudit(bookingId, jwt.getTokenValue(), ctx));
     }
 
     /**

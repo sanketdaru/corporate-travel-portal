@@ -34,8 +34,7 @@ public class ExpenseBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(expenseServiceClient.getExpenses(token, ctx));
+        return ResponseEntity.ok(expenseServiceClient.getExpenses(jwt.getTokenValue(), ctx));
     }
 
     @PostMapping
@@ -49,8 +48,7 @@ public class ExpenseBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(expenseServiceClient.createExpense(requestBody, token, ctx));
+        return ResponseEntity.ok(expenseServiceClient.createExpense(requestBody, jwt.getTokenValue(), ctx));
     }
 
     @GetMapping("/{expenseId}")
@@ -61,8 +59,7 @@ public class ExpenseBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(expenseServiceClient.getExpense(expenseId, token, ctx));
+        return ResponseEntity.ok(expenseServiceClient.getExpense(expenseId, jwt.getTokenValue(), ctx));
     }
 
     @GetMapping("/{expenseId}/audit")
@@ -73,8 +70,7 @@ public class ExpenseBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(expenseServiceClient.getExpenseAudit(expenseId, token, ctx));
+        return ResponseEntity.ok(expenseServiceClient.getExpenseAudit(expenseId, jwt.getTokenValue(), ctx));
     }
 
     @PostMapping("/{expenseId}/submit")
@@ -86,8 +82,7 @@ public class ExpenseBffController {
             HttpSession session) {
 
         Optional<DelegationContext> ctx = resolveDelegationContext(session);
-        String token = ctx.map(DelegationContext::getDelegationToken).orElse(jwt.getTokenValue());
-        return ResponseEntity.ok(expenseServiceClient.submitExpense(expenseId, token, ctx));
+        return ResponseEntity.ok(expenseServiceClient.submitExpense(expenseId, jwt.getTokenValue(), ctx));
     }
 
     /**

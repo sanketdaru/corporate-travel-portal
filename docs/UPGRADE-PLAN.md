@@ -341,6 +341,26 @@ Exit: all tests and e2e gate pass on Boot 4.1.1 / Java 25.
 
 Exit: a token without the right `aud` is rejected (new tests); e2e gate passes.
 
+**Phase 4 result (2026-10-08):**
+
+- Token flow mapped first; it changed the design:
+  - The frontend calls the gateway directly with its `employee-portal` token, whose `aud` was only `employee-bff`. Strict audience checks would have broken the UI. The realm now adds `travel-service`, `expense-service`, `delegation-service`, `consent-service` audiences to portal tokens, and `employee-bff` to BFF-issued tokens (used by scripts).
+  - In delegation mode the BFF sent its single travel-service-scoped token to expense-service too. The BFF now exchanges **one token per downstream audience** (`delegation.audiences`, default travel + expense) and each client selects the token for its own audience (`DelegationContext.tokenFor`). Context expiry = earliest token.
+- Audience validation via `spring.security.oauth2.resourceserver.jwt.audiences` in every resource server. The gateway accepts any of the four services it routes to; each service then enforces its own.
+- Token exchange now uses Spring Security 7 `RestClientTokenExchangeTokenResponseClient`, called statelessly (not `OAuth2AuthorizedClientManager`, which caches per principal and would return the wrong delegated token once Phase 5 puts the subject into the token). The subject token is passed as `OAuth2AccessToken` so `subject_token_type=access_token` (the only type Keycloak V2 accepts); `audience` is added by a parameters converter.
+- **Security fix:** the activate endpoint returned the exchanged token in its JSON. Tokens are now `@JsonIgnore` and stay in the server-side session. The `audience` request parameter is gone (frontend updated).
+- `act` claim parsed as an RFC 8693 object (`act.preferred_username`, else `act.sub`; nested `act` = prior actors) instead of a string plus non-standard `act_sub`. Header fallback unchanged.
+- BFF error mapping: downstream 4xx passed through with status and body; 5xx → 502. Previously everything became 500.
+- WebClient + `.block()` replaced by RestClient in all servlet code (BFF clients, `OpaClient`); expense-service's `RestTemplate` replaced too. `spring-boot-starter-webclient` dropped.
+- **HTTP/2 pitfall:** the JDK `HttpClient` (RestClient's default) attempts an h2c upgrade on plain HTTP; WireMock/Jetty accepted it and reset POST streams. `InternalHttpClientConfig` pins internal clients to HTTP/1.1 (shared `ClientHttpRequestFactoryBuilder` bean; also used by the Keycloak token client and tests).
+- `security-commons` gained its first tests (`useJUnitPlatform` + `junit-platform-launcher`, which library modules without the Boot plugin need explicitly).
+- Verified:
+  - 237 unit tests (10 new: `act` parsing, error mapping, `DelegationContext` token isolation/serialization, exchange parameters).
+  - `validate-realm-config.sh` 8/8 (idempotent with the new mappers).
+  - e2e 72/72, with new checks: activation response exposes no tokens; expense-service rejects a travel-service token (401); delegated BFF expense listing succeeds.
+  - Seed clean, OPA 5/5, no service errors.
+  - Manual: portal PKCE token → gateway (bookings, expenses, delegations) and BFF = 200; a token with `aud=account` → 401 at gateway, BFF and travel-service.
+
 ### Phase 5 — RFC 8693 delegation spike, then adoption
 
 **Spike (time-boxed):**

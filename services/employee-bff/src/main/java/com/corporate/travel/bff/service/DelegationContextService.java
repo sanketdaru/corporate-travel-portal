@@ -25,12 +25,12 @@ public class DelegationContextService {
 
     /**
      * Activates delegation mode for the current session.
-     * Performs token exchange and stores the resulting DelegationContext in the session.
+     * Performs token exchange (one token per downstream audience) and stores the resulting
+     * DelegationContext in the session.
      *
      * @param delegationId   Delegation ID to activate
      * @param actorToken     Actor's Bearer token (Dave's JWT) — used as subject_token
      * @param actorId        Actor's user ID
-     * @param targetAudience Target resource server audience
      * @param session        Current HTTP session
      * @return The activated DelegationContext
      */
@@ -38,15 +38,14 @@ public class DelegationContextService {
             String delegationId,
             String actorToken,
             String actorId,
-            String targetAudience,
             HttpSession session) {
 
         DelegationContext context = tokenExchangeService.exchangeForDelegation(
-            delegationId, actorToken, actorId, targetAudience);
+            delegationId, actorToken, actorId);
 
         session.setAttribute(SESSION_KEY, context);
-        log.info("Delegation activated: actor={}, subject={}, audience={}",
-            context.getActorId(), context.getSubjectId(), context.getAudience());
+        log.info("Delegation activated: actor={}, subject={}, audiences={}",
+            context.getActorId(), context.getSubjectId(), context.getAudiences());
 
         return context;
     }

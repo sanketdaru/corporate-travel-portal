@@ -30,11 +30,11 @@ public class DelegationBffController {
      */
     @PostMapping("/activate/{delegationId}")
     @Operation(summary = "Activate delegation mode",
-        description = "Performs Standard Token Exchange V2 to obtain a delegation token. " +
-                      "The caller's token is the mandatory subject_token (chain of trust).")
+        description = "Performs Standard Token Exchange V2 to obtain one delegation token per downstream " +
+                      "service (delegation.audiences). The caller's token is the mandatory subject_token " +
+                      "(chain of trust). Tokens stay in the server-side session and are not returned.")
     public ResponseEntity<DelegationContext> activateDelegation(
             @PathVariable String delegationId,
-            @RequestParam(defaultValue = "travel-service") String audience,
             @AuthenticationPrincipal Jwt jwt,
             HttpSession session) {
 
@@ -43,7 +43,6 @@ public class DelegationBffController {
             delegationId,
             jwt.getTokenValue(),
             securityContext.getUserId(),
-            audience,
             session);
 
         return ResponseEntity.ok(context);
@@ -75,7 +74,7 @@ public class DelegationBffController {
             "delegationId", ctx.getDelegationId(),
             "actorId", ctx.getActorId(),
             "subjectId", ctx.getSubjectId(),
-            "audience", ctx.getAudience(),
+            "audiences", ctx.getAudiences(),
             "expiresAt", ctx.getExpiresAt().toString()
         ));
     }

@@ -52,7 +52,7 @@ interface BffContextResponse {
   delegationId?: string;
   actorId?: string;
   subjectId?: string;
-  audience?: string;
+  audiences?: string[];
   consentId?: string;
   purpose?: string;
   expiresAt?: string;

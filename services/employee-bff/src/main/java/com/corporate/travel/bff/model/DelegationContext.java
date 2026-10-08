@@ -5,13 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Represents an active delegation session — the result of a successful Standard Token Exchange V2.
- * Stored in HttpSession for the duration of the delegation mode.
+ * Active delegation state held in the actor's HTTP session.
  *
- * <p>Fields actorToken and consentId are required to thread the full delegation identity context
- * (ADR-004 Layer 2 headers, ADR-011 audit fields) on every downstream call while delegation is active.</p>
+ * <p>Tokens are never serialized to API responses: the browser only needs to know that
+ * delegation is active and for whom, not the backend-scoped credentials.</p>
  */
 @Data
 @Builder
@@ -26,14 +27,18 @@ public class DelegationContext {
     /** The subject being acted on behalf of (e.g. Carol's user ID) */
     private String subjectId;
 
-    /** The audience this delegation token is scoped to (e.g. "travel-service") */
-    private String audience;
+    /** Resource servers a delegation token was exchanged for (e.g. travel-service, expense-service) */
+    private List<String> audiences;
 
     /** The delegation purpose (e.g. "book_travel"). Forwarded as X-Delegation-Purpose. */
     private String purpose;
 
-    /** The audience-scoped delegation token issued by Keycloak (sub=actor, aud=target-service) */
-    private String delegationToken;
+    /**
+     * Audience-scoped tokens issued by Keycloak, keyed by audience. Each downstream service
+     * validates {@code aud}, so a travel-service token cannot be replayed against expense-service.
+     */
+    @JsonIgnore
+    private Map<String, String> delegationTokens;
 
     /**
      * The actor's original JWT prior to the exchange. Threaded as X-Actor-Token header on every
@@ -48,6 +53,21 @@ public class DelegationContext {
      */
     private String consentId;
 
-    /** When the delegation token expires */
+    /** When the earliest of the delegation tokens expires */
     private Instant expiresAt;
+
+    /**
+     * Returns the delegation token scoped to {@code audience}.
+     *
+     * @throws IllegalStateException if no token was exchanged for that audience — a configuration
+     *         error (see {@code delegation.audiences}), not a client error
+     */
+    public String tokenFor(String audience) {
+        String token = delegationTokens == null ? null : delegationTokens.get(audience);
+        if (token == null) {
+            throw new IllegalStateException("No delegation token exchanged for audience " + audience
+                + "; add it to delegation.audiences");
+        }
+        return token;
+    }
 }

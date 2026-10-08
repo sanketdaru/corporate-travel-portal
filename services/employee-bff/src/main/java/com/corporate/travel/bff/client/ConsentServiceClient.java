@@ -11,8 +11,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 
@@ -23,13 +23,13 @@ import java.util.List;
 @Slf4j
 public class ConsentServiceClient {
 
-    private final WebClient consentServiceWebClient;
+    private final RestClient consentServiceRestClient;
     private final ObjectMapper objectMapper;
 
     public ConsentServiceClient(
-            @Qualifier("consentServiceWebClient") WebClient consentServiceWebClient,
+            @Qualifier("consentServiceRestClient") RestClient consentServiceRestClient,
             ObjectMapper objectMapper) {
-        this.consentServiceWebClient = consentServiceWebClient;
+        this.consentServiceRestClient = consentServiceRestClient;
         this.objectMapper = objectMapper;
     }
 
@@ -56,14 +56,13 @@ public class ConsentServiceClient {
             ArrayNode scopesNode = body.putArray("scopes");
             scopes.forEach(scopesNode::add);
 
-            JsonNode response = consentServiceWebClient.post()
+            JsonNode response = consentServiceRestClient.post()
                 .uri("/api/consents/validate")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
+                .body(body)
                 .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
+                .body(JsonNode.class);
 
             if (response == null || !response.path("valid").asBoolean(false)) {
                 // Consent-service returned HTTP 200 but valid=false — surface the reason so the
@@ -76,7 +75,7 @@ public class ConsentServiceClient {
             return new ConsentCheckResult(true, consentId);
         } catch (TokenExchangeException e) {
             throw e; // already formatted — let it propagate
-        } catch (WebClientResponseException e) {
+        } catch (RestClientResponseException e) {
             // HTTP error from consent-service (4xx/5xx). Extract the response body so the real
             // cause (e.g. OPA 403, NPE 500) is visible in the frontend error message.
             String body = e.getResponseBodyAsString();
