@@ -1,7 +1,7 @@
-# ADR-024: Evaluate Keycloak Native RFC 8693 Delegation
+# ADR-024: Adopt Keycloak Native RFC 8693 Delegation
 
 ## Status
-Proposed — spike complete (2026-10-08), adoption decision pending
+Accepted (2026-10-08) — option B adopted and implemented. Supersedes the header-based delegation identity of ADR-004.
 
 Relates to: ADR-004 (token exchange for delegated identity), ADR-005 (consent service), ADR-021 (Vault)
 
@@ -56,7 +56,7 @@ Keycloak delegation needs **Carol's token at exchange time**. With normal tokens
 - Downstream services trust `X-Delegated-Subject` from callers holding a valid audience-scoped token, after delegation-service and consent-service checks in the BFF.
 - No preview features.
 
-### B. Adopt Keycloak delegation with offline subject tokens
+### B. Adopt Keycloak delegation with offline subject tokens — **chosen**
 
 Required changes:
 
@@ -76,11 +76,31 @@ Use Keycloak delegation when the subject is present (e.g. AI-agent actions appro
 
 ## Decision
 
-Pending. Recommendation: **A for this upgrade**, with B or C as a separate feature.
+**Option B: adopt Keycloak delegation with offline subject tokens.** (The spike's recommendation was A; the project chose B.)
 
-Rationale: B is a feature redesign (new client, grant ceremony, encrypted credential store, revocation, identity mapping, FGAP duplication) on a preview Keycloak feature, not an upgrade step. The Phase 4 hardening already closes the main weaknesses of the header model (unscoped tokens, missing `aud` validation, tokens exposed to the browser).
+Design choices:
+
+| Concern | Decision |
+|---|---|
+| Grant ceremony | Dedicated confidential client `delegation-grant` (`consentRequired`, PKCE, `offline_access` + `delegation:user` optional scopes, `employee-bff` audience). The BFF runs the delegator's authorization-code flow; normal portal logins show no consent screen. |
+| Offline token storage | BFF Postgres schema `bff`, table `delegation_grant`, AES-256-GCM with the delegation id as AAD; key from `delegation.grant.encryption-key` (env `BFF_GRANT_ENCRYPTION_KEY`). Vault/OpenBao can replace the key source later (ADR-021). |
+| Who may delegate to whom (FGAP v2) | Static, per tenant: Groups resource type, `delegate-members` scope, policy "members of the same tenant group". Keycloak enforces the tenant boundary; delegation-service and consent-service decide the pair, purpose and window. Applied by `infrastructure/keycloak/fgap/apply-delegation-permissions.sh` (kcadm.sh) because keycloak-config-cli cannot manage the system `admin-permissions` client. |
+| Actor identity (`act.sub` is a UUID) | Services verify the forwarded `X-Actor-Token` with their own `JwtDecoder` and require `sub == act.sub`, same tenant, and no nested `act` (`DelegatedActorFilter`). |
+| Authorization semantics | The security context of a delegated request is the **actor's** (user id, roles, attributes from the verified actor token); `subjectId` is the delegator from the token's `sub`. Delegated tokens get no Spring authorities. Delegation never grants the delegator's roles. |
+| Revocation | `DELETE /api/bff/delegation/{id}`: delegation-service revoke (delegator only), RFC 7009 revocation of the offline token, row deleted. Backstop at activation: inactive delegation or `invalid_grant` on refresh removes the grant. |
+| Headers | `X-Delegated-Subject` is no longer sent or read. `X-Delegation-Id`, `X-Consent-Id`, `X-Delegation-Purpose` remain audit metadata. |
+
+Flow:
+
+1. Carol creates the delegation and consent (unchanged), then the frontend sends her to `POST /api/bff/delegation/{id}/grant` → Keycloak (`scope=openid offline_access delegation:user:<delegate>`, `login_hint`) → consent screen → `/api/bff/delegation/grant/callback` (through the Next.js `/api/bff` rewrite). The BFF checks the signed-in user is the delegator and that `may_act` is present, then stores the encrypted offline token.
+2. Dave activates: the BFF verifies he is the delegate, validates consent, refreshes Carol's offline token, and exchanges it with Dave's token as `actor_token`, once per audience. Issued tokens: `sub`=Carol, `act.sub`=Dave, `aud`=one service.
+3. Services authorize Dave (actor) acting for Carol (subject) via OPA, exactly as before, but the subject now comes from a Keycloak-signed token.
 
 ## Consequences
 
-- ADR-004 remains in force; its "as of Keycloak 26, Standard V2 does not support the `act` claim" note is updated to point here.
-- The spike script stays in the repository so the evaluation can be repeated on later Keycloak releases (especially when delegation leaves preview).
+- Keycloak runs with preview features `token-exchange-delegation,parameterized-scopes`; behaviour may change in later 26.x releases. `validate-realm-config.sh` covers grant, delegated exchange, tenant boundary and revocation in CI.
+- Keycloak creates the `delegation:*` scopes only for realms created after the feature is enabled; the realm-as-code definition declares `delegation:user` explicitly.
+- The BFF now holds long-lived delegator credentials (encrypted). Protecting the encryption key is a deployment concern; the committed key is a demo key.
+- Keycloak's consent text reads "Delegate token to administrator <name>" (its built-in message for `delegation:user`).
+- Offline sessions expire after 30 days idle (realm default); the delegator must re-authorize after that or after revocation.
+- The spike script stays in the repository so the evaluation can be repeated on later Keycloak releases.

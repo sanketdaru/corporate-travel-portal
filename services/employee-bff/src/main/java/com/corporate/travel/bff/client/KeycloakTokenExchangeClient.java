@@ -28,17 +28,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * Performs OAuth 2.0 Standard Token Exchange V2 (RFC 8693) against Keycloak, using Spring
+ * Performs RFC 8693 delegation token exchange against Keycloak (ADR-024), using Spring
  * Security's {@link RestClientTokenExchangeTokenResponseClient}.
  *
  * <p>Security contract:</p>
  * <ul>
- *   <li>actorToken (subject_token) is MANDATORY — proves actor identity and establishes the chain
- *       of trust. Sent as {@code subject_token_type=access_token}, the only type Keycloak V2 accepts.</li>
- *   <li>audience scopes the resulting token to a single resource server, preventing replay.</li>
- *   <li>NO requested_subject — Standard V2 does not support impersonation. The delegation target
- *       (e.g. Carol) is carried as the X-Delegated-Subject application header, validated against
- *       the delegation-service before this exchange is invoked (ADR-004).</li>
+ *   <li>{@code subject_token} — the delegator's access token, carrying {@code may_act} for the actor
+ *       (obtained from the delegator's stored grant). The issued token's {@code sub} is the delegator.</li>
+ *   <li>{@code actor_token} — the actor's own access token. Keycloak checks it matches
+ *       {@code may_act.sub} and records the actor in the issued token's {@code act} claim.</li>
+ *   <li>{@code audience} scopes the issued token to a single resource server, preventing replay.</li>
+ *   <li>Both tokens are sent as {@code ...:token-type:access_token}, the only type Keycloak accepts.</li>
  * </ul>
  *
  * <p>The client is stateless on purpose: Spring's {@code OAuth2AuthorizedClientManager} caches
@@ -91,25 +91,25 @@ public class KeycloakTokenExchangeClient {
     }
 
     /**
-     * Exchanges the actor's token for an audience-scoped token via Standard Token Exchange V2 (RFC 8693).
+     * Exchanges a delegator token plus an actor token for a delegated, audience-scoped token.
      *
-     * @param actorToken     The actor's current access token (Dave or AI agent) — chain of trust, mandatory
+     * @param subjectToken   The delegator's access token carrying {@code may_act} (Carol)
+     * @param actorToken     The actor's own access token (Dave or AI agent)
      * @param targetAudience The resource server to scope the token to (e.g. "travel-service")
-     * @return TokenExchangeResponse containing the issued audience-scoped token
+     * @return TokenExchangeResponse containing the issued token (sub=delegator, act.sub=actor)
      */
-    public TokenExchangeResponse exchangeToken(String actorToken, String targetAudience) {
-        if (!StringUtils.hasText(actorToken)) {
+    public TokenExchangeResponse exchangeDelegated(String subjectToken, String actorToken, String targetAudience) {
+        if (!StringUtils.hasText(subjectToken) || !StringUtils.hasText(actorToken)) {
             throw new TokenExchangeException(
-                "subject_token (actorToken) is mandatory for Standard Token Exchange V2 — chain of trust cannot be established without it");
+                "subject_token (delegator) and actor_token (actor) are both mandatory for delegated token exchange");
         }
 
-        log.debug("Performing token exchange: targetAudience={}", targetAudience);
+        log.debug("Performing delegated token exchange: targetAudience={}", targetAudience);
 
-        // OAuth2AccessToken (not Jwt) so Spring sends subject_token_type=urn:ietf:params:oauth:token-type:access_token
-        OAuth2AccessToken subjectToken =
-            new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, actorToken, null, null);
+        // OAuth2AccessToken (not Jwt) so Spring sends ...:token-type:access_token for both tokens
         OAuth2AccessTokenResponse tokenResponse = tokenResponseClient.getTokenResponse(
-            new AudienceScopedTokenExchangeGrantRequest(registration, subjectToken, targetAudience));
+            new AudienceScopedTokenExchangeGrantRequest(registration, accessToken(subjectToken),
+                accessToken(actorToken), targetAudience));
 
         OAuth2AccessToken issued = tokenResponse.getAccessToken();
         TokenExchangeResponse response = new TokenExchangeResponse();
@@ -119,6 +119,10 @@ public class KeycloakTokenExchangeClient {
             response.setExpiresIn(Duration.between(issued.getIssuedAt(), issued.getExpiresAt()).toSeconds());
         }
         return response;
+    }
+
+    private static OAuth2AccessToken accessToken(String value) {
+        return new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, value, null, null);
     }
 
     private static String body(ClientHttpResponse response) {
@@ -135,8 +139,8 @@ public class KeycloakTokenExchangeClient {
         private final String audience;
 
         AudienceScopedTokenExchangeGrantRequest(ClientRegistration registration, OAuth2AccessToken subjectToken,
-                                                String audience) {
-            super(registration, subjectToken, null);
+                                                OAuth2AccessToken actorToken, String audience) {
+            super(registration, subjectToken, actorToken);
             this.audience = audience;
         }
 

@@ -14,6 +14,8 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   APPROVED:  { className: "text-emerald-700 bg-emerald-50 border border-emerald-200", dotClass: "bg-emerald-500" },
   ACTIVE:    { className: "text-emerald-700 bg-emerald-50 border border-emerald-200", dotClass: "bg-emerald-500" },
   PAID:      { className: "text-emerald-700 bg-emerald-50 border border-emerald-200", dotClass: "bg-emerald-500" },
+  // Delegation grant authorized in Keycloak (ADR-024)
+  AUTHORIZED: { className: "text-emerald-700 bg-emerald-50 border border-emerald-200", dotClass: "bg-emerald-500" },
 
   SUBMITTED: { className: "text-amber-700 bg-amber-50 border border-amber-200",   dotClass: "bg-amber-400" },
   PENDING:   { className: "text-amber-700 bg-amber-50 border border-amber-200",   dotClass: "bg-amber-400" },

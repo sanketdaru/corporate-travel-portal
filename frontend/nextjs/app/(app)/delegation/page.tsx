@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
 import { setAccessToken } from "@/lib/api/client";
-import { activateDelegation } from "@/lib/api/bff";
+import {
+  activateDelegation,
+  getDelegationGrantStatus,
+  revokeDelegationAndGrant,
+  startDelegationGrant,
+} from "@/lib/api/bff";
 import {
   getMyDelegations,
   getDelegationsToMe,
   getMyConsents,
-  revokeDelegation,
   revokeConsent,
   delegationStatus,
   type Delegation,
@@ -18,6 +22,7 @@ import {
 import { useDelegationContext } from "@/lib/context/DelegationContext";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { GrantDelegationModal } from "@/components/delegation/GrantDelegationModal";
+import { GrantResultBanner } from "@/components/delegation/GrantResultBanner";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -120,6 +125,9 @@ export default function DelegationPage() {
   const [revokingId,     setRevokingId]     = useState<string | null>(null);
   const [activatingId,   setActivatingId]   = useState<string | null>(null);
   const [activationError, setActivationError] = useState<Record<string, string>>({});
+  // Keycloak grant per delegation I granted (ADR-024): true once I approved Keycloak's consent
+  const [grantStatus,    setGrantStatus]    = useState<Record<string, boolean>>({});
+  const [authorizingId,  setAuthorizingId]  = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,8 +140,15 @@ export default function DelegationPage() {
       getMyConsents(),
     ]);
 
-    if (mineResult.status === "fulfilled") setMyDelegations(mineResult.value);
-    else setDelegationsError(true);
+    if (mineResult.status === "fulfilled") {
+      setMyDelegations(mineResult.value);
+      const active = mineResult.value.filter((d) => delegationStatus(d) === "ACTIVE");
+      const statuses = await Promise.allSettled(active.map((d) => getDelegationGrantStatus(d.id)));
+      setGrantStatus(Object.fromEntries(active.map((d, i) => {
+        const r = statuses[i];
+        return [d.id, r.status === "fulfilled" && r.value];
+      })));
+    } else setDelegationsError(true);
 
     if (toMeResult.status === "fulfilled") setToMeDelegations(toMeResult.value);
     else setDelegationsError(true);
@@ -160,7 +175,8 @@ export default function DelegationPage() {
   async function handleRevoke(delegation: Delegation) {
     setRevokingId(delegation.id);
     try {
-      await revokeDelegation(delegation.id);
+      // Through the BFF: also revokes my Keycloak grant (offline session) for this delegation
+      await revokeDelegationAndGrant(delegation.id);
 
       // Cascade: find the active consent for this grantee+purpose and revoke it.
       // This ensures a clean state so re-granting later will succeed without
@@ -180,6 +196,15 @@ export default function DelegationPage() {
       await load(); // refresh regardless so UI reflects actual state
     } finally {
       setRevokingId(null);
+    }
+  }
+
+  async function handleAuthorize(delegationId: string) {
+    setAuthorizingId(delegationId);
+    try {
+      window.location.assign(await startDelegationGrant(delegationId));
+    } catch {
+      setAuthorizingId(null);
     }
   }
 
@@ -229,6 +254,10 @@ export default function DelegationPage() {
           </button>
         </div>
 
+        <Suspense fallback={null}>
+          <GrantResultBanner />
+        </Suspense>
+
         {/* Error banners */}
         {delegationsError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 flex items-center gap-2">
@@ -260,6 +289,10 @@ export default function DelegationPage() {
               in the same operation — cleaning the slate so you can re-grant later.
               An <strong>expired</strong> delegation must also be explicitly revoked before a new one can be granted.
             </p>
+            <p className="text-xs text-blue-700 leading-relaxed mt-1.5">
+              After granting, you <strong>authorize it in Keycloak</strong> on a consent screen. Your delegate&apos;s
+              actions then carry a standard RFC 8693 token: you as the subject, them as the actor.
+            </p>
           </div>
         </div>
 
@@ -285,17 +318,17 @@ export default function DelegationPage() {
           <table className="w-full text-sm" aria-label="Delegations granted by me">
             <thead className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wide">
               <tr>
-                {["ID", "Delegate (Actor)", "Purpose", "Scopes", "Granted", "Expires", "Delegation", "Consent", ""].map((h) => (
+                {["ID", "Delegate (Actor)", "Purpose", "Scopes", "Granted", "Expires", "Delegation", "Consent", "Keycloak", ""].map((h) => (
                   <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <SkeletonRows cols={9} />
+                <SkeletonRows cols={10} />
               ) : myDelegations.length === 0 ? (
                 <EmptyTableRow
-                  colSpan={9}
+                  colSpan={10}
                   message="You haven't granted any delegations yet."
                   sub="Use 'Grant Delegation' to allow a colleague to act on your behalf."
                 />
@@ -366,6 +399,24 @@ export default function DelegationPage() {
                           <StatusBadge status="REVOKED" />
                         ) : (
                           <span className="text-xs text-amber-600 font-medium">Missing</span>
+                        )}
+                      </td>
+
+                      {/* Keycloak grant (ADR-024) — required before the delegate can activate */}
+                      <td className="px-5 py-3.5">
+                        {status !== "ACTIVE" ? (
+                          <span className="text-slate-300 text-xs">—</span>
+                        ) : grantStatus[d.id] ? (
+                          <StatusBadge status="AUTHORIZED" />
+                        ) : (
+                          <button
+                            onClick={() => handleAuthorize(d.id)}
+                            disabled={authorizingId === d.id}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 whitespace-nowrap"
+                            title="Approve this delegation on Keycloak's consent screen"
+                          >
+                            {authorizingId === d.id ? "Redirecting…" : "Authorize"}
+                          </button>
                         )}
                       </td>
 

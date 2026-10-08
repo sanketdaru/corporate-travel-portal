@@ -2,6 +2,7 @@ package com.corporate.travel.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -21,7 +22,11 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
-        Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
+        // A delegated token (act claim) carries the delegator's roles; the actor must not gain them.
+        // Authorization of delegated requests uses the verified actor (see extractSecurityContext).
+        Collection<GrantedAuthority> authorities = extractActorId(jwt) != null
+                ? Collections.emptyList()
+                : extractAuthorities(jwt);
         return new JwtAuthenticationToken(jwt, authorities);
     }
 
@@ -77,42 +82,45 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     }
 
     /**
-     * Builds a SecurityContext from the JWT, enriched with delegation headers from the HTTP request.
+     * Builds the SecurityContext of a request, resolving RFC 8693 delegation (ADR-024).
      *
-     * <p>When the BFF threads delegation headers ({@code X-Delegated-Subject}, {@code X-Delegation-Id},
-     * {@code X-Consent-Id}, {@code X-Delegation-Purpose}), this method uses them to populate the
-     * delegation fields of the SecurityContext so that downstream OPA authorization can check
-     * delegation and consent rules correctly (ADR-004, ADR-011).</p>
+     * <p>A request is delegated only when its token carries an {@code act} claim and
+     * {@link DelegatedActorFilter} has verified the actor's own token ({@code X-Actor-Token}).
+     * Then the context describes the <em>actor</em> — user id, roles and attributes come from the
+     * verified actor token, so delegation never grants the delegator's roles — and
+     * {@code subjectId} is the delegator from the token's own claims. Audit metadata
+     * ({@code X-Delegation-Id}, {@code X-Consent-Id}, {@code X-Delegation-Purpose}) is read from
+     * headers. Without {@code act}, headers never make a request delegated.</p>
      *
-     * @param jwt     The authenticated JWT (actor's audience-scoped token)
-     * @param request The incoming HTTP request carrying optional delegation headers
-     * @return SecurityContext populated from JWT claims and delegation headers
+     * @param jwt     The authenticated JWT (a delegated token: sub = delegator)
+     * @param request The incoming HTTP request
+     * @return SecurityContext for authorization (OPA) and audit
      */
     public static SecurityContext extractSecurityContext(Jwt jwt, HttpServletRequest request) {
-        SecurityContext base = extractSecurityContext(jwt);
-
-        String delegatedSubject = request.getHeader("X-Delegated-Subject");
-        if (!StringUtils.hasText(delegatedSubject)) {
-            return base;
+        if (extractActorId(jwt) == null) {
+            return extractSecurityContext(jwt);
+        }
+        if (!(request.getAttribute(DelegatedActorFilter.ACTOR_ATTRIBUTE) instanceof Jwt actor)) {
+            throw new AccessDeniedException("Delegated token whose actor was not verified");
         }
 
-        // Delegation headers present — override delegation fields
-        String delegationId = request.getHeader("X-Delegation-Id");
-        String consentId    = request.getHeader("X-Consent-Id");
-        String purpose      = request.getHeader("X-Delegation-Purpose");
+        SecurityContext actorContext = extractSecurityContext(actor);
+        String delegator = jwt.getClaimAsString("preferred_username") != null
+                ? jwt.getClaimAsString("preferred_username")
+                : jwt.getSubject();
 
         return SecurityContext.builder()
-                .userId(base.getUserId())
-                .username(base.getUsername())
-                .tenantId(base.getTenantId())
-                .roles(base.getRoles())
-                .attributes(base.getAttributes())
+                .userId(actorContext.getUserId())       // actor (Dave) — identity used by OPA
+                .username(actorContext.getUsername())
+                .tenantId(actorContext.getTenantId())
+                .roles(actorContext.getRoles())         // actor's roles, not the delegator's
+                .attributes(actorContext.getAttributes())
                 .isDelegated(true)
-                .actorId(base.getUserId())   // actor = JWT bearer (Dave)
-                .subjectId(delegatedSubject) // subject = Carol (from header)
-                .delegationId(delegationId)
-                .consentId(consentId)
-                .purpose(purpose)
+                .actorId(actorContext.getUserId())
+                .subjectId(delegator)                   // delegator (Carol) — from the signed token
+                .delegationId(request.getHeader("X-Delegation-Id"))
+                .consentId(request.getHeader("X-Consent-Id"))
+                .purpose(request.getHeader("X-Delegation-Purpose"))
                 .build();
     }
 

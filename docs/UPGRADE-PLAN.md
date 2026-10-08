@@ -388,7 +388,24 @@ Exit: a token without the right `aud` is rejected (new tests); e2e gate passes.
 - The mechanism works on 26.8.0: `employee-bff` exchanges Carol's `may_act` token plus Dave's token into `sub`=Carol, `act.sub`=Dave, and `audience` scoping works on the delegated exchange too.
 - It requires **Carol's live token** at exchange time. Normal tokens stop working once her SSO session ends; only an **offline token** obtained at grant time (with a consent screen) bridges this platform's asynchronous delegation model.
 - Adoption therefore needs a new grant ceremony client, encrypted server-side storage of the subject's offline refresh token, revocation wiring, FGAP v2 permissions duplicating delegation-service data, and UUID→username mapping for `act.sub` — on a preview feature.
-- Recommendation: keep the hardened header model for this upgrade; treat native delegation as a separate feature (ADR-024 options B/C). **Decision pending.**
+- Recommendation: keep the hardened header model for this upgrade; treat native delegation as a separate feature (ADR-024 options B/C).
+
+**Decision (2026-10-08): adopt fully (ADR-024 option B).** Choices: offline tokens in BFF Postgres with AES-256-GCM; static per-tenant FGAP v2 permissions; actor resolved by verifying `X-Actor-Token` against `act.sub`; revocation through the BFF plus an activation-time backstop.
+
+**Phase 5 adoption result (2026-10-08):**
+
+- Keycloak: features `token-exchange-delegation,parameterized-scopes`; realm-as-code adds `adminPermissionsEnabled`, the `delegation-grant` client and an explicit `delegation:user` scope (Keycloak only auto-creates it for realms created after the feature is on). FGAP v2 permissions via a new idempotent `keycloak-fgap` compose step (`kcadm.sh`; config-cli cannot manage `admin-permissions`; the Keycloak image has no awk/grep, so the script is pure bash).
+- BFF: grant ceremony (`POST /{id}/grant`, `GET /grant/callback`, `GET /{id}/grant`), encrypted grant store (Flyway schema `bff`), RFC 8693 exchange with `actor_token`, revocation endpoint; activation checks the caller is the delegate; `X-Delegated-Subject` no longer sent; 409 when not yet authorized.
+- Services (`security-commons`): `DelegatedActorFilter` verifies `X-Actor-Token` (`sub == act.sub`, same tenant, not itself delegated); the security context of a delegated request is the actor's (identity and roles), with the delegator as subject; delegated tokens get no Spring authorities; `X-Delegated-Subject` is ignored.
+- Frontend: after creating a delegation the delegator is sent to Keycloak's consent screen; the list shows Keycloak authorization status with an "Authorize" action; revoke goes through the BFF; a banner reports `?grant=` outcomes.
+- **Found on the way (fixed):** delegation-service's Neo4j writes failed with a NullPointerException since the Boot 4 upgrade — SDN 8's `Neo4jTemplate` needs a `Neo4jTransactionManager`, which Boot does not create when a JPA transaction manager exists. Both managers are now declared (`Neo4jConfig`). The error was caught and logged, so APIs succeeded while the graph silently stopped updating.
+- Verified:
+  - 262 unit tests (21 new: cipher, grant service, actor filter / delegated context, delegate-only activation).
+  - `validate-realm-config.sh` 14/14 (adds FGAP bootstrap idempotency, grant → `may_act` → offline token, delegated exchange, revocation, cross-tenant denial).
+  - e2e 73/73 on the live stack: delegator grant (delegate cannot start it), delegated booking with `userId`=Carol / `createdBy`=Dave via the `act` token, spoofed `X-Delegated-Subject` rejected, audit trail.
+  - Revocation: delegate cannot revoke (403); delegator revoke removes the Keycloak offline session (1 → 0); activation afterwards returns 409.
+  - Browser path through Next.js (`localhost:3000` callback rewrite + BFF session cookie) ends at `/delegation?grant=success`.
+  - Seed clean; OPA 5/5; no service errors.
 
 ### Phase 6 — Frontend
 

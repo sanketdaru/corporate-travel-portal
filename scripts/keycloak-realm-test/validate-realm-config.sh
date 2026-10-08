@@ -26,8 +26,10 @@ HERE="$ROOT/scripts/keycloak-realm-test"
 CONFIG_DIR="$ROOT/infrastructure/keycloak/config"
 KC_PORT="${KC_PORT:-8090}"
 KC_URL="http://localhost:$KC_PORT"
-KC_IMAGE="${KC_IMAGE:-$(sed -n 's#^ *image: \(quay.io/keycloak/keycloak:.*\)#\1#p' "$ROOT/docker-compose.yml")}"
+KC_IMAGE="${KC_IMAGE:-$(sed -n 's#^ *image: \(quay.io/keycloak/keycloak:.*\)#\1#p' "$ROOT/docker-compose.yml" | head -1)}"
 KCC_IMAGE="${KCC_IMAGE:-$(sed -n 's#^ *image: \(.*keycloak-config-cli:.*\)#\1#p' "$ROOT/docker-compose.yml")}"
+# Same Keycloak features as the compose stack (the realm uses delegation:user mapper types)
+KC_FEATURES="${KC_FEATURES:-$(sed -n 's#^ *KC_FEATURES: "\(.*\)"#\1#p' "$ROOT/docker-compose.yml")}"
 REALM="corporate-travel"
 BFF_SECRET="bff-service-secret-change-in-production"
 CONTAINER="ctp-realm-validate-$$"
@@ -76,7 +78,14 @@ apply_config() {
     -e KC_CLIENT_SECRET_EMPLOYEE_BFF="$BFF_SECRET" \
     -e KC_CLIENT_SECRET_EXPENSE_SERVICE=expense-service-secret-change-in-production \
     -e KC_CLIENT_SECRET_TRAVEL_SERVICE=travel-service-secret-change-in-production \
+    -e KC_CLIENT_SECRET_DELEGATION_GRANT=delegation-grant-secret-change-in-production \
     -v "$CONFIG_DIR:/config:ro" "$KCC_IMAGE" > "$WORK/apply-$1.log" 2>&1
+}
+
+apply_fgap() {
+  $CTR run --rm ${ADD_HOST[@]+"${ADD_HOST[@]}"} --entrypoint /bin/bash \
+    -e KEYCLOAK_URL="http://$HOST_ALIAS:$KC_PORT" -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin123 -e REALM="$REALM" \
+    -v "$ROOT/infrastructure/keycloak/fgap:/fgap:ro" "$KC_IMAGE" /fgap/apply-delegation-permissions.sh > "$WORK/fgap-$1.log" 2>&1
 }
 
 decode_jwt() {
@@ -88,7 +97,7 @@ decode_jwt() {
 header "Phase A — Start throwaway Keycloak ($KC_IMAGE on :$KC_PORT)"
 $CTR run -d --name "$CONTAINER" -p "$KC_PORT:8080" \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin123 \
-  "$KC_IMAGE" start-dev >/dev/null || { fail "Could not start Keycloak"; exit 1; }
+  "$KC_IMAGE" start-dev ${KC_FEATURES:+--features=$KC_FEATURES} >/dev/null || { fail "Could not start Keycloak"; exit 1; }
 for _ in $(seq 1 90); do curl -sf -o /dev/null "$KC_URL/realms/master" && break; sleep 2; done
 curl -sf -o /dev/null "$KC_URL/realms/master" && pass "Keycloak is up" || { fail "Keycloak did not start"; exit 1; }
 
@@ -104,6 +113,12 @@ else
   fail "Not idempotent — second apply changed state:"
   diff "$WORK/s1.realm.json" "$WORK/s2.realm.json" | head -20
   diff "$WORK/s1.users.json" "$WORK/s2.users.json" | head -10
+fi
+
+if apply_fgap 1 && apply_fgap 2; then
+  pass "FGAP delegation permissions applied (second run: $(grep -c ' exists' "$WORK/fgap-2.log") existing, $(grep -c 'created' "$WORK/fgap-2.log") created)"
+else
+  fail "FGAP bootstrap failed"; tail -5 "$WORK/fgap-1.log" "$WORK/fgap-2.log"
 fi
 
 # -----------------------------------------------------------------------------
@@ -145,6 +160,65 @@ if [[ -n "$PORTAL" ]]; then
 else
   fail "PKCE login failed (redirect: $LOC)"
 fi
+
+# -----------------------------------------------------------------------------
+header "Phase E — RFC 8693 delegation (ADR-024): grant, delegated exchange, tenant boundary, revocation"
+GRANT_REDIRECT=http://localhost:8085/api/bff/delegation/grant/callback
+GRANT_SECRET=delegation-grant-secret-change-in-production
+
+# grant_login <user> <delegate> — delegation-grant sign-in with consent; prints the token response
+grant_login() {
+  local jar="$WORK/grant-$1" v c page action loc code
+  rm -f "$jar"
+  v=$(openssl rand -base64 48 | tr -d '=+/\n' | cut -c1-64)
+  c=$(printf '%s' "$v" | openssl dgst -sha256 -binary | base64 | tr '+/' '-_' | tr -d '=')
+  page=$(curl -s -c "$jar" -b "$jar" -G "$KC_URL/realms/$REALM/protocol/openid-connect/auth" \
+    --data-urlencode client_id=delegation-grant --data-urlencode response_type=code \
+    --data-urlencode "scope=openid offline_access delegation:user:$2" --data-urlencode "redirect_uri=$GRANT_REDIRECT" \
+    --data-urlencode "code_challenge=$c" --data-urlencode code_challenge_method=S256 --data-urlencode state=x)
+  action=$(printf '%s' "$page" | grep -o 'action="[^"]*"' | head -1 | sed 's/action="//; s/"$//; s/&amp;/\&/g')
+  curl -s -c "$jar" -b "$jar" -D "$WORK/gh" -o /dev/null -d "username=$1" -d password=password123 "$action"
+  loc=$(grep -i '^location:' "$WORK/gh" | tr -d '\r' | sed 's/^[Ll]ocation: //')
+  if [[ "$loc" == *OAUTH_GRANT* ]]; then
+    page=$(curl -s -c "$jar" -b "$jar" "$loc")
+    action=$(printf '%s' "$page" | grep -o 'action="[^"]*"' | head -1 | sed 's/action="//; s/"$//; s/&amp;/\&/g')
+    [[ "$action" == /* ]] && action="$KC_URL$action"
+    curl -s -c "$jar" -b "$jar" -D "$WORK/gh" -o /dev/null -d accept=Yes "$action"
+    loc=$(grep -i '^location:' "$WORK/gh" | tr -d '\r' | sed 's/^[Ll]ocation: //')
+  fi
+  code=$(printf '%s' "$loc" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
+  curl -s -d grant_type=authorization_code -d client_id=delegation-grant -d "client_secret=$GRANT_SECRET" \
+    -d "code=$code" -d "redirect_uri=$GRANT_REDIRECT" -d "code_verifier=$v" "$KC_URL/realms/$REALM/protocol/openid-connect/token"
+}
+
+GRANT=$(grant_login carol.executive dave.assistant)
+CAROL_DT=$(printf '%s' "$GRANT" | jq -r '.access_token // empty')
+CAROL_RT=$(printf '%s' "$GRANT" | jq -r '.refresh_token // empty')
+DAVE_ID=$(curl -s -H "Authorization: Bearer $(admin_token)" "$KC_URL/admin/realms/$REALM/users?username=dave.assistant&exact=true" | jq -r '.[0].id')
+if [[ -n "$CAROL_DT" ]]; then
+  [[ "$(printf '%s' "$CAROL_DT" | decode_jwt | jq -r '.may_act.sub')" == "$DAVE_ID" ]] \
+    && pass "Carol's grant token carries may_act.sub = dave.assistant" || fail "Carol's grant token lacks may_act for Dave"
+  [[ "$(printf '%s' "$CAROL_RT" | decode_jwt | jq -r '.typ')" == "Offline" ]] \
+    && pass "Grant issues an offline refresh token" || fail "Grant did not issue an offline token"
+  DAVE_AT=$(curl -s -d client_id=employee-bff -d "client_secret=$BFF_SECRET" -d username=dave.assistant -d password=password123 \
+    -d grant_type=password "$KC_URL/realms/$REALM/protocol/openid-connect/token" | jq -r .access_token)
+  DELEGATED=$(curl -s -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange -d client_id=employee-bff -d "client_secret=$BFF_SECRET" \
+    -d "subject_token=$CAROL_DT" -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+    -d "actor_token=$DAVE_AT" -d actor_token_type=urn:ietf:params:oauth:token-type:access_token -d audience=travel-service \
+    "$KC_URL/realms/$REALM/protocol/openid-connect/token" | jq -r '.access_token // empty')
+  CLAIMS=$(printf '%s' "$DELEGATED" | decode_jwt | jq -c '{u: .preferred_username, act: .act.sub, aud}' 2>/dev/null)
+  [[ "$CLAIMS" == "{\"u\":\"carol.executive\",\"act\":\"$DAVE_ID\",\"aud\":\"travel-service\"}" ]] \
+    && pass "Delegated exchange: sub=carol.executive, act.sub=dave, aud=travel-service" || fail "Unexpected delegated token: $CLAIMS"
+  curl -s -o /dev/null -d client_id=delegation-grant -d "client_secret=$GRANT_SECRET" -d "token=$CAROL_RT" \
+    -d token_type_hint=refresh_token "$KC_URL/realms/$REALM/protocol/openid-connect/revoke"
+  AFTER=$(curl -s -d grant_type=refresh_token -d client_id=delegation-grant -d "client_secret=$GRANT_SECRET" \
+    -d "refresh_token=$CAROL_RT" "$KC_URL/realms/$REALM/protocol/openid-connect/token" | jq -r '.error // empty')
+  [[ "$AFTER" == "invalid_grant" ]] && pass "Revoked offline token can no longer be refreshed" || fail "Offline token still usable after revoke"
+else
+  fail "Carol's delegation grant failed: ${GRANT:0:200}"
+fi
+EVE_MAY_ACT=$(grant_login eve.employee dave.assistant | jq -r '.access_token // empty' | decode_jwt 2>/dev/null | jq -r '.may_act // "none"' 2>/dev/null)
+[[ "$EVE_MAY_ACT" == "none" ]] && pass "Cross-tenant grant (eve → dave) gets no may_act" || fail "Cross-tenant grant produced may_act: $EVE_MAY_ACT"
 
 # -----------------------------------------------------------------------------
 echo -e "\n${BOLD}$(printf '═%.0s' {1..60})${NC}"

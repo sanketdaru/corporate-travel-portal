@@ -38,6 +38,9 @@ CONSENT_SERVICE_URL="http://localhost:8084"
 BFF_URL="http://localhost:8085"
 OPA_URL="http://localhost:8181"
 
+# shellcheck source=../lib/delegation-grant.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/delegation-grant.sh"
+
 CAROL_USER="carol.executive"
 CAROL_PASS="password123"
 DAVE_USER="dave.assistant"
@@ -149,11 +152,14 @@ cleanup() {
 
   if [[ "$CREATED_DELEGATION" == true && -n "$DELEGATION_ID" && -n "$CAROL_TOKEN" ]]; then
     local http_code
+    # Through the BFF: revokes the delegation and Carol's Keycloak grant (offline session) — ADR-024
     http_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-      "$DELEGATION_SERVICE_URL/api/delegations/$DELEGATION_ID" \
+      "$BFF_URL/api/bff/delegation/$DELEGATION_ID" \
       -H "Authorization: Bearer $CAROL_TOKEN")
-    [[ "$http_code" == "204" ]] && pass "Delegation $DELEGATION_ID revoked" \
+    [[ "$http_code" == "204" ]] && pass "Delegation $DELEGATION_ID revoked via BFF" \
                                  || fail "Revoke delegation returned HTTP $http_code"
+    [[ "$(curl -s "$BFF_URL/api/bff/delegation/$DELEGATION_ID/grant" -H "Authorization: Bearer $CAROL_TOKEN" | jq -r .authorized)" == "false" ]] \
+      && pass "Keycloak grant removed with the delegation" || fail "Keycloak grant still stored after revoke"
   else
     info "Delegation was pre-existing — not revoked"
   fi
@@ -439,6 +445,30 @@ opa_check "list_consents_to_me — any tenant member is allowed" \
   "$DAVE_USER" "list_consents_to_me" '{"tenant_id":"tenant-a"}' "$DELEG_NONE" "$CONSENT_NONE" "true"
 
 # ---------------------------------------------------------------------------
+# Phase 5b: Delegator authorizes the delegation in Keycloak (ADR-024)
+# ---------------------------------------------------------------------------
+header "Phase 5b — Delegator's Keycloak grant (RFC 8693 delegation, ADR-024)"
+
+info "Only the delegator may start the grant: Dave tries for Carol's delegation"
+DAVE_GRANT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  "$BFF_URL/api/bff/delegation/$DELEGATION_ID/grant" -H "Authorization: Bearer $DAVE_TOKEN")
+assert_eq "Delegate cannot authorize on the delegator's behalf (HTTP 403)" "403" "$DAVE_GRANT_CODE"
+
+GRANT_STATUS=$(curl -s "$BFF_URL/api/bff/delegation/$DELEGATION_ID/grant" -H "Authorization: Bearer $CAROL_TOKEN" | jq -r .authorized)
+if [[ "$GRANT_STATUS" == "true" ]]; then
+  info "Carol already authorized this delegation in an earlier run"
+else
+  info "Carol signs in through delegation-grant and approves Keycloak's delegation consent"
+  if GRANT_RESULT=$(bff_authorize_delegation "$BFF_URL" "$CAROL_USER" "$CAROL_PASS" "$CAROL_TOKEN" "$DELEGATION_ID"); then
+    pass "Carol's grant completed (${GRANT_RESULT##*\?})"
+  else
+    fail "Carol's grant failed: $GRANT_RESULT"
+  fi
+fi
+assert_http "BFF reports the delegation as authorized" \
+  "$(curl -s "$BFF_URL/api/bff/delegation/$DELEGATION_ID/grant" -H "Authorization: Bearer $CAROL_TOKEN")" '.authorized' "true"
+
+# ---------------------------------------------------------------------------
 # Phase 6: BFF delegation activation (ADR-018)
 # ---------------------------------------------------------------------------
 header "Phase 6 — BFF delegation activation (ADR-018)"
@@ -465,7 +495,7 @@ assert_eq "Activation consentId matches known consent" "$CONSENT_ID" "$BFF_CONSE
 assert_eq "Activation response exposes no tokens" "false" \
   "$(echo "$ACTIVATION_RESPONSE" | jq -r 'has("delegationTokens") or has("delegationToken") or has("actorToken")')"
 
-# Direct-call phases below use the travel-service-scoped token from Phase 2 (same exchange the BFF performs)
+# Dave's audience-scoped token from Phase 2 (standard exchange: sub=Dave, no act claim)
 DELEGATION_TOKEN="$EXCHANGED_TOKEN"
 
 info "Dave checks session context"
@@ -521,35 +551,30 @@ BOOKINGS_RESPONSE=$(curl -s "$BFF_URL/api/bff/bookings" \
 assert_contains "Carol's new booking appears in BFF list" "$BOOKINGS_RESPONSE" "$BOOKING_ID"
 
 # ---------------------------------------------------------------------------
-# Phase 8: Direct travel-service with delegation headers (ADR-004 Layer 2)
+# Phase 8: Delegation cannot be forged with headers (ADR-024)
 # ---------------------------------------------------------------------------
-header "Phase 8 — Direct travel-service delegation headers (ADR-004 Layer 2)"
+header "Phase 8 — Delegation cannot be forged with headers (ADR-024)"
 
-info "Calling travel-service directly with X-Delegated-Subject, X-Consent-Id, X-Delegation-Purpose"
-DIRECT_RESPONSE=$(curl -s "$TRAVEL_SERVICE_URL/api/bookings" \
+info "Dave's own token + X-Delegated-Subject: Carol — the header no longer makes a request delegated"
+SPOOF_LIST=$(curl -s "$TRAVEL_SERVICE_URL/api/bookings" \
   -H "Authorization: Bearer $DELEGATION_TOKEN" \
   -H "X-Delegated-Subject: $CAROL_USER" \
   -H "X-Delegation-Id: $DELEGATION_ID" \
   -H "X-Consent-Id: $BFF_CONSENT_ID" \
   -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
   -H "X-Actor-Token: $DAVE_TOKEN")
-assert_contains "Travel service returns Carol's booking with delegation headers" \
-  "$DIRECT_RESPONSE" "$BOOKING_ID"
-
-info "Verifying booking record has correct identity chain"
-SINGLE_BOOKING=$(curl -s "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID" \
-  -H "Authorization: Bearer $DELEGATION_TOKEN" \
-  -H "X-Delegated-Subject: $CAROL_USER" \
-  -H "X-Delegation-Id: $DELEGATION_ID" \
-  -H "X-Consent-Id: $BFF_CONSENT_ID" \
-  -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
-  -H "X-Actor-Token: $DAVE_TOKEN")
-assert_http "Single booking userId=Carol" \
-  "$SINGLE_BOOKING" '.userId'    "$CAROL_USER"
-assert_http "Single booking createdBy=Dave" \
-  "$SINGLE_BOOKING" '.createdBy' "$DAVE_USER"
-assert_http "Single booking tenantId=tenant-a" \
-  "$SINGLE_BOOKING" '.tenantId'  "tenant-a"
+if echo "$SPOOF_LIST" | grep -q "$BOOKING_ID"; then
+  fail "Spoofed X-Delegated-Subject exposed Carol's booking"
+else
+  pass "Spoofed X-Delegated-Subject does not expose Carol's bookings"
+fi
+SPOOF_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID" \
+  -H "Authorization: Bearer $DELEGATION_TOKEN" -H "X-Delegated-Subject: $CAROL_USER" -H "X-Actor-Token: $DAVE_TOKEN")
+if [[ "$SPOOF_CODE" =~ ^(403|404)$ ]]; then
+  pass "Spoofed header cannot read Carol's booking (HTTP $SPOOF_CODE)"
+else
+  fail "Spoofed header read Carol's booking (HTTP $SPOOF_CODE)"
+fi
 
 # ---------------------------------------------------------------------------
 # Phase 8b: Audience enforcement (RFC 7519 aud)
@@ -614,13 +639,9 @@ if [[ -z "${BOOKING_ID:-}" || "$BOOKING_ID" == "null" ]]; then
   skip "Skipping audit trail checks — no booking was created in Phase 7"
 else
   info "Fetching audit trail for booking $BOOKING_ID"
+  # Read as Carol, the booking's owner
   AUDIT_RESPONSE=$(curl -s "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID/audit" \
-    -H "Authorization: Bearer $DELEGATION_TOKEN" \
-    -H "X-Delegated-Subject: $CAROL_USER" \
-    -H "X-Delegation-Id: $DELEGATION_ID" \
-    -H "X-Consent-Id: $BFF_CONSENT_ID" \
-    -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
-    -H "X-Actor-Token: $DAVE_TOKEN")
+    -H "Authorization: Bearer $CAROL_TOKEN")
 
   AUDIT_COUNT=$(echo "$AUDIT_RESPONSE" | jq 'length // 0')
   if [[ "$AUDIT_COUNT" -gt 0 ]]; then
@@ -647,15 +668,8 @@ else
     fail "Could not parse first audit record"
   fi
 
-  info "Verifying audit trail endpoint is accessible via BFF booking fetch path"
   AUDIT_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID/audit" \
-    -H "Authorization: Bearer $DELEGATION_TOKEN" \
-    -H "X-Delegated-Subject: $CAROL_USER" \
-    -H "X-Delegation-Id: $DELEGATION_ID" \
-    -H "X-Consent-Id: $BFF_CONSENT_ID" \
-    -H "X-Delegation-Purpose: $DELEGATION_PURPOSE" \
-    -H "X-Actor-Token: $DAVE_TOKEN")
+    "$TRAVEL_SERVICE_URL/api/bookings/$BOOKING_ID/audit" -H "Authorization: Bearer $CAROL_TOKEN")
   assert_eq "Audit endpoint returns HTTP 200" "200" "$AUDIT_HTTP_CODE"
 fi
 

@@ -37,4 +37,19 @@ public class DelegationServiceClient {
             .retrieve()
             .body(JsonNode.class);
     }
+
+    /**
+     * Revokes a delegation. delegation-service (via OPA) only allows the delegator to do this.
+     *
+     * @param delegationId UUID of the delegation
+     * @param bearerToken  Delegator's Bearer token
+     */
+    public void revokeDelegation(String delegationId, String bearerToken) {
+        log.debug("Revoking delegation: {}", delegationId);
+        delegationServiceRestClient.delete()
+            .uri("/api/delegations/{id}", delegationId)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
+            .retrieve()
+            .toBodilessEntity();
+    }
 }

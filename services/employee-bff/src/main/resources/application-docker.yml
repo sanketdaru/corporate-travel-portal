@@ -6,8 +6,12 @@ spring:
           issuer-uri: http://localhost:8080/realms/corporate-travel
           jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
 
+  datasource:
+    url: jdbc:postgresql://postgres:5432/corporate_travel
+
 keycloak:
   url: http://keycloak:8080
+  public-url: http://localhost:8080
 
 services:
   travel-service-url: http://travel-service:8081

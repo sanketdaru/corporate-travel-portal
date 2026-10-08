@@ -27,6 +27,8 @@ CLIENT_ID="employee-bff"
 CLIENT_SECRET="bff-service-secret-change-in-production"
 
 BFF_URL="http://localhost:8085"
+# shellcheck source=lib/delegation-grant.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/delegation-grant.sh"
 GW_URL="http://localhost:8000"
 DELEGATION_URL="http://localhost:8083"
 CONSENT_URL="http://localhost:8084"
@@ -267,7 +269,7 @@ create_consent() {
 activate_delegation() {
   local token="$1" delegation_id="$2" cookie_jar="$3" audience="${4:-travel-service}"
   curl -s -X POST \
-    "$BFF_URL/api/bff/delegation/activate/$delegation_id?audience=$audience" \
+    "$BFF_URL/api/bff/delegation/activate/$delegation_id" \
     -H "Authorization: Bearer $token" \
     -c "$cookie_jar" -b "$cookie_jar"
 }
@@ -382,6 +384,16 @@ else
     exit 1
   fi
   ok "Consent created: $CONSENT_ID"
+fi
+
+# ADR-024: Carol authorizes the delegation in Keycloak (offline_access + delegation:user:dave.assistant)
+GRANTED=$(curl -s "$BFF_URL/api/bff/delegation/$DELEGATION_ID/grant" -H "Authorization: Bearer $CAROL_TOKEN" | jq -r '.authorized // false')
+if [[ "$GRANTED" == "true" ]]; then
+  ok "Delegation already authorized in Keycloak"
+elif GRANT_RESULT=$(bff_authorize_delegation "$BFF_URL" "carol.executive" "password123" "$CAROL_TOKEN" "$DELEGATION_ID"); then
+  ok "Carol authorized the delegation in Keycloak (consent approved)"
+else
+  err "Keycloak delegation grant failed: $GRANT_RESULT"; exit 1
 fi
 
 # ---------------------------------------------------------------------------

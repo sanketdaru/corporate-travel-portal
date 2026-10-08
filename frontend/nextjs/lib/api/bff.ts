@@ -43,8 +43,28 @@ export async function getExpense(id: string): Promise<Expense> {
 }
 
 // The BFF exchanges one audience-scoped token per downstream service and keeps them server-side.
+// Fails with 409 until the delegator has authorized the delegation in Keycloak.
 export async function activateDelegation(delegationId: string): Promise<void> {
   await bffClient.post(`/api/bff/delegation/activate/${delegationId}`);
+}
+
+// ── Delegator's Keycloak grant (RFC 8693 delegation, ADR-024) ────────────────
+
+// Returns the Keycloak URL to navigate to. Keycloak shows a consent screen
+// ("Delegate token to …") and redirects back to /delegation?grant=success|error.
+export async function startDelegationGrant(delegationId: string): Promise<string> {
+  const res = await bffClient.post<{ authorizationUrl: string }>(`/api/bff/delegation/${delegationId}/grant`);
+  return res.data.authorizationUrl;
+}
+
+export async function getDelegationGrantStatus(delegationId: string): Promise<boolean> {
+  const res = await bffClient.get<{ authorized: boolean }>(`/api/bff/delegation/${delegationId}/grant`);
+  return res.data.authorized;
+}
+
+// Revokes the delegation and its Keycloak grant (the delegator's offline session).
+export async function revokeDelegationAndGrant(delegationId: string): Promise<void> {
+  await bffClient.delete(`/api/bff/delegation/${delegationId}`);
 }
 
 export async function deactivateDelegation(): Promise<void> {

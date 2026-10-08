@@ -1,10 +1,12 @@
 package com.corporate.travel.bff.exception;
 
+import com.corporate.travel.bff.grant.DelegationGrantService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
@@ -28,6 +30,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleDelegationNotFoundException(DelegationNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody(
             HttpStatus.NOT_FOUND, "Delegation not found", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(DelegationGrantService.DelegationNotAuthorizedException.class)
+    public ResponseEntity<Map<String, Object>> handleDelegationNotAuthorized(DelegationGrantService.DelegationNotAuthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(
+            HttpStatus.CONFLICT, "Delegation not authorized", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody(
+            HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage()
         ));
     }
 

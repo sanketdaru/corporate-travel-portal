@@ -6,6 +6,7 @@ import com.corporate.travel.bff.client.KeycloakTokenExchangeClient;
 import com.corporate.travel.bff.config.BffProperties;
 import com.corporate.travel.bff.exception.DelegationNotFoundException;
 import com.corporate.travel.bff.exception.TokenExchangeException;
+import com.corporate.travel.bff.grant.DelegationGrantService;
 import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.corporate.travel.bff.model.DelegationContext;
 import com.corporate.travel.bff.model.TokenExchangeResponse;
@@ -34,6 +35,8 @@ class TokenExchangeServiceTest {
     private ConsentServiceClient consentServiceClient;
     @Mock
     private KeycloakTokenExchangeClient keycloakTokenExchangeClient;
+    @Mock
+    private DelegationGrantService delegationGrantService;
 
     private TokenExchangeService tokenExchangeService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -41,7 +44,8 @@ class TokenExchangeServiceTest {
     @BeforeEach
     void setUp() {
         tokenExchangeService = new TokenExchangeService(
-            delegationServiceClient, consentServiceClient, keycloakTokenExchangeClient, new BffProperties());
+            delegationServiceClient, consentServiceClient, keycloakTokenExchangeClient, new BffProperties(),
+            delegationGrantService);
     }
 
     @Test
@@ -59,11 +63,12 @@ class TokenExchangeServiceTest {
                 "carol-user-id", "dave-user-id", "book_travel", List.of("view_bookings"), "dave-token"))
             .thenReturn(new ConsentCheckResult(true, "consent-uuid-abc"));
 
-        // One audience-scoped exchange per downstream service (default delegation.audiences);
-        // no requestedSubject (ADR-004: Standard V2 is audience-scoping only)
-        when(keycloakTokenExchangeClient.exchangeToken("dave-token", "travel-service"))
+        // Delegator token from the stored Keycloak grant, then one RFC 8693 delegated exchange
+        // per downstream service (default delegation.audiences) with Dave as actor_token
+        when(delegationGrantService.delegatorAccessToken(delegationNode)).thenReturn("carol-may-act-token");
+        when(keycloakTokenExchangeClient.exchangeDelegated("carol-may-act-token", "dave-token", "travel-service"))
             .thenReturn(tokenResponse("travel-token", 300L));
-        when(keycloakTokenExchangeClient.exchangeToken("dave-token", "expense-service"))
+        when(keycloakTokenExchangeClient.exchangeDelegated("carol-may-act-token", "dave-token", "expense-service"))
             .thenReturn(tokenResponse("expense-token", 120L));
 
         DelegationContext result = tokenExchangeService.exchangeForDelegation(
@@ -100,7 +105,7 @@ class TokenExchangeServiceTest {
     void exchangeForDelegation_noConsent_throwsTokenExchangeException() {
         ObjectNode delegationNode = objectMapper.createObjectNode();
         delegationNode.put("delegatorId", "carol-user-id");
-
+        delegationNode.put("delegateId", "dave-user-id");
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
         // ConsentServiceClient throws on valid=false rather than returning a negative result
@@ -119,18 +124,33 @@ class TokenExchangeServiceTest {
     void exchangeForDelegation_keycloakFails_propagatesTokenExchangeException() {
         ObjectNode delegationNode = objectMapper.createObjectNode();
         delegationNode.put("delegatorId", "carol-user-id");
-
+        delegationNode.put("delegateId", "dave-user-id");
         when(delegationServiceClient.getDelegation("delegation-123", "dave-token"))
             .thenReturn(delegationNode);
         when(consentServiceClient.hasConsentForScopes(anyString(), anyString(), anyString(), anyList(), anyString()))
             .thenReturn(new ConsentCheckResult(true, "consent-uuid"));
-        when(keycloakTokenExchangeClient.exchangeToken(anyString(), anyString()))
+        when(delegationGrantService.delegatorAccessToken(any())).thenReturn("carol-may-act-token");
+        when(keycloakTokenExchangeClient.exchangeDelegated(anyString(), anyString(), anyString()))
             .thenThrow(new TokenExchangeException("Token exchange rejected by Keycloak"));
 
         assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
             "delegation-123", "dave-token", "dave-user-id"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Token exchange rejected by Keycloak");
+    }
+
+    @Test
+    void exchangeForDelegation_callerIsNotDelegate_isDenied() {
+        ObjectNode delegationNode = objectMapper.createObjectNode();
+        delegationNode.put("delegatorId", "carol-user-id");
+        delegationNode.put("delegateId", "dave-user-id");
+        when(delegationServiceClient.getDelegation("delegation-123", "alice-token")).thenReturn(delegationNode);
+
+        assertThatThrownBy(() -> tokenExchangeService.exchangeForDelegation(
+            "delegation-123", "alice-token", "alice-user-id"))
+            .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verifyNoInteractions(consentServiceClient, delegationGrantService, keycloakTokenExchangeClient);
     }
 
     private static TokenExchangeResponse tokenResponse(String token, long expiresIn) {

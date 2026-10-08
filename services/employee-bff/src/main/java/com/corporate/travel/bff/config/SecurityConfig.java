@@ -27,6 +27,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Keycloak redirect after the delegator's grant (browser navigation, no Bearer token);
+                // the request is bound to its initiator by the state kept in the BFF session
+                .requestMatchers("/api/bff/delegation/grant/callback").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

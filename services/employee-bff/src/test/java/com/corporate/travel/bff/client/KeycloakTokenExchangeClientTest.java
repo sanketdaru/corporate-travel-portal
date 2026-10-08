@@ -54,21 +54,22 @@ class KeycloakTokenExchangeClientTest {
                     }
                     """)));
 
-        TokenExchangeResponse response = client.exchangeToken("dave-actor-token", "travel-service");
+        TokenExchangeResponse response = client.exchangeDelegated("carol-subject-token", "dave-actor-token", "travel-service");
 
         assertThat(response.getAccessToken()).isEqualTo("delegation-token-xyz");
         assertThat(response.getExpiresIn()).isEqualTo(300L);
 
-        // ADR-004: requested_subject must NOT be sent — Standard V2 is audience-scoping only
+        // RFC 8693 delegation (ADR-024): delegator as subject_token, actor as actor_token
         wireMockServer.verify(postRequestedFor(urlPathEqualTo("/realms/corporate-travel/protocol/openid-connect/token"))
-            .withRequestBody(containing("subject_token=dave-actor-token"))
+            .withRequestBody(containing("subject_token=carol-subject-token"))
+            .withRequestBody(containing("actor_token=dave-actor-token"))
+            .withRequestBody(containing("actor_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token"))
             .withRequestBody(containing("audience=travel-service"))
             .withRequestBody(containing("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange"))
             // Keycloak Standard V2 only accepts access tokens as subject_token
             .withRequestBody(containing("subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token"))
             .withRequestBody(containing("client_id=employee-bff"))
             .withRequestBody(containing("client_secret=test-secret"))
-            .withRequestBody(notContaining("actor_token"))
             .withRequestBody(notContaining("requested_subject")));
     }
 
@@ -82,25 +83,25 @@ class KeycloakTokenExchangeClientTest {
                     {"error":"invalid_request","error_description":"subject_token is required"}
                     """)));
 
-        assertThatThrownBy(() -> client.exchangeToken("dave-token", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeDelegated("carol-token", "dave-token", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Token exchange rejected by Keycloak");
     }
 
     @Test
-    void exchangeToken_missingActorToken_throwsTokenExchangeExceptionBeforeCallingKeycloak() {
-        assertThatThrownBy(() -> client.exchangeToken("", "travel-service"))
+    void exchangeDelegated_missingActorToken_throwsBeforeCallingKeycloak() {
+        assertThatThrownBy(() -> client.exchangeDelegated("carol-token", "", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
-            .hasMessageContaining("subject_token (actorToken) is mandatory");
+            .hasMessageContaining("are both mandatory");
 
         wireMockServer.verify(0, postRequestedFor(anyUrl()));
     }
 
     @Test
-    void exchangeToken_nullActorToken_throwsTokenExchangeExceptionBeforeCallingKeycloak() {
-        assertThatThrownBy(() -> client.exchangeToken(null, "travel-service"))
+    void exchangeDelegated_missingSubjectToken_throwsBeforeCallingKeycloak() {
+        assertThatThrownBy(() -> client.exchangeDelegated(null, "dave-token", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
-            .hasMessageContaining("subject_token (actorToken) is mandatory");
+            .hasMessageContaining("are both mandatory");
 
         wireMockServer.verify(0, postRequestedFor(anyUrl()));
     }
@@ -113,7 +114,7 @@ class KeycloakTokenExchangeClientTest {
                 .withHeader("Content-Type", "application/json")
                 .withBody("{\"error\":\"server_error\"}")));
 
-        assertThatThrownBy(() -> client.exchangeToken("dave-token", "travel-service"))
+        assertThatThrownBy(() -> client.exchangeDelegated("carol-token", "dave-token", "travel-service"))
             .isInstanceOf(TokenExchangeException.class)
             .hasMessageContaining("Keycloak server error");
     }

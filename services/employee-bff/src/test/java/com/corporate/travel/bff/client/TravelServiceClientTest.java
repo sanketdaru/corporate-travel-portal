@@ -80,7 +80,7 @@ class TravelServiceClientTest {
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/bookings"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
-            .withHeader("X-Delegated-Subject", equalTo(SUBJECT_ID))
+            .withoutHeader("X-Delegated-Subject")
             .withHeader("X-Delegation-Id", equalTo(DELEGATION_ID))
             .withHeader("X-Actor-Token", equalTo(ACTOR_TOKEN)));
     }
@@ -118,7 +118,7 @@ class TravelServiceClientTest {
 
         wireMockServer.verify(postRequestedFor(urlPathEqualTo("/api/bookings"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
-            .withHeader("X-Delegated-Subject", equalTo(SUBJECT_ID))
+            .withoutHeader("X-Delegated-Subject")
             .withHeader("X-Delegation-Id", equalTo(DELEGATION_ID))
             .withHeader("X-Actor-Token", equalTo(ACTOR_TOKEN)));
     }
@@ -152,7 +152,7 @@ class TravelServiceClientTest {
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/bookings/booking-1"))
             .withHeader("Authorization", equalTo("Bearer " + DELEGATION_TOKEN))
-            .withHeader("X-Delegated-Subject", equalTo(SUBJECT_ID))
+            .withoutHeader("X-Delegated-Subject")
             .withHeader("X-Delegation-Id", equalTo(DELEGATION_ID))
             .withHeader("X-Actor-Token", equalTo(ACTOR_TOKEN)));
     }

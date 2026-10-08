@@ -17,6 +17,8 @@ public class BffProperties {
     @Data
     public static class Keycloak {
         private String url;
+        /** Keycloak URL as seen by the browser (authorization redirects); defaults to {@link #url}. */
+        private String publicUrl;
         private String realm;
         private String clientId;
         private String clientSecret;
@@ -38,5 +40,20 @@ public class BffProperties {
          * tokens whose {@code aud} names it.
          */
         private List<String> audiences = new ArrayList<>(List.of("travel-service", "expense-service"));
+
+        private Grant grant = new Grant();
+    }
+
+    /** Delegator's grant sign-in (ADR-024): offline_access + delegation:user:&lt;delegate&gt; via a dedicated client. */
+    @Data
+    public static class Grant {
+        private String clientId;
+        private String clientSecret;
+        /** Redirect URI registered on the grant client; must reach this BFF's callback endpoint. */
+        private String redirectUri;
+        /** Frontend page the browser returns to once the grant completes. */
+        private String returnUrl;
+        /** Base64-encoded 256-bit AES key encrypting stored offline tokens. */
+        private String encryptionKey;
     }
 }

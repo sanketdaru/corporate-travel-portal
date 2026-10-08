@@ -6,12 +6,14 @@ import com.corporate.travel.bff.client.KeycloakTokenExchangeClient;
 import com.corporate.travel.bff.config.BffProperties;
 import com.corporate.travel.bff.exception.DelegationNotFoundException;
 import com.corporate.travel.bff.exception.TokenExchangeException;
+import com.corporate.travel.bff.grant.DelegationGrantService;
 import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.corporate.travel.bff.model.DelegationContext;
 import com.corporate.travel.bff.model.TokenExchangeResponse;
 import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -21,17 +23,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Orchestrates OAuth 2.0 Standard Token Exchange V2 for delegation flows.
+ * Orchestrates RFC 8693 delegation for delegation mode (ADR-024).
  *
  * <p>Flow:</p>
  * <ol>
- *   <li>Resolve delegation record from delegation-service → get subject's user ID</li>
- *   <li>Validate consent exists and capture the consentId (ADR-011 audit requirement)</li>
- *   <li>Call Keycloak Standard Token Exchange V2 with actor's token as subject_token (chain of trust),
- *       once per downstream audience in {@code delegation.audiences}. Each service validates
- *       {@code aud}, so each needs its own token. No requested_subject (ADR-004).</li>
- *   <li>Return a DelegationContext carrying the issued tokens, actorToken, and consentId
- *       so the BFF can thread all delegation headers on downstream calls.</li>
+ *   <li>Resolve the delegation record from delegation-service; the caller must be its delegate.</li>
+ *   <li>Validate consent exists and capture the consentId (ADR-011 audit requirement).</li>
+ *   <li>Obtain a fresh delegator access token (carrying {@code may_act}) from the delegator's
+ *       stored Keycloak grant.</li>
+ *   <li>Exchange it with the actor's token as {@code actor_token}, once per downstream audience in
+ *       {@code delegation.audiences}. Issued tokens have {@code sub}=delegator and
+ *       {@code act.sub}=actor; each is scoped to one service.</li>
+ *   <li>Return a DelegationContext carrying the issued tokens, actorToken, and consentId.</li>
  * </ol>
  */
 @Service
@@ -43,6 +46,7 @@ public class TokenExchangeService {
     private final ConsentServiceClient consentServiceClient;
     private final KeycloakTokenExchangeClient keycloakTokenExchangeClient;
     private final BffProperties properties;
+    private final DelegationGrantService delegationGrantService;
 
     /**
      * Performs Standard Token Exchange V2 for the given delegation, once per configured audience.
@@ -68,6 +72,9 @@ public class TokenExchangeService {
         if (subjectId.isBlank()) {
             throw new TokenExchangeException("Delegation record is missing delegatorId: " + delegationId);
         }
+        if (!actorId.equals(delegation.path("delegateId").asString())) {
+            throw new AccessDeniedException("Only the delegate can activate delegation " + delegationId);
+        }
 
         List<String> audiences = properties.getDelegation().getAudiences();
         log.debug("Token exchange: actor={}, subject={}, audiences={}", actorId, subjectId, audiences);
@@ -83,12 +90,15 @@ public class TokenExchangeService {
         ConsentCheckResult consentResult = consentServiceClient.hasConsentForScopes(
             subjectId, actorId, purpose, scopes, actorToken);
 
-        // Step 3: Perform Standard Token Exchange V2 per audience — actorToken is the mandatory
-        // subject_token. Each token is scoped to one service. No requested_subject (ADR-004).
+        // Step 3: Delegator token from the stored Keycloak grant (carries may_act for the actor)
+        String delegatorToken = delegationGrantService.delegatorAccessToken(delegation);
+
+        // Step 4: RFC 8693 delegation exchange per audience — sub=delegator, act.sub=actor
         Map<String, String> tokens = new LinkedHashMap<>();
         Instant expiresAt = null;
         for (String audience : audiences) {
-            TokenExchangeResponse exchangeResponse = keycloakTokenExchangeClient.exchangeToken(actorToken, audience);
+            TokenExchangeResponse exchangeResponse =
+                keycloakTokenExchangeClient.exchangeDelegated(delegatorToken, actorToken, audience);
             tokens.put(audience, exchangeResponse.getAccessToken());
             Instant tokenExpiry = Instant.now().plusSeconds(
                 exchangeResponse.getExpiresIn() != null ? exchangeResponse.getExpiresIn() : 300);

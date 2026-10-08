@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { createDelegation, createConsent, revokeDelegation } from "@/lib/api/gateway";
+import { startDelegationGrant } from "@/lib/api/bff";
 
 // Known users in the tenant. In a production system this would come from a
 // users API; for now we use the fixed set of test users.
@@ -55,6 +56,18 @@ export function GrantDelegationModal({ open, onClose, onSuccess, currentUserName
     );
   }
 
+  // Step 3 — the delegator authorizes the delegation in Keycloak (ADR-024): the browser leaves
+  // for Keycloak's consent screen and returns to /delegation?grant=… afterwards.
+  async function authorizeInKeycloak(delegationId: string) {
+    try {
+      window.location.assign(await startDelegationGrant(delegationId));
+    } catch {
+      setError("Delegation created, but the Keycloak authorization could not be started. " +
+        "Use “Authorize” in the list to try again.");
+      onSuccess();
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!delegateId || scopes.length === 0) return;
@@ -99,8 +112,8 @@ export function GrantDelegationModal({ open, onClose, onSuccess, currentUserName
             .includes("already exists");
 
         if (isDuplicate) {
-          // Existing consent covers this delegation — proceed normally.
-          onSuccess();
+          // Existing consent covers this delegation — proceed to the Keycloak authorization.
+          await authorizeInKeycloak(delegation.id);
           return;
         }
 
@@ -125,7 +138,7 @@ export function GrantDelegationModal({ open, onClose, onSuccess, currentUserName
         return;
       }
 
-      onSuccess();
+      await authorizeInKeycloak(delegation.id);
     } catch (err) {
       const detail =
         axios.isAxiosError(err) && err.response?.data?.detail

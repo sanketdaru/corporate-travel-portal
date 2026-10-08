@@ -74,7 +74,9 @@ services:
       KC_HTTP_ENABLED: "true"
       # Health endpoints are served on the management port (9000), not published to the host.
       KC_HEALTH_ENABLED: "true"
-      # Standard Token Exchange V2 is enabled by default since Keycloak 26.2; no KC_FEATURES needed.
+      # Standard Token Exchange V2 is on by default since 26.2. RFC 8693 delegation (actor_token/act,
+      # preview in 26.8) needs these two features — see ADR-024.
+      KC_FEATURES: "token-exchange-delegation,parameterized-scopes"
     ports:
       - "8080:8080"
     depends_on:
@@ -117,11 +119,32 @@ services:
       KC_CLIENT_SECRET_EMPLOYEE_BFF: ${KC_CLIENT_SECRET_EMPLOYEE_BFF:-bff-service-secret-change-in-production}
       KC_CLIENT_SECRET_EXPENSE_SERVICE: ${KC_CLIENT_SECRET_EXPENSE_SERVICE:-expense-service-secret-change-in-production}
       KC_CLIENT_SECRET_TRAVEL_SERVICE: ${KC_CLIENT_SECRET_TRAVEL_SERVICE:-travel-service-secret-change-in-production}
+      KC_CLIENT_SECRET_DELEGATION_GRANT: ${KC_CLIENT_SECRET_DELEGATION_GRANT:-delegation-grant-secret-change-in-production}
     volumes:
       - ./infrastructure/keycloak/config:/config:ro
     depends_on:
       keycloak:
         condition: service_healthy
+    networks:
+      - corporate-travel-network
+    restart: "no"
+
+  # FGAP v2 delegation permissions (ADR-024). keycloak-config-cli cannot manage the system-managed
+  # admin-permissions client, so this idempotent kcadm.sh step runs after it.
+  keycloak-fgap:
+    image: quay.io/keycloak/keycloak:26.8.0
+    container_name: corporate-travel-keycloak-fgap
+    entrypoint: ["/bin/bash", "/fgap/apply-delegation-permissions.sh"]
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin123
+      REALM: corporate-travel
+    volumes:
+      - ./infrastructure/keycloak/fgap:/fgap:ro
+    depends_on:
+      keycloak-config:
+        condition: service_completed_successfully
     networks:
       - corporate-travel-network
     restart: "no"
@@ -406,12 +429,19 @@ services:
       SERVICES_CONSENT_SERVICE_URL: http://consent-service:8084
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI: http://localhost:8080/realms/corporate-travel
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+      # Delegation grants (ADR-024)
+      DELEGATION_GRANT_CLIENT_SECRET: ${KC_CLIENT_SECRET_DELEGATION_GRANT:-delegation-grant-secret-change-in-production}
+      DELEGATION_GRANT_ENCRYPTION_KEY: ${BFF_GRANT_ENCRYPTION_KEY:-K9I0s1jbgA7DM/sfcm7bhvgAwpn2w90k61O85nvfyvQ=}
     ports:
       - "8085:8085"
     depends_on:
+      postgres:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       keycloak-config:
+        condition: service_completed_successfully
+      keycloak-fgap:
         condition: service_completed_successfully
       travel-service:
         condition: service_healthy

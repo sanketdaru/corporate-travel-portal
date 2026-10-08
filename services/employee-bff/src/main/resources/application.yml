@@ -2,6 +2,16 @@ spring:
   application:
     name: employee-bff
 
+  # Delegation grant store (ADR-024) — schema "bff", managed by Flyway
+  datasource:
+    url: jdbc:postgresql://localhost:5432/corporate_travel
+    username: admin
+    password: admin123
+  flyway:
+    schemas: bff
+    create-schemas: true
+    locations: classpath:db/migration
+
   security:
     oauth2:
       resourceserver:
@@ -17,9 +27,23 @@ server:
 
 keycloak:
   url: http://localhost:8080
+  # Browser-facing Keycloak URL for the delegation grant redirect (differs from url inside containers)
+  public-url: http://localhost:8080
   realm: corporate-travel
   client-id: employee-bff
   client-secret: bff-service-secret-change-in-production
+
+delegation:
+  grant:
+    # Confidential client used only for the delegator's grant sign-in (offline_access + delegation:user)
+    client-id: delegation-grant
+    client-secret: delegation-grant-secret-change-in-production
+    # Registered on delegation-grant; reaches the BFF through the Next.js /api/bff rewrite
+    redirect-uri: http://localhost:3000/api/bff/delegation/grant/callback
+    # Where the browser lands after the grant completes (?grant=success|error&delegationId=...)
+    return-url: http://localhost:3000/delegation
+    # AES-256-GCM key (base64, 32 bytes) for offline tokens at rest. DEMO KEY — override in any real deployment.
+    encryption-key: K9I0s1jbgA7DM/sfcm7bhvgAwpn2w90k61O85nvfyvQ=
 
 services:
   travel-service-url: http://localhost:8081
