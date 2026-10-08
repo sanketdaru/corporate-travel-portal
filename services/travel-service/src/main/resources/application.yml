@@ -1,4 +1,11 @@
 spring:
+  # Boot 4: server.error.* moved to spring.web.error.*
+  web:
+    error:
+      include-message: always
+      include-binding-errors: always
+      include-stacktrace: on_param
+      include-exception: false
   application:
     name: travel-service
   
@@ -24,7 +31,6 @@ spring:
       hibernate:
         default_schema: travel
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
   
   security:
@@ -35,11 +41,6 @@ spring:
 
 server:
   port: 8081
-  error:
-    include-message: always
-    include-binding-errors: always
-    include-stacktrace: on_param
-    include-exception: false
 
 # OPA Configuration
 opa:

@@ -2,10 +2,10 @@ package com.corporate.travel.bff.client;
 
 import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.ConsentCheckResult;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -68,11 +68,11 @@ public class ConsentServiceClient {
             if (response == null || !response.path("valid").asBoolean(false)) {
                 // Consent-service returned HTTP 200 but valid=false — surface the reason so the
                 // caller can show a meaningful error instead of a generic "no consent" message.
-                String reason = response != null ? response.path("reason").asText("No active consent found") : "Empty response from consent service";
+                String reason = response != null ? response.path("reason").asString("No active consent found") : "Empty response from consent service";
                 throw new TokenExchangeException("Consent validation failed: " + reason);
             }
 
-            String consentId = response.path("consentId").asText(null);
+            String consentId = response.path("consentId").asString(null);
             return new ConsentCheckResult(true, consentId);
         } catch (TokenExchangeException e) {
             throw e; // already formatted — let it propagate

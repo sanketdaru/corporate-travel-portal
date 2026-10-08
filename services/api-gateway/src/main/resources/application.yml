@@ -1,4 +1,11 @@
 spring:
+  # Boot 4: server.error.* moved to spring.web.error.*
+  web:
+    error:
+      include-message: always
+      include-binding-errors: always
+      include-stacktrace: on_param
+      include-exception: false
   application:
     name: api-gateway
   
@@ -42,11 +49,6 @@ spring:
 
 server:
   port: 8000
-  error:
-    include-message: always
-    include-binding-errors: always
-    include-stacktrace: on_param
-    include-exception: false
 
 # Actuator Configuration
 management:

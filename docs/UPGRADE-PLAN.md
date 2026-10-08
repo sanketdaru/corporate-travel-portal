@@ -312,6 +312,26 @@ Do this in two steps so failures are easy to attribute.
 
 Exit: all tests and e2e gate pass on Boot 4.1.1 / Java 25.
 
+**Phase 3 result (2026-10-08):**
+
+- 3a: Java toolchain 25 (foojay resolver provisions it locally), Gradle 9.8.1, Boot 3.5.16, Spring Cloud 2025.0.3. Images: `gradle:9.8-jdk25-noble` build stages and `eclipse-temurin:25-jre-noble` runtime. expense-service JaCoCo 0.8.11 → 0.8.14 (0.8.11 cannot read Java 25 class files). e2e 71/71.
+- 3b: Spring Boot 4.1.1, Spring Cloud 2025.1.3. Resolved: Framework 7.0.9, Security 7.1.1, Jackson 3.1.5, Hibernate 7.4.5, Flyway 12.4.0, Spring Data Neo4j 8.1.1 (driver 6.1.0), Gateway 5.0.3, springdoc 3.1.1.
+  - Modular starters: `webmvc`, `webclient` (servlet apps that use WebClient — the `webflux` starter no longer brings WebClient auto-configuration), `security-oauth2-resource-server`, `flyway`, `jackson`, `security-test`.
+  - Removed pins and unused deps: Flyway 10.17, Mockito 5.8.0 (its Byte Buddy cannot handle Java 25), `opentelemetry-api`, `json-schema-validator`, `jjwt` (never imported), `spring-security-oauth2-jose`, `jackson-datatype-jsr310` (built into Jackson 3).
+  - WireMock → `org.wiremock:wiremock-standalone:3.13.2`.
+  - Jackson imports `com.fasterxml.jackson.databind` → `tools.jackson.databind` (14 files); `JsonNode.asText` → `asString`. Annotations unchanged.
+  - Properties: `server.error.*` → `spring.web.error.*` (found with `spring-boot-properties-migrator`, then removed); explicit `hibernate.dialect` removed.
+  - OpenRewrite not used: the change surface was small (no Spring test slices, no `@MockBean`, already lambda Security DSL, Gateway already on the `server.webflux` prefix).
+  - Spring Security 7 `JwtTypeValidator` concern checked: Keycloak's JWS header is `typ: JWT`, which is accepted.
+- Two Jackson 3 behaviour changes found at runtime (unit tests and e2e passed, `seed-data.sh` failed):
+  1. **Creator detection.** With both `@NoArgsConstructor` and a public Lombok `@AllArgsConstructor`, Jackson 3 uses the all-args constructor. Omitted JSON fields became `null` instead of their `@Builder.Default` values (`Expense.items` → NPE on create). Fix: `@AllArgsConstructor(access = AccessLevel.PACKAGE)` on the 19 affected classes (`@Builder` still works). Regression test: `ExpenseJsonDeserializationTest`.
+  2. **Trailing tokens rejected.** `seed-data.sh`'s `gw_post` used `body="${3:-{}}"`, which bash parses as `${3:-{}` plus a literal `}` — every request body had a stray `}`. Jackson 2 ignored it; Jackson 3 fails (`FAIL_ON_TRAILING_TOKENS` on by default). Fixed in the script.
+- Verified: 227 unit tests (2 new); all images healthy; e2e 71/71; seed clean (39 steps, no warnings); OPA 5/5.
+- Carried forward:
+  - Spring Data Neo4j warns that `DelegationRelationship` uses deprecated Long internal ids. Moving to `elementId`/UUID ids is a data-model change — out of scope.
+  - Jackson 2 still on the runtime classpath transitively (swagger-core etc.). Harmless.
+  - `io.spring.dependency-management` 1.1.7 kept; moving to Gradle `platform()` is optional.
+
 ### Phase 4 — Token handling hardening
 
 1. **Audience validation** in each resource server: accept only tokens whose `aud` contains the service's own client ID. Use `spring.security.oauth2.resourceserver.jwt.audiences`. The gateway accepts tokens audienced for the gateway or the target service — decide and document.

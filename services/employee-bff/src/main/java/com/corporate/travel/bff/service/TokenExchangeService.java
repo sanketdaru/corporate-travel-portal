@@ -8,7 +8,7 @@ import com.corporate.travel.bff.exception.TokenExchangeException;
 import com.corporate.travel.bff.model.ConsentCheckResult;
 import com.corporate.travel.bff.model.DelegationContext;
 import com.corporate.travel.bff.model.TokenExchangeResponse;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,7 +60,7 @@ public class TokenExchangeService {
             throw new DelegationNotFoundException(delegationId);
         }
 
-        String subjectId = delegation.path("delegatorId").asText();
+        String subjectId = delegation.path("delegatorId").asString();
         if (subjectId.isBlank()) {
             throw new TokenExchangeException("Delegation record is missing delegatorId: " + delegationId);
         }
@@ -68,9 +68,9 @@ public class TokenExchangeService {
         log.debug("Token exchange: actor={}, subject={}, audience={}", actorId, subjectId, targetAudience);
 
         // Step 2: Validate consent and capture consentId for downstream audit records (ADR-011)
-        String purpose = delegation.path("purpose").asText("book_travel");
+        String purpose = delegation.path("purpose").asString("book_travel");
         List<String> scopes = new java.util.ArrayList<>();
-        delegation.path("scopes").forEach(s -> scopes.add(s.asText()));
+        delegation.path("scopes").forEach(s -> scopes.add(s.asString()));
         if (scopes.isEmpty()) { scopes.add("view_bookings"); }
 
         // Step 2 throws TokenExchangeException directly on any failure (HTTP error, unreachable,

@@ -3,7 +3,7 @@ package com.corporate.travel.bff.controller;
 import com.corporate.travel.bff.model.DelegationContext;
 import com.corporate.travel.bff.service.ApiAggregationService;
 import com.corporate.travel.bff.service.DelegationContextService;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpSession;

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,9 @@ import java.util.List;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor
+// Package-private: Jackson 3 otherwise picks the public all-args constructor as creator,
+// so omitted JSON fields become null instead of their @Builder.Default values.
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 @Schema(description = "Request to create a new delegation")
 public class CreateDelegationRequest {
 

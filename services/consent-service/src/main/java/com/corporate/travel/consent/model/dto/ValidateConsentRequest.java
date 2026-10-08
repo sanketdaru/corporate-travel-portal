@@ -2,6 +2,7 @@ package com.corporate.travel.consent.model.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,9 @@ import java.util.List;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor
+// Package-private: Jackson 3 otherwise picks the public all-args constructor as creator,
+// so omitted JSON fields become null instead of their @Builder.Default values.
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ValidateConsentRequest {
 
     @NotBlank(message = "Grantor ID is required")

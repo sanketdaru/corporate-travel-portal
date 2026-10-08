@@ -1,7 +1,7 @@
 package com.corporate.travel.bff.client;
 
 import com.corporate.travel.bff.model.DelegationContext;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;

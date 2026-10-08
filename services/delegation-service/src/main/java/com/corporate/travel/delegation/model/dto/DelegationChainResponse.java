@@ -1,6 +1,7 @@
 package com.corporate.travel.delegation.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +15,9 @@ import java.util.List;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor
+// Package-private: Jackson 3 otherwise picks the public all-args constructor as creator,
+// so omitted JSON fields become null instead of their @Builder.Default values.
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 @Schema(description = "Delegation chain showing the path of delegations")
 public class DelegationChainResponse {
 
@@ -33,7 +36,7 @@ public class DelegationChainResponse {
     @Data
     @Builder
     @NoArgsConstructor
-    @AllArgsConstructor
+    @AllArgsConstructor(access = AccessLevel.PACKAGE)
     @Schema(description = "A node in the delegation chain")
     public static class DelegationNode {
 

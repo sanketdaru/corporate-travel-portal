@@ -108,7 +108,9 @@ bff_delete() {
 # Gateway helpers (no session cookies needed)
 # ---------------------------------------------------------------------------
 gw_post() {
-  local token="$1" path="$2" body="${3:-{}}"
+  # Not "${3:-{}}": bash parses that as ${3:-{} plus a literal "}", appending "}" to every body
+  local token="$1" path="$2" body="${3:-}"
+  [[ -n "$body" ]] || body='{}'
   curl -s -X POST "$GW_URL$path" \
     -H "Authorization: Bearer $token" \
     -H "Content-Type: application/json" \

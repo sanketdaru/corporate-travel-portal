@@ -3,6 +3,7 @@ package com.corporate.travel.expense.model.entity;
 import com.corporate.travel.models.ExpenseStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,7 +33,9 @@ import java.util.UUID;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor
+// Package-private: Jackson 3 otherwise picks the public all-args constructor as creator,
+// so omitted JSON fields become null instead of their @Builder.Default values.
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class Expense {
     
     @Id

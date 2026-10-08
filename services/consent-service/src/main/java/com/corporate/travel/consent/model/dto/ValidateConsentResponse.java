@@ -1,5 +1,6 @@
 package com.corporate.travel.consent.model.dto;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +15,9 @@ import java.util.UUID;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor
+// Package-private: Jackson 3 otherwise picks the public all-args constructor as creator,
+// so omitted JSON fields become null instead of their @Builder.Default values.
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ValidateConsentResponse {
 
     private boolean valid;
