@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { StatCard } from "@/components/shared/StatCard";
@@ -112,6 +112,42 @@ function formatAmount(amount: number, currency = "INR"): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+// Pure loader (no state updates), so the effect can apply its result in a callback
+async function fetchAdminAudit(): Promise<{ rows: ReturnType<typeof toRows>; delegated: number }> {
+  // Use gateway (not BFF) — admin needs tenant-wide data, not just own records
+  const [bookings, expenses] = await Promise.all([
+    getAllBookings(),
+    getAllExpenses(),
+  ]);
+
+  // Fetch audit for first 3 bookings and first 3 expenses in parallel
+  const [bookingAudits, expenseAudits] = await Promise.all([
+    Promise.all(
+      bookings.slice(0, 3).map(async (b) => {
+        try {
+          const entries = await getBookingAudit(b.id);
+          return { bookingId: b.id, entries };
+        } catch {
+          return { bookingId: b.id, entries: [] as BookingAudit[] };
+        }
+      }),
+    ),
+    Promise.all(
+      expenses.slice(0, 3).map(async (e) => {
+        try {
+          const r = await bffClient.get<ExpenseAudit[]>(`/api/bff/expenses/${e.id}/audit`);
+          return { expenseId: e.id, entries: r.data };
+        } catch {
+          return { expenseId: e.id, entries: [] as ExpenseAudit[] };
+        }
+      }),
+    ),
+  ]);
+
+  // Active delegations: count bookings with a delegationId as a proxy
+  return { rows: toRows(bookingAudits, expenseAudits), delegated: bookings.filter((b) => b.delegationId).length };
+}
+
 export function AdminDashboard() {
   const { data: session } = useSession();
 
@@ -172,57 +208,22 @@ export function AdminDashboard() {
   }, []);
 
   // ── Aggregate audit from BFF ─────────────────────────────────────────────────
-  const loadAudit = useCallback(async () => {
-    if (!session?.accessToken) return;
-    setAccessToken(session.accessToken);
-
-    try {
-      // Use gateway (not BFF) — admin needs tenant-wide data, not just own records
-      const [bookings, expenses] = await Promise.all([
-        getAllBookings(),
-        getAllExpenses(),
-      ]);
-
-      // Fetch audit for first 3 bookings and first 3 expenses in parallel
-      const [bookingAudits, expenseAudits] = await Promise.all([
-        Promise.all(
-          bookings.slice(0, 3).map(async (b) => {
-            try {
-              const entries = await getBookingAudit(b.id);
-              return { bookingId: b.id, entries };
-            } catch {
-              return { bookingId: b.id, entries: [] as BookingAudit[] };
-            }
-          }),
-        ),
-        Promise.all(
-          expenses.slice(0, 3).map(async (e) => {
-            try {
-              const r = await bffClient.get<ExpenseAudit[]>(`/api/bff/expenses/${e.id}/audit`);
-              return { expenseId: e.id, entries: r.data };
-            } catch {
-              return { expenseId: e.id, entries: [] as ExpenseAudit[] };
-            }
-          }),
-        ),
-      ]);
-
-      const rows = toRows(bookingAudits, expenseAudits);
-      setAuditRows(rows);
-
-      // Active delegations: count bookings with a delegationId as a proxy
-      const delegated = bookings.filter((b) => b.delegationId).length;
-      setActiveDelegations(delegated);
-    } catch {
-      // leave empty
-    } finally {
-      setAuditLoading(false);
-    }
-  }, [session?.accessToken]);
+  const accessToken = session?.accessToken;
 
   useEffect(() => {
-    loadAudit();
-  }, [loadAudit]);
+    if (!accessToken) return;
+    setAccessToken(accessToken);
+    let cancelled = false;
+    fetchAdminAudit()
+      .then(({ rows, delegated }) => {
+        if (cancelled) return;
+        setAuditRows(rows);
+        setActiveDelegations(delegated);
+      })
+      .catch(() => { /* leave empty */ })
+      .finally(() => { if (!cancelled) setAuditLoading(false); });
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
   const upCount = services.filter((s) => s.status === "UP").length;
 

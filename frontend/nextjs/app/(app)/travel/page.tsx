@@ -41,8 +41,12 @@ export default function TravelPage() {
   const { delegationActive, subjectName } = useDelegationContext();
 
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(false);
+  // Which request the current bookings belong to; loading is derived from it, so switching
+  // delegation mode shows the spinner without setting state synchronously in the effect
+  const requestKey = `${session?.accessToken ?? ""}|${delegationActive}`;
+  const [loaded, setLoaded] = useState<{ key: string; error: boolean } | null>(null);
+  const loading = loaded?.key !== requestKey;
+  const error = !loading && loaded?.error === true;
 
   // Pending filter state — applied on "Filter" click
   const [pendingStatus,   setPendingStatus]   = useState("");
@@ -60,13 +64,12 @@ export default function TravelPage() {
   useEffect(() => {
     if (!session?.accessToken) return;
     setAccessToken(session.accessToken);
-    setLoading(true);
-    setError(false);
+    let cancelled = false;
     getBookings()
-      .then((data) => setAllBookings(data))
-      .catch(() => { setError(true); setAllBookings([]); })
-      .finally(() => setLoading(false));
-  }, [session?.accessToken, delegationActive]);
+      .then((data) => { if (!cancelled) { setAllBookings(data); setLoaded({ key: requestKey, error: false }); } })
+      .catch(() => { if (!cancelled) { setAllBookings([]); setLoaded({ key: requestKey, error: true }); } });
+    return () => { cancelled = true; };
+  }, [session?.accessToken, delegationActive, requestKey]);
 
   function applyFilters() {
     setAppliedStatus(pendingStatus);

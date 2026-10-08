@@ -420,6 +420,18 @@ Exit: a token without the right `aud` is rejected (new tests); e2e gate passes.
 
 Exit: `npm run build` and lint clean; manual login, refresh, logout and delegation flows work.
 
+**Phase 6 result (2026-10-08):**
+
+- Resolved: next 16.4.0, react / react-dom 19.3.0, eslint-config-next 16.4.0, next-auth 5.0.0-beta.32 with @auth/core 0.41.3, tailwindcss / @tailwindcss/postcss 4.3.3, TypeScript 6.0.3, @types/node 24, ESLint 9.39.5; other dependencies to their latest minor (axios 1.20, zod 4.6, lucide-react 1.53, react-hook-form 7.89, shadcn 4.21, @base-ui/react 1.8). `engines.node >=22`; CI on Node 24.
+- **ESLint stays on 9:** `eslint-config-next` 16.4 pulls in `eslint-plugin-react` 7.37, `jsx-a11y` 6.10 and `import` 2.32, whose peer ranges stop at ESLint 9 (npm overrode them with ESLint 10).
+- eslint-config-next 16.4 ships stricter React Compiler rules. Fixed rather than suppressed:
+  - `set-state-in-effect` (10 sites, 10 files): loaders became pure async functions returning data; effects apply results in promise callbacks with cancellation; user-triggered refreshes keep their own `setLoading(true)`. The travel page derives `loading` from a request key (token + delegation mode). The grant modal resets by remounting (`key`) instead of an effect. The Phase 0 `warn` override is removed — the rule is back at its default.
+  - Memoization mismatch (`session` vs `session?.accessToken`) and an impure `Date.now()` during render (now read once via a lazy `useState`).
+- Three new `no-location-assign-relative-destination` warnings are session-expiry hard reloads (intentional: they drop client state and the in-memory access token after `signOut`); suppressed with a justification comment.
+- Remaining lint output: 1 informational warning (React Compiler skips the component using react-hook-form's `watch()`).
+- Verified: `tsc` clean, lint 0 errors, production build OK; `next start` smoke — login 200, protected route redirects to login, `/api/bff` and gateway rewrites proxy (401 without a token). The React refactors are covered by typecheck/build only; a manual click-through of the dashboard, travel, expense, admin and delegation pages is still recommended.
+- Not done: Cache Components evaluation (note only, per plan).
+
 ### Phase 7 — Docs and ADR sync
 
 1. Update `README.md`, `GETTING-STARTED.md`, `IMPLEMENTATION.md`, `memory-bank/techContext.md`, `memory-bank/progress.md` with real versions and the realm-as-code workflow.

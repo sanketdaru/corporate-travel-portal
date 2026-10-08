@@ -99,6 +99,8 @@ export function ManagerDashboard() {
   const [pendingApprovals, setPendingApprovals] = useState<Expense[]>([]);
   const [delegations, setDelegations] = useState<Delegation[]>([]);
   const [loading, setLoading] = useState(true);
+  // Render must be pure: read the clock once, for the "expires within 24h" highlight
+  const [now] = useState(() => Date.now());
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
@@ -324,7 +326,7 @@ export function ManagerDashboard() {
             ) : (
               delegations.map((d) => {
                 const isNearExpiry = d.expiresAt
-                  ? new Date(d.expiresAt).getTime() - Date.now() < 24 * 60 * 60 * 1000
+                  ? new Date(d.expiresAt).getTime() - now < 24 * 60 * 60 * 1000
                   : false;
                 return (
                   <tr key={d.id} className="hover:bg-slate-50/70 transition-colors">

@@ -79,6 +79,48 @@ const EMPTY_FILTERS: Filters = {
   dateTo: "",
 };
 
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+// Pure loader (no state updates), so the effect can apply its result in a callback
+async function fetchAuditRows(): Promise<AuditRow[]> {
+  // Use gateway (not BFF) so admin gets tenant-wide data, not just own records
+  const [bookings, expenses] = await Promise.all([
+    getAllBookings(),
+    getAllExpenses(),
+  ]);
+
+  // Fetch audit for each resource in parallel (limit to 10 each to avoid overload)
+  const [bookingAudits, expenseAudits] = await Promise.all([
+    Promise.all(
+      bookings.slice(0, 10).map(async (b) => {
+        try {
+          const entries = await getBookingAudit(b.id);
+          return { id: b.id, entries };
+        } catch {
+          return { id: b.id, entries: [] as BookingAudit[] };
+        }
+      }),
+    ),
+    Promise.all(
+      expenses.slice(0, 10).map(async (e) => {
+        try {
+          const r = await bffClient.get<ExpenseAudit[]>(`/api/bff/expenses/${e.id}/audit`);
+          return { id: e.id, entries: r.data };
+        } catch {
+          return { id: e.id, entries: [] as ExpenseAudit[] };
+        }
+      }),
+    ),
+  ]);
+
+  const rows: AuditRow[] = [
+    ...bookingAudits.flatMap(({ id, entries }) => mapBookingAudit(id, entries)),
+    ...expenseAudits.flatMap(({ id, entries }) => mapExpenseAudit(id, entries)),
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return rows;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AuditPage() {
@@ -90,58 +132,30 @@ export default function AuditPage() {
   const [page, setPage]           = useState(1);
 
   // ── Load audit data ──────────────────────────────────────────────────────────
+  const accessToken = session?.accessToken;
+
+  // Refresh button: show the spinner, then reload
   const loadAudit = useCallback(async () => {
-    if (!session?.accessToken) return;
-    setAccessToken(session.accessToken);
     setLoading(true);
-
     try {
-      // Use gateway (not BFF) so admin gets tenant-wide data, not just own records
-      const [bookings, expenses] = await Promise.all([
-        getAllBookings(),
-        getAllExpenses(),
-      ]);
-
-      // Fetch audit for each resource in parallel (limit to 10 each to avoid overload)
-      const [bookingAudits, expenseAudits] = await Promise.all([
-        Promise.all(
-          bookings.slice(0, 10).map(async (b) => {
-            try {
-              const entries = await getBookingAudit(b.id);
-              return { id: b.id, entries };
-            } catch {
-              return { id: b.id, entries: [] as BookingAudit[] };
-            }
-          }),
-        ),
-        Promise.all(
-          expenses.slice(0, 10).map(async (e) => {
-            try {
-              const r = await bffClient.get<ExpenseAudit[]>(`/api/bff/expenses/${e.id}/audit`);
-              return { id: e.id, entries: r.data };
-            } catch {
-              return { id: e.id, entries: [] as ExpenseAudit[] };
-            }
-          }),
-        ),
-      ]);
-
-      const rows: AuditRow[] = [
-        ...bookingAudits.flatMap(({ id, entries }) => mapBookingAudit(id, entries)),
-        ...expenseAudits.flatMap(({ id, entries }) => mapExpenseAudit(id, entries)),
-      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-      setAllRows(rows);
+      setAllRows(await fetchAuditRows());
     } catch {
-      // leave empty; user sees empty state
+      // leave existing rows; user can retry
     } finally {
       setLoading(false);
     }
-  }, [session?.accessToken]);
+  }, []);
 
   useEffect(() => {
-    loadAudit();
-  }, [loadAudit]);
+    if (!accessToken) return;
+    setAccessToken(accessToken);
+    let cancelled = false;
+    fetchAuditRows()
+      .then((rows) => { if (!cancelled) setAllRows(rows); })
+      .catch(() => { /* leave empty; user sees empty state */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
   // ── Derived filter values for dropdowns ──────────────────────────────────────
   const uniqueActions = useMemo(

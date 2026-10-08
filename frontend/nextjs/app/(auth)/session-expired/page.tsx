@@ -16,6 +16,7 @@ export default function SessionExpiredPage() {
 
   useEffect(() => {
     if (secondsLeft <= 0) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload after signOut drops all client state and the in-memory access token
       window.location.href = "/login";
       return;
     }
@@ -80,7 +81,10 @@ export default function SessionExpiredPage() {
 
           <button
             type="button"
-            onClick={() => { window.location.href = "/login"; }}
+            onClick={() => {
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload after signOut drops all client state
+              window.location.href = "/login";
+            }}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors"
           >
             Go to Login now

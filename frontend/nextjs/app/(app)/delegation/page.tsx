@@ -108,6 +108,43 @@ function findConsent(d: Delegation, consents: Consent[]): Consent | undefined {
   );
 }
 
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+type DelegationPageData = {
+  mine: Delegation[] | null;       // null = request failed
+  toMe: Delegation[] | null;
+  consents: Consent[] | null;
+  grantStatus: Record<string, boolean>;
+};
+
+// Pure loader (no state updates), so the effect can apply its result in a callback
+async function fetchDelegationPageData(): Promise<DelegationPageData> {
+  const [mineResult, toMeResult, consentsResult] = await Promise.allSettled([
+    getMyDelegations(),
+    getDelegationsToMe(),
+    getMyConsents(),
+  ]);
+  const mine = mineResult.status === "fulfilled" ? mineResult.value : null;
+
+  // Keycloak grant per active delegation I granted (ADR-024)
+  const active = (mine ?? []).filter((d) => delegationStatus(d) === "ACTIVE");
+  const statuses = await Promise.allSettled(active.map((d) => getDelegationGrantStatus(d.id)));
+  const grantStatus = Object.fromEntries(active.map((d, i) => {
+    const r = statuses[i];
+    return [d.id, r.status === "fulfilled" && r.value];
+  }));
+
+  if (consentsResult.status === "rejected") {
+    console.error("[DelegationPage] getMyConsents failed:", consentsResult.reason);
+  }
+  return {
+    mine,
+    toMe: toMeResult.status === "fulfilled" ? toMeResult.value : null,
+    consents: consentsResult.status === "fulfilled" ? consentsResult.value : null,
+    grantStatus,
+  };
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DelegationPage() {
@@ -129,44 +166,29 @@ export default function DelegationPage() {
   const [grantStatus,    setGrantStatus]    = useState<Record<string, boolean>>({});
   const [authorizingId,  setAuthorizingId]  = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setDelegationsError(false);
-    setConsentsError(false);
-
-    const [mineResult, toMeResult, consentsResult] = await Promise.allSettled([
-      getMyDelegations(),
-      getDelegationsToMe(),
-      getMyConsents(),
-    ]);
-
-    if (mineResult.status === "fulfilled") {
-      setMyDelegations(mineResult.value);
-      const active = mineResult.value.filter((d) => delegationStatus(d) === "ACTIVE");
-      const statuses = await Promise.allSettled(active.map((d) => getDelegationGrantStatus(d.id)));
-      setGrantStatus(Object.fromEntries(active.map((d, i) => {
-        const r = statuses[i];
-        return [d.id, r.status === "fulfilled" && r.value];
-      })));
-    } else setDelegationsError(true);
-
-    if (toMeResult.status === "fulfilled") setToMeDelegations(toMeResult.value);
-    else setDelegationsError(true);
-
-    if (consentsResult.status === "fulfilled") setConsents(consentsResult.value);
-    else {
-      setConsentsError(true);
-      console.error("[DelegationPage] getMyConsents failed:", (consentsResult as PromiseRejectedResult).reason);
-    }
-
+  const applyData = useCallback((data: DelegationPageData) => {
+    setMyDelegations(data.mine ?? []);
+    setToMeDelegations(data.toMe ?? []);
+    setConsents(data.consents ?? []);
+    setGrantStatus(data.grantStatus);
+    setDelegationsError(data.mine === null || data.toMe === null);
+    setConsentsError(data.consents === null);
     setLoading(false);
   }, []);
+
+  // Reload after a user action (revoke): show the spinner, then refetch
+  const load = useCallback(async () => {
+    setLoading(true);
+    applyData(await fetchDelegationPageData());
+  }, [applyData]);
 
   useEffect(() => {
     if (!session?.accessToken) return;
     setAccessToken(session.accessToken);
-    load();
-  }, [session?.accessToken, load]);
+    let cancelled = false;
+    fetchDelegationPageData().then((data) => { if (!cancelled) applyData(data); });
+    return () => { cancelled = true; };
+  }, [session?.accessToken, applyData]);
 
   // Revoke a delegation and cascade-revoke its paired consent.
   // The cascade uses granteeId+purpose (not delegationId) so it works even for
@@ -649,7 +671,9 @@ export default function DelegationPage() {
 
       </div>
 
+      {/* Remounted on every open, so the form always starts from its initial state */}
       <GrantDelegationModal
+        key={grantModalOpen ? "open" : "closed"}
         open={grantModalOpen}
         onClose={() => setGrantModalOpen(false)}
         onSuccess={async () => {

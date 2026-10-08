@@ -23,6 +23,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // page, which clears the cookie and shows a countdown before returning to login.
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload so no stale client state or token survives the expired session
       window.location.href = "/session-expired";
     }
   }, [session?.error]);

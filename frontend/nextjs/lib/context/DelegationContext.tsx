@@ -58,6 +58,29 @@ interface BffContextResponse {
   expiresAt?: string;
 }
 
+// Pure loader (no state updates) for the BFF's active delegation context
+async function loadDelegationState(): Promise<DelegationState> {
+  try {
+    const res = await bffClient.get<BffContextResponse>("/api/bff/delegation/context");
+    const data = res.data;
+    if (!data.delegationActive) return defaultState;
+    return {
+      delegationActive: true,
+      delegationId: data.delegationId ?? null,
+      actorId: data.actorId ?? null,
+      actorName: data.actorId ? formatDisplayName(data.actorId) : null,
+      subjectId: data.subjectId ?? null,
+      subjectName: data.subjectId ? formatDisplayName(data.subjectId) : null,
+      consentId: data.consentId ?? null,
+      purpose: data.purpose ?? null,
+      expiresAt: data.expiresAt ?? null,
+    };
+  } catch {
+    // If the BFF is unreachable or returns an error, treat as no active delegation
+    return defaultState;
+  }
+}
+
 export function DelegationContextProvider({
   children,
 }: {
@@ -67,30 +90,7 @@ export function DelegationContextProvider({
   const [state, setState] = useState<DelegationState>(defaultState);
 
   const refreshContext = useCallback(async () => {
-    try {
-      const res = await bffClient.get<BffContextResponse>("/api/bff/delegation/context");
-      const data = res.data;
-
-      if (!data.delegationActive) {
-        setState(defaultState);
-        return;
-      }
-
-      setState({
-        delegationActive: true,
-        delegationId: data.delegationId ?? null,
-        actorId: data.actorId ?? null,
-        actorName: data.actorId ? formatDisplayName(data.actorId) : null,
-        subjectId: data.subjectId ?? null,
-        subjectName: data.subjectId ? formatDisplayName(data.subjectId) : null,
-        consentId: data.consentId ?? null,
-        purpose: data.purpose ?? null,
-        expiresAt: data.expiresAt ?? null,
-      });
-    } catch {
-      // If the BFF is unreachable or returns an error, treat as no active delegation
-      setState(defaultState);
-    }
+    setState(await loadDelegationState());
   }, []);
 
   // Fetch delegation context once the session (and access token) is available.
@@ -98,8 +98,10 @@ export function DelegationContextProvider({
   useEffect(() => {
     if (!session?.accessToken) return;
     setAccessToken(session.accessToken);
-    refreshContext();
-  }, [session?.accessToken, refreshContext]);
+    let cancelled = false;
+    loadDelegationState().then((next) => { if (!cancelled) setState(next); });
+    return () => { cancelled = true; };
+  }, [session?.accessToken]);
 
   const exitDelegation = useCallback(async () => {
     try {

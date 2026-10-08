@@ -31,6 +31,18 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
   );
 }
 
+type HealthResponse = { services: ServiceHealth[]; checkedAt: string };
+
+// Pure loader (no state updates); resolves to null when the health route is unreachable
+async function loadHealth(): Promise<HealthResponse | null> {
+  try {
+    const res = await fetch("/api/health", { cache: "no-store" });
+    return await res.json() as HealthResponse;
+  } catch {
+    return null;
+  }
+}
+
 export default function HealthPage() {
   const [services, setServices] = useState<ServiceHealth[]>([]);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
@@ -38,28 +50,31 @@ export default function HealthPage() {
   const [refreshing, setRefreshing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchHealth = useCallback(async (isManual = false) => {
-    if (isManual) setRefreshing(true);
-    try {
-      const res = await fetch("/api/health", { cache: "no-store" });
-      const data = await res.json() as { services: ServiceHealth[]; checkedAt: string };
+  // Applies a poll result; called from promise callbacks only
+  const applyHealth = useCallback((data: HealthResponse | null) => {
+    if (data) {
       setServices(data.services);
       setCheckedAt(data.checkedAt);
-    } catch {
-      // Leave existing data in place; user can retry
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
     }
+    // On failure leave existing data in place; user can retry
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
+  // Manual refresh (event handler)
+  const fetchHealth = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    applyHealth(await loadHealth());
+  }, [applyHealth]);
+
   useEffect(() => {
-    fetchHealth();
-    timerRef.current = setInterval(() => fetchHealth(), POLL_INTERVAL_MS);
+    const poll = () => { loadHealth().then(applyHealth); };
+    poll();
+    timerRef.current = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [fetchHealth]);
+  }, [applyHealth]);
 
   const upCount   = services.filter((s) => s.status === "UP").length;
   const downCount = services.filter((s) => s.status === "DOWN").length;

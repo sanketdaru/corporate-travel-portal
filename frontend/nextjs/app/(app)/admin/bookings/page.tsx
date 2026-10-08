@@ -39,8 +39,7 @@ export default function AdminBookingsPage() {
   useEffect(() => {
     if (!session?.accessToken) return;
     setAccessToken(session.accessToken);
-    setLoading(true);
-
+    // loading starts true; the Refresh button sets it again for manual reloads
     getAllBookings()
       .then(setAllBookings)
       .catch(() => setAllBookings([]))

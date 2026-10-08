@@ -66,10 +66,9 @@ export default function ExpensePage() {
     if (!session?.accessToken) return;
     setAccessToken(session.accessToken);
 
-    setLoading(true);
-    setError(false);
+    // State is only updated in the promise callbacks (loading starts true)
     getExpenses()
-      .then((data) => setAllExpenses(data))
+      .then((data) => { setError(false); setAllExpenses(data); })
       .catch(() => { setError(true); setAllExpenses([]); })
       .finally(() => setLoading(false));
   }, [session?.accessToken]);

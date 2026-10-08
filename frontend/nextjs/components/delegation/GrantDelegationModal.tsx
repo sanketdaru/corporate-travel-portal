@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { createDelegation, createConsent, revokeDelegation } from "@/lib/api/gateway";
 import { startDelegationGrant } from "@/lib/api/bff";
@@ -32,17 +32,6 @@ export function GrantDelegationModal({ open, onClose, onSuccess, currentUserName
   const [expiresAt,  setExpiresAt]  = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
-
-  // Reset form and error every time the modal opens so stale state never leaks.
-  useEffect(() => {
-    if (open) {
-      setDelegateId("");
-      setPurpose("book_travel");
-      setScopes(["view_bookings", "create_bookings"]);
-      setExpiresAt("");
-      setError(null);
-    }
-  }, [open]);
 
   if (!open) return null;
 
