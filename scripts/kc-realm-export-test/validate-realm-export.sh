@@ -24,7 +24,7 @@
 #   integration is covered by run-delegation-flow.sh against the live env.
 #
 # Usage:
-#   ./scripts/end-to-end-test/validate-realm-export.sh [KC_URL]
+#   ./scripts/kc-realm-export-test/validate-realm-export.sh [KC_URL]
 #   Default KC_URL: http://localhost:8090
 #
 # Requirements: curl, jq

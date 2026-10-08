@@ -2,16 +2,22 @@
 
 # Get JWT token from Keycloak for testing
 # Usage: ./scripts/get-token.sh [username] [password]
+#
+# Uses the confidential employee-bff client because it is the only client with
+# direct access grants enabled. The public employee-portal client is PKCE-only.
 
 USERNAME=${1:-alice.employee}
 PASSWORD=${2:-password123}
+CLIENT_ID=${CLIENT_ID:-employee-bff}
+CLIENT_SECRET=${CLIENT_SECRET:-bff-service-secret-change-in-production}
 
 echo "🔐 Getting access token for user: $USERNAME"
 echo ""
 
 RESPONSE=$(curl -s -X POST "http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=employee-portal" \
+  -d "client_id=$CLIENT_ID" \
+  -d "client_secret=$CLIENT_SECRET" \
   -d "username=$USERNAME" \
   -d "password=$PASSWORD" \
   -d "grant_type=password" \
