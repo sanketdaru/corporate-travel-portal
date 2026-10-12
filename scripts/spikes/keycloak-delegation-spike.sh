@@ -99,7 +99,7 @@ $CTR run --rm $([[ $CTR == docker ]] && echo --add-host=host.docker.internal:hos
   -e KEYCLOAK_URL="http://$HOST_ALIAS:$KC_PORT" -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin123 \
   -e KEYCLOAK_AVAILABILITYCHECK_ENABLED=true -e IMPORT_FILES_LOCATIONS='/config/*.json' -e IMPORT_VARSUBSTITUTION_ENABLED=true \
   -e KC_FRONTEND_URL="$KC" -e KC_DEMO_USER_PASSWORD=password123 \
-  -e KC_CLIENT_SECRET_APPROVAL_SERVICE=x -e KC_CLIENT_SECRET_CONSENT_SERVICE=x -e KC_CLIENT_SECRET_DELEGATION_SERVICE=x \
+  -e KC_CLIENT_SECRET_CONSENT_SERVICE=x -e KC_CLIENT_SECRET_DELEGATION_SERVICE=x \
   -e KC_CLIENT_SECRET_EMPLOYEE_BFF="$BFF_SECRET" -e KC_CLIENT_SECRET_EXPENSE_SERVICE=x -e KC_CLIENT_SECRET_TRAVEL_SERVICE=x \
   -v "$ROOT/infrastructure/keycloak/config:/config:ro" "$KCC_IMAGE" > "$WORK/kcc.log" 2>&1 \
   && result "applied" || { result "config-cli failed"; tail -5 "$WORK/kcc.log"; exit 1; }

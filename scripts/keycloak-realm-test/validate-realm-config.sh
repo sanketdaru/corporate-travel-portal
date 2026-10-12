@@ -72,7 +72,6 @@ apply_config() {
     -e IMPORT_FILES_LOCATIONS='/config/*.json' -e IMPORT_VARSUBSTITUTION_ENABLED=true \
     -e IMPORT_CACHE_ENABLED=false \
     -e KC_FRONTEND_URL="$KC_URL" -e KC_DEMO_USER_PASSWORD=password123 \
-    -e KC_CLIENT_SECRET_APPROVAL_SERVICE=approval-service-secret-change-in-production \
     -e KC_CLIENT_SECRET_CONSENT_SERVICE=consent-service-secret-change-in-production \
     -e KC_CLIENT_SECRET_DELEGATION_SERVICE=delegation-service-secret-change-in-production \
     -e KC_CLIENT_SECRET_EMPLOYEE_BFF="$BFF_SECRET" \

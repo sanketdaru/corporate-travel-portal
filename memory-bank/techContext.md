@@ -80,7 +80,7 @@ corporate-travel-portal/           # Monorepo root
 └── architecture-decision-records/  # ADR-001 – ADR-024
 ```
 
-There is no approval-service. The realm still defines an `approval-service` client.
+There is no approval-service; approvals live in travel-service and expense-service.
 
 ## Key Dependencies
 

@@ -805,39 +805,6 @@
   ],
   "clients": [
     {
-      "clientId": "approval-service",
-      "name": "Approval Service",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": false,
-      "clientAuthenticatorType": "client-secret",
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "frontchannelLogout": false,
-      "fullScopeAllowed": true,
-      "redirectUris": [],
-      "webOrigins": [],
-      "secret": "$(env:KC_CLIENT_SECRET_APPROVAL_SERVICE)",
-      "attributes": {
-        "post.logout.redirect.uris": "+",
-        "standard.token.exchange.enabled": "false"
-      },
-      "defaultClientScopes": [
-        "basic",
-        "profile",
-        "email",
-        "roles",
-        "web-origins",
-        "acr",
-        "service_account"
-      ],
-      "optionalClientScopes": [
-        "offline_access"
-      ]
-    },
-    {
       "clientId": "consent-service",
       "name": "Consent Service",
       "enabled": true,

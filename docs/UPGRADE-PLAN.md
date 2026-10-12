@@ -453,6 +453,10 @@ Exit: `npm run build` and lint clean; manual login, refresh, logout and delegati
   - Root `.env.example` carried unused `NEXT_PUBLIC_*` values (one pointing at a non-existent port 3001).
 - Noted, not changed: the realm still defines an `approval-service` client although no such service exists; expense-service calls travel-service's budget endpoint without a token (network trust, see ADR-009); gateway CORS still allows `localhost:3001`.
 
+**Follow-up (2026-10-12):** noted items fixed.
+
+- `approval-service` realm client, its secret variable and the commented compose/Gradle entries removed.
+
 ---
 
 ## 6. Risks
