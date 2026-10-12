@@ -71,7 +71,7 @@ All responses include:
 ### CORS
 
 Configured for:
-- Origins: `localhost:3000` (Next.js frontend), `localhost:3001`
+- Origins: `GATEWAY_CORS_ALLOWED_ORIGINS`, comma-separated (default `http://localhost:3000`, the Next.js frontend). The frontend normally proxies through Next.js rewrites (same origin), so CORS matters only for direct browser calls.
 - Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
 - Credentials: enabled
 

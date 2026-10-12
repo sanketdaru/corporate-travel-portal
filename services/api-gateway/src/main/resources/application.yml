@@ -22,9 +22,9 @@ spring:
           globalcors:
             cors-configurations:
               '[/**]':
-                allowed-origins:
-                  - "http://localhost:3000"  # Next.js frontend
-                  - "http://localhost:3001"  # BFF service
+                # Comma-separated browser origins. Only the Next.js frontend calls the
+                # gateway from a browser; the BFF calls it server-to-server (no CORS).
+                allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:3000}
                 allowed-methods:
                   - GET
                   - POST
