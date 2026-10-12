@@ -13,6 +13,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
+import org.springframework.web.cors.reactive.CorsUtils;
 import reactor.core.publisher.Mono;
 
 import java.util.*;
@@ -35,6 +37,12 @@ public class SecurityConfig {
             .cors(cors -> cors.disable())  // Disable Spring Security CORS - Gateway handles it
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(exchanges -> exchanges
+                // CORS preflight carries no token. Let it reach the gateway's globalcors handling,
+                // which answers it without routing and rejects origins not in GATEWAY_CORS_ALLOWED_ORIGINS
+                .matchers(exchange -> CorsUtils.isPreFlightRequest(exchange.getRequest())
+                    ? ServerWebExchangeMatcher.MatchResult.match()
+                    : ServerWebExchangeMatcher.MatchResult.notMatch()).permitAll()
+
                 // Public health and info endpoints
                 .pathMatchers("/actuator/health", "/actuator/info").permitAll()
                 

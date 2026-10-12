@@ -74,6 +74,7 @@ Configured for:
 - Origins: `GATEWAY_CORS_ALLOWED_ORIGINS`, comma-separated (default `http://localhost:3000`, the Next.js frontend). The frontend normally proxies through Next.js rewrites (same origin), so CORS matters only for direct browser calls.
 - Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
 - Credentials: enabled
+- Preflight (`OPTIONS` with `Access-Control-Request-Method`) needs no token; the gateway answers it without routing (200 for an allowed origin, 403 otherwise)
 
 ## Running
 

@@ -460,6 +460,7 @@ Exit: `npm run build` and lint clean; manual login, refresh, logout and delegati
 - Gateway CORS origins come from `GATEWAY_CORS_ALLOWED_ORIGINS` (default `http://localhost:3000`); `localhost:3001` dropped.
 - Submitting an expense whose linked booking is not in its tenant now fails with 422 instead of skipping the budget check.
 - The gateway denies `/api/bookings/*/budget`; only expense-service calls it, directly over the compose network.
+- Gateway CORS preflight works: Spring Security let no `OPTIONS` through without a token (401 for every origin), so cross-origin browser calls with an `Authorization` header always failed. Preflight requests are now permitted and answered by the gateway's CORS handling.
 
 ---
 
