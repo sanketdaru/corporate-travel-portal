@@ -1,7 +1,8 @@
 package com.corporate.travel.expense.client;
 
+import com.corporate.travel.expense.exception.TravelServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.core.ParameterizedTypeReference;
@@ -19,8 +20,8 @@ import java.util.UUID;
  * before allowing expense submission. Calls are made over the internal container
  * network (travel-service:8081) without going through the API gateway.
  *
- * No JWT is forwarded — this is a trusted internal call between microservices
- * on the same Docker/Podman network.
+ * Calls carry the expense-service service-account token (client credentials, see
+ * TravelServiceClientConfig and ADR-009), not the user's token.
  */
 @Component
 @Slf4j
@@ -30,10 +31,8 @@ public class TravelServiceClient {
 
     private final RestClient restClient;
 
-    public TravelServiceClient(
-            RestClient.Builder restClientBuilder,
-            @Value("${travel-service.url:http://travel-service:8081}") String travelServiceUrl) {
-        this.restClient = restClientBuilder.clone().baseUrl(travelServiceUrl).build();
+    public TravelServiceClient(@Qualifier("travelServiceRestClient") RestClient restClient) {
+        this.restClient = restClient;
     }
 
     /**
@@ -42,29 +41,34 @@ public class TravelServiceClient {
     public record BookingBudget(UUID id, BigDecimal budget, String budgetCurrency) {}
 
     /**
-     * Fetch budget details for a booking.
+     * Fetch budget details for a booking in the given tenant.
      *
-     * Returns empty if the booking cannot be found or the travel service is
-     * unavailable. The caller decides whether a missing budget means allow or deny.
+     * Returns empty only if the booking does not exist in that tenant. Any other failure
+     * (travel service down, token rejected, malformed response) throws
+     * {@link TravelServiceUnavailableException}: the budget check fails closed.
      */
-    public Optional<BookingBudget> getBookingBudget(UUID bookingId) {
+    public Optional<BookingBudget> getBookingBudget(UUID bookingId, String tenantId) {
         try {
             Map<String, Object> body = restClient.get()
-                    .uri("/api/bookings/{id}/budget", bookingId)
+                    .uri(uri -> uri.path("/api/bookings/{id}/budget")
+                            .queryParam("tenantId", tenantId)
+                            .build(bookingId))
                     .retrieve()
                     .body(JSON_OBJECT);
-            if (body == null) return Optional.empty();
+            if (body == null || body.get("budget") == null) {
+                throw new IllegalStateException("response has no budget");
+            }
 
             BigDecimal budget = new BigDecimal(body.get("budget").toString());
             String currency   = body.getOrDefault("budgetCurrency", "INR").toString();
             return Optional.of(new BookingBudget(bookingId, budget, currency));
 
         } catch (HttpClientErrorException.NotFound ex) {
-            log.warn("Booking {} not found in travel service — skipping budget check", bookingId);
+            log.warn("Booking {} not found in tenant {} — skipping budget check", bookingId, tenantId);
             return Optional.empty();
         } catch (Exception ex) {
             log.error("Failed to fetch budget for booking {} from travel service: {}", bookingId, ex.getMessage());
-            return Optional.empty();
+            throw new TravelServiceUnavailableException(bookingId, ex);
         }
     }
 }

@@ -112,6 +112,21 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(TravelServiceUnavailableException.class)
+    public ProblemDetail handleTravelServiceUnavailable(TravelServiceUnavailableException ex) {
+        log.error("Budget check failed: {}", ex.getMessage(), ex.getCause());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            ex.getMessage()
+        );
+        problemDetail.setTitle("Budget Check Unavailable");
+        problemDetail.setType(URI.create("https://api.corporate-travel.com/errors/budget-check-unavailable"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ProblemDetail handleIllegalState(IllegalStateException ex) {
         log.warn("Invalid state: {}", ex.getMessage());

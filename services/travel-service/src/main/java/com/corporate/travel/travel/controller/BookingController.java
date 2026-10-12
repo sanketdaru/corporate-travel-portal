@@ -187,9 +187,11 @@ public class BookingController {
     /**
      * Internal service-to-service endpoint — returns only budget fields.
      * Called by the expense service before allowing expense submission.
-     * No JWT required; protected by network isolation (internal Docker network only).
+     * Requires role {@code budget_reader} — held only by the expense-service service account,
+     * which calls with a client-credentials token (ADR-009). The token carries no tenant, so the
+     * caller passes the expense's tenant; a booking in another tenant is 404.
      *
-     * GET /api/bookings/{id}/budget
+     * GET /api/bookings/{id}/budget?tenantId=...
      */
     @Operation(
         summary = "Get booking budget (internal)",
@@ -198,9 +200,11 @@ public class BookingController {
     @GetMapping("/{id}/budget")
     public ResponseEntity<Map<String, Object>> getBookingBudget(
             @Parameter(description = "Booking UUID", required = true)
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            @Parameter(description = "Tenant the booking must belong to", required = true)
+            @RequestParam String tenantId) {
 
-        Booking booking = bookingService.getBookingById(id);
+        Booking booking = bookingService.getBookingForTenant(id, tenantId);
         return ResponseEntity.ok(Map.of(
             "id",             booking.getId().toString(),
             "budget",         booking.getBudget(),

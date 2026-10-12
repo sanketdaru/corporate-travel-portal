@@ -277,7 +277,7 @@ curl -X POST http://localhost:8181/v1/data/corporate/travel/authorization/allow 
 
 ### Service-to-Service Communication
 - **Style**: synchronous REST over HTTP/1.1 (`RestClient`)
-- **Auth**: user tokens or BFF token-exchange results; no client-credentials calls. expense-service → travel-service budget lookup sends no token (network trust)
+- **Auth**: user tokens or BFF token-exchange results. expense-service → travel-service budget lookup uses a client-credentials token (role `budget_reader`, `tenantId` query param; fails closed with 503), see ADR-009
 - **Discovery**: compose DNS names
 - **Resilience**: none (no circuit breaker or retry library)
 

@@ -196,9 +196,10 @@ public class BookingServiceImpl implements BookingService {
     
     @Override
     @Transactional(readOnly = true)
-    public Booking getBookingById(UUID id) {
+    public Booking getBookingForTenant(UUID id, String tenantId) {
         if (id == null) throw new BookingNotFoundException("Booking id must not be null");
-        return bookingRepository.findById(id)
+        // Another tenant's booking is reported as not found, like everywhere else
+        return bookingRepository.findByIdAndTenantId(id, tenantId)
             .orElseThrow(() -> new BookingNotFoundException(id));
     }
 

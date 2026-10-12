@@ -41,6 +41,17 @@ spring:
           # Reject tokens not issued for this service (RFC 7519 aud); see docs/UPGRADE-PLAN.md Phase 4
           audiences:
             - expense-service
+      # Service-account token (client credentials) for the travel-service budget call (ADR-009)
+      client:
+        registration:
+          expense-service:
+            provider: keycloak
+            client-id: expense-service
+            client-secret: ${KC_CLIENT_SECRET_EXPENSE_SERVICE:expense-service-secret-change-in-production}
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            token-uri: http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token
 
 server:
   port: 8082

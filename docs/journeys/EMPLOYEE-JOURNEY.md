@@ -159,6 +159,7 @@ DRAFT ──submit──► SUBMITTED ──approve──► APPROVED
 | Submit an expense that is not `DRAFT` | 400 | `Can only submit expenses in DRAFT status` |
 | Submit an expense without items | 409 | `Cannot submit expense without any items` |
 | Expense total over the booking budget | 422 | `Expense total … exceeds approved travel budget …` |
+| Booking budget cannot be read (travel-service down) | 503 (502 via BFF) | `Cannot verify the travel budget for booking …` |
 | Booking or expense not in Alice's tenant | 404 | |
 | Missing required booking field or `budget` < 0.01 | 400 | Bean validation |
 | Service error behind the BFF | 502 | Downstream 5xx; an unreachable service gives 500 |

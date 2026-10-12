@@ -72,13 +72,14 @@ public interface BookingService {
     List<Booking> getTenantBookings(SecurityContext context);
 
     /**
-     * Internal lookup by ID only — no tenant check, no OPA authorization.
-     * Used exclusively by the budget endpoint called from the expense service
-     * over the internal container network.
+     * Internal lookup by ID within a tenant — no OPA authorization.
+     * Used exclusively by the budget endpoint, which the expense service calls with
+     * its service-account token (ADR-009). The caller supplies the tenant of the expense.
      *
-     * @param id Booking ID
-     * @return Booking if found
-     * @throws BookingNotFoundException if not found
+     * @param id       Booking ID
+     * @param tenantId Tenant the booking must belong to
+     * @return Booking if found in that tenant
+     * @throws BookingNotFoundException if not found, or found in another tenant
      */
-    Booking getBookingById(UUID id);
+    Booking getBookingForTenant(UUID id, String tenantId);
 }

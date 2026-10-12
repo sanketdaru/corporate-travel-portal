@@ -456,6 +456,7 @@ Exit: `npm run build` and lint clean; manual login, refresh, logout and delegati
 **Follow-up (2026-10-12):** noted items fixed.
 
 - `approval-service` realm client, its secret variable and the commented compose/Gradle entries removed.
+- Budget call uses client credentials (ADR-009 partly implemented): `expense-service` service account with audience `travel-service` and realm role `budget_reader`; the endpoint requires that role and a `tenantId` query parameter (other tenant → 404). The check now fails closed: 503 instead of skipping.
 
 ---
 

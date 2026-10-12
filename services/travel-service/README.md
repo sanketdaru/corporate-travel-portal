@@ -25,7 +25,7 @@ POST   /api/bookings                  Create booking
 GET    /api/bookings                  List my bookings
 GET    /api/bookings/all              List all tenant bookings (admin)
 GET    /api/bookings/{id}             Get booking
-GET    /api/bookings/{id}/budget      Budget and currency (used by expense-service)
+GET    /api/bookings/{id}/budget?tenantId=  Budget and currency (expense-service service account only, role budget_reader)
 PUT    /api/bookings/{id}/status      Update booking status
 DELETE /api/bookings/{id}             Delete booking
 ```

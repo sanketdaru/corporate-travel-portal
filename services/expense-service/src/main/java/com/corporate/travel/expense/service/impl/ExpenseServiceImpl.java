@@ -265,7 +265,7 @@ public class ExpenseServiceImpl implements ExpenseService {
         // Budget enforcement: if the expense is linked to a travel authorization,
         // its total must not exceed the pre-approved budget.
         if (expense.getBookingId() != null) {
-            travelServiceClient.getBookingBudget(expense.getBookingId()).ifPresent(bb -> {
+            travelServiceClient.getBookingBudget(expense.getBookingId(), expense.getTenantId()).ifPresent(bb -> {
                 if (expense.getTotalAmount() != null &&
                         expense.getTotalAmount().compareTo(bb.budget()) > 0) {
                     throw new BudgetExceededException(bb.budget(), expense.getTotalAmount(), bb.budgetCurrency());

@@ -18,6 +18,9 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /** Realm role {@code budget_reader}, mapped to {@code ROLE_BUDGET_READER} by {@link JwtAuthenticationConverter}. */
+    static final String BUDGET_READER_ROLE = "BUDGET_READER";
+
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         return new JwtAuthenticationConverter();
@@ -33,8 +36,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/actuator/**", "/health/**").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                // Internal service-to-service: expense service reads booking budget before submission
-                .requestMatchers("/api/bookings/*/budget").permitAll()
+                // Internal service-to-service: expense service reads booking budget before submission.
+                // Client-credentials token of the expense-service service account (ADR-009).
+                .requestMatchers("/api/bookings/*/budget").hasRole(BUDGET_READER_ROLE)
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

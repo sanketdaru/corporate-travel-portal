@@ -18,6 +18,10 @@ spring:
         jwt:
           issuer-uri: http://localhost:8080/realms/corporate-travel
           jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+      client:
+        provider:
+          keycloak:
+            token-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/token
 
 opa:
   url: http://opa:8181

@@ -1,8 +1,12 @@
 package com.corporate.travel.expense.service.impl;
 
+import com.corporate.travel.expense.client.TravelServiceClient;
+import com.corporate.travel.expense.client.TravelServiceClient.BookingBudget;
+import com.corporate.travel.expense.exception.BudgetExceededException;
 import com.corporate.travel.expense.exception.ExpenseItemNotFoundException;
 import com.corporate.travel.expense.exception.ExpenseNotFoundException;
 import com.corporate.travel.expense.exception.InvalidExpenseStatusException;
+import com.corporate.travel.expense.exception.TravelServiceUnavailableException;
 import com.corporate.travel.expense.model.entity.Expense;
 import com.corporate.travel.expense.model.entity.ExpenseItem;
 import com.corporate.travel.expense.repository.ExpenseItemRepository;
@@ -70,6 +74,9 @@ class ExpenseServiceImplTest {
 
     @Mock
     private ExpenseAuditService auditService;
+
+    @Mock
+    private TravelServiceClient travelServiceClient;
 
     @InjectMocks
     private ExpenseServiceImpl expenseService;
@@ -1220,6 +1227,67 @@ class ExpenseServiceImplTest {
         }
     }
     
+    // ==========================================================================
+    // SUBMIT EXPENSE: BUDGET CHECK (ADR-009)
+    // ==========================================================================
+
+    @Nested
+    @DisplayName("submitExpense budget check")
+    class SubmitExpenseBudgetTests {
+
+        private final UUID bookingId = UUID.randomUUID();
+        private final SecurityContext context = SecurityContextTestUtil.aliceContext();
+
+        private Expense linkedDraft() {
+            Expense expense = ExpenseTestFixtures.draftExpenseWithItemsForAlice();
+            expense.setBookingId(bookingId);
+            when(expenseRepository.findByIdAndTenantId(expense.getId(), context.getTenantId()))
+                    .thenReturn(Optional.of(expense));
+            when(opaClient.authorize(any(), any(), anyMap())).thenReturn(true);
+            return expense;
+        }
+
+        @Test
+        @DisplayName("should_submit_when_totalWithinBudget")
+        void should_submit_when_totalWithinBudget() {
+            Expense expense = linkedDraft();
+            when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
+                    .thenReturn(Optional.of(new BookingBudget(bookingId, expense.getTotalAmount(), "INR")));
+            when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Expense result = expenseService.submitExpense(expense.getId(), context);
+
+            assertThat(result.getStatus()).isEqualTo(ExpenseStatus.SUBMITTED);
+            verify(travelServiceClient).getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A);
+        }
+
+        @Test
+        @DisplayName("should_throwBudgetExceeded_when_totalAboveBudget")
+        void should_throwBudgetExceeded_when_totalAboveBudget() {
+            Expense expense = linkedDraft();
+            BigDecimal budget = expense.getTotalAmount().subtract(BigDecimal.ONE);
+            when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
+                    .thenReturn(Optional.of(new BookingBudget(bookingId, budget, "INR")));
+
+            assertThatThrownBy(() -> expenseService.submitExpense(expense.getId(), context))
+                    .isInstanceOf(BudgetExceededException.class);
+            verify(expenseRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should_refuseSubmission_when_budgetCannotBeRead")
+        void should_refuseSubmission_when_budgetCannotBeRead() {
+            Expense expense = linkedDraft();
+            when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
+                    .thenThrow(new TravelServiceUnavailableException(bookingId, new RuntimeException("down")));
+
+            assertThatThrownBy(() -> expenseService.submitExpense(expense.getId(), context))
+                    .isInstanceOf(TravelServiceUnavailableException.class);
+            verify(expenseRepository, never()).save(any());
+            assertThat(expense.getStatus()).isEqualTo(ExpenseStatus.DRAFT);
+        }
+    }
+
     // TODO: Complete remaining test suites:
     // TODO: Complete UpdateExpenseItemTests (8 tests)
     // TODO: Complete DeleteExpenseItemTests (7 tests)

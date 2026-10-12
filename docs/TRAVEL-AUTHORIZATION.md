@@ -75,10 +75,10 @@ Response: 200 with the updated booking.
 ## Get Booking Budget (internal)
 
 ```
-GET /api/bookings/{id}/budget  →  { "id": "…", "budget": 120000.00, "budgetCurrency": "INR" }
+GET /api/bookings/{id}/budget?tenantId=…  →  { "id": "…", "budget": 120000.00, "budgetCurrency": "INR" }
 ```
 
-`permitAll` in the shared `SecurityConfig` and no tenant check; called by expense-service over the compose network. Note that compose also publishes port 8081 to the host.
+Called by expense-service over the compose network with its service-account token (client credentials, ADR-009). The shared `SecurityConfig` requires realm role `budget_reader`, which only `service-account-expense-service` holds; user tokens get 403, no token 401. The token carries no tenant, so the caller passes the expense's tenant; a booking in another tenant is 404, a missing `tenantId` 400. No OPA check.
 
 ## Delete Booking
 
@@ -104,9 +104,10 @@ There is no transition logic in code: any authorized caller can set any value. T
 
 Enforced only on expense submission (`ExpenseServiceImpl.submitExpense`):
 
-1. If the expense has a `bookingId`, expense-service calls `GET /api/bookings/{id}/budget`.
+1. If the expense has a `bookingId`, expense-service calls `GET /api/bookings/{id}/budget?tenantId=<expense tenant>`.
 2. If **this expense's** `totalAmount` exceeds `budget` → `BudgetExceededException` → 422.
-3. If the booking is not found or travel-service is unreachable, the check is skipped and submission proceeds.
+3. If the booking does not exist in the expense's tenant (404), the check is skipped and submission proceeds.
+4. Any other failure (travel-service unreachable, token rejected, bad response) → `TravelServiceUnavailableException` → 503; the expense stays `DRAFT`.
 
 Not checked: booking status, other expenses against the same booking, or currency mismatch. On create, `totalAmount` is taken from the request body (the UI sends the sum of its items); only the item endpoints recalculate it. Booking create and status updates only validate `budget >= 0.01`.
 

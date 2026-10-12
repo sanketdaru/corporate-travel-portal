@@ -277,6 +277,8 @@ services:
       OPA_URL: http://opa:8181
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI: http://localhost:8080/realms/corporate-travel
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+      # Service-account (client-credentials) token for the travel-service budget call (ADR-009)
+      KC_CLIENT_SECRET_EXPENSE_SERVICE: ${KC_CLIENT_SECRET_EXPENSE_SERVICE:-expense-service-secret-change-in-production}
     ports:
       - "8082:8082"
     depends_on:

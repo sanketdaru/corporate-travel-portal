@@ -11,7 +11,7 @@ A Spring Boot microservice for managing employee expense reports in the Corporat
 - Expense report management: create, read, update, delete
 - Line item support (meals, travel, accommodation, etc.)
 - Approval workflow: `DRAFT → SUBMITTED → APPROVED/REJECTED` (`PAID` exists in the enum; no endpoint sets it yet)
-- Budget check on submission against the linked booking's budget (via travel-service)
+- Budget check on submission against the linked booking's budget (via travel-service, service-account token; 503 if the budget cannot be read)
 - Multi-tenant data isolation
 - Delegation-aware — assistants can manage expenses on behalf of executives via RFC 8693 delegated tokens (ADR-024)
 - Accepts only tokens with `aud` containing `expense-service`
@@ -203,14 +203,16 @@ PostgreSQL expense.expenses                 PostgreSQL expense.expense_audit
 expense-service/
 ├── src/main/java/com/corporate/travel/expense/
 │   ├── ExpenseServiceApplication.java
-│   ├── client/TravelServiceClient.java     (booking budget lookup)
+│   ├── client/TravelServiceClient.java     (booking budget lookup, fails closed)
 │   ├── config/OpenApiConfig.java
+│   ├── config/TravelServiceClientConfig.java (client-credentials token, ADR-009)
 │   ├── controller/ExpenseController.java
 │   ├── exception/
 │   │   ├── ExpenseNotFoundException.java
 │   │   ├── ExpenseItemNotFoundException.java
 │   │   ├── InvalidExpenseStatusException.java
 │   │   ├── BudgetExceededException.java
+│   │   ├── TravelServiceUnavailableException.java (503)
 │   │   └── GlobalExceptionHandler.java
 │   ├── model/entity/
 │   │   ├── Expense.java
