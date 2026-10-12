@@ -458,6 +458,7 @@ Exit: `npm run build` and lint clean; manual login, refresh, logout and delegati
 - `approval-service` realm client, its secret variable and the commented compose/Gradle entries removed.
 - Budget call uses client credentials (ADR-009 partly implemented): `expense-service` service account with audience `travel-service` and realm role `budget_reader`; the endpoint requires that role and a `tenantId` query parameter (other tenant → 404). The check now fails closed: 503 instead of skipping.
 - Gateway CORS origins come from `GATEWAY_CORS_ALLOWED_ORIGINS` (default `http://localhost:3000`); `localhost:3001` dropped.
+- Submitting an expense whose linked booking is not in its tenant now fails with 422 instead of skipping the budget check.
 
 ---
 

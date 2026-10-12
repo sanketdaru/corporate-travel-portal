@@ -11,7 +11,7 @@ A Spring Boot microservice for managing employee expense reports in the Corporat
 - Expense report management: create, read, update, delete
 - Line item support (meals, travel, accommodation, etc.)
 - Approval workflow: `DRAFT → SUBMITTED → APPROVED/REJECTED` (`PAID` exists in the enum; no endpoint sets it yet)
-- Budget check on submission against the linked booking's budget (via travel-service, service-account token; 503 if the budget cannot be read)
+- Budget check on submission against the linked booking's budget (via travel-service, service-account token; 422 if the booking is not in the tenant, 503 if the budget cannot be read)
 - Multi-tenant data isolation
 - Delegation-aware — assistants can manage expenses on behalf of executives via RFC 8693 delegated tokens (ADR-024)
 - Accepts only tokens with `aud` containing `expense-service`
@@ -212,6 +212,7 @@ expense-service/
 │   │   ├── ExpenseItemNotFoundException.java
 │   │   ├── InvalidExpenseStatusException.java
 │   │   ├── BudgetExceededException.java
+│   │   ├── LinkedBookingNotFoundException.java (422)
 │   │   ├── TravelServiceUnavailableException.java (503)
 │   │   └── GlobalExceptionHandler.java
 │   ├── model/entity/

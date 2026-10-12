@@ -6,6 +6,7 @@ import com.corporate.travel.expense.exception.BudgetExceededException;
 import com.corporate.travel.expense.exception.ExpenseItemNotFoundException;
 import com.corporate.travel.expense.exception.ExpenseNotFoundException;
 import com.corporate.travel.expense.exception.InvalidExpenseStatusException;
+import com.corporate.travel.expense.exception.LinkedBookingNotFoundException;
 import com.corporate.travel.expense.exception.TravelServiceUnavailableException;
 import com.corporate.travel.expense.model.entity.Expense;
 import com.corporate.travel.expense.model.entity.ExpenseItem;
@@ -1252,7 +1253,7 @@ class ExpenseServiceImplTest {
         void should_submit_when_totalWithinBudget() {
             Expense expense = linkedDraft();
             when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
-                    .thenReturn(Optional.of(new BookingBudget(bookingId, expense.getTotalAmount(), "INR")));
+                    .thenReturn(new BookingBudget(bookingId, expense.getTotalAmount(), "INR"));
             when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Expense result = expenseService.submitExpense(expense.getId(), context);
@@ -1267,11 +1268,24 @@ class ExpenseServiceImplTest {
             Expense expense = linkedDraft();
             BigDecimal budget = expense.getTotalAmount().subtract(BigDecimal.ONE);
             when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
-                    .thenReturn(Optional.of(new BookingBudget(bookingId, budget, "INR")));
+                    .thenReturn(new BookingBudget(bookingId, budget, "INR"));
 
             assertThatThrownBy(() -> expenseService.submitExpense(expense.getId(), context))
                     .isInstanceOf(BudgetExceededException.class);
             verify(expenseRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should_refuseSubmission_when_linkedBookingNotInTenant")
+        void should_refuseSubmission_when_linkedBookingNotInTenant() {
+            Expense expense = linkedDraft();
+            when(travelServiceClient.getBookingBudget(bookingId, ExpenseTestFixtures.TENANT_A))
+                    .thenThrow(new LinkedBookingNotFoundException(bookingId));
+
+            assertThatThrownBy(() -> expenseService.submitExpense(expense.getId(), context))
+                    .isInstanceOf(LinkedBookingNotFoundException.class);
+            verify(expenseRepository, never()).save(any());
+            assertThat(expense.getStatus()).isEqualTo(ExpenseStatus.DRAFT);
         }
 
         @Test

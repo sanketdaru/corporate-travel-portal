@@ -112,6 +112,21 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(LinkedBookingNotFoundException.class)
+    public ProblemDetail handleLinkedBookingNotFound(LinkedBookingNotFoundException ex) {
+        log.warn("Linked booking not found: {}", ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            ex.getMessage()
+        );
+        problemDetail.setTitle("Linked Booking Not Found");
+        problemDetail.setType(URI.create("https://api.corporate-travel.com/errors/linked-booking-not-found"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
     @ExceptionHandler(TravelServiceUnavailableException.class)
     public ProblemDetail handleTravelServiceUnavailable(TravelServiceUnavailableException ex) {
         log.error("Budget check failed: {}", ex.getMessage(), ex.getCause());

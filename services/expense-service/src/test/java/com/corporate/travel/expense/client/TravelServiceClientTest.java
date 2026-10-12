@@ -1,6 +1,7 @@
 package com.corporate.travel.expense.client;
 
 import com.corporate.travel.expense.config.TravelServiceClientConfig;
+import com.corporate.travel.expense.exception.LinkedBookingNotFoundException;
 import com.corporate.travel.expense.exception.TravelServiceUnavailableException;
 import com.corporate.travel.security.InternalHttpClientConfig;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -79,10 +80,8 @@ class TravelServiceClientTest {
 
         var budget = client.getBookingBudget(BOOKING_ID, TENANT);
 
-        assertThat(budget).hasValueSatisfying(b -> {
-            assertThat(b.budget()).isEqualByComparingTo(new BigDecimal("1500.00"));
-            assertThat(b.budgetCurrency()).isEqualTo("USD");
-        });
+        assertThat(budget.budget()).isEqualByComparingTo(new BigDecimal("1500.00"));
+        assertThat(budget.budgetCurrency()).isEqualTo("USD");
         wireMockServer.verify(getRequestedFor(urlPathEqualTo(BUDGET_PATH))
             .withQueryParam("tenantId", equalTo(TENANT))
             .withHeader("Authorization", equalTo("Bearer svc-token")));
@@ -102,11 +101,12 @@ class TravelServiceClientTest {
     }
 
     @Test
-    void getBookingBudget_bookingNotInTenant_returnsEmpty() {
+    void getBookingBudget_bookingNotInTenant_failsClosed() {
         stubToken();
         wireMockServer.stubFor(get(urlPathEqualTo(BUDGET_PATH)).willReturn(notFound()));
 
-        assertThat(client.getBookingBudget(BOOKING_ID, TENANT)).isEmpty();
+        assertThatThrownBy(() -> client.getBookingBudget(BOOKING_ID, TENANT))
+            .isInstanceOf(LinkedBookingNotFoundException.class);
     }
 
     @Test

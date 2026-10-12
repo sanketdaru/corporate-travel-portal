@@ -1,5 +1,6 @@
 package com.corporate.travel.expense.client;
 
+import com.corporate.travel.expense.exception.LinkedBookingNotFoundException;
 import com.corporate.travel.expense.exception.TravelServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -10,7 +11,6 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -43,11 +43,11 @@ public class TravelServiceClient {
     /**
      * Fetch budget details for a booking in the given tenant.
      *
-     * Returns empty only if the booking does not exist in that tenant. Any other failure
-     * (travel service down, token rejected, malformed response) throws
-     * {@link TravelServiceUnavailableException}: the budget check fails closed.
+     * The budget check fails closed: a booking that does not exist in that tenant throws
+     * {@link LinkedBookingNotFoundException}; any other failure (travel service down, token
+     * rejected, malformed response) throws {@link TravelServiceUnavailableException}.
      */
-    public Optional<BookingBudget> getBookingBudget(UUID bookingId, String tenantId) {
+    public BookingBudget getBookingBudget(UUID bookingId, String tenantId) {
         try {
             Map<String, Object> body = restClient.get()
                     .uri(uri -> uri.path("/api/bookings/{id}/budget")
@@ -61,11 +61,11 @@ public class TravelServiceClient {
 
             BigDecimal budget = new BigDecimal(body.get("budget").toString());
             String currency   = body.getOrDefault("budgetCurrency", "INR").toString();
-            return Optional.of(new BookingBudget(bookingId, budget, currency));
+            return new BookingBudget(bookingId, budget, currency);
 
         } catch (HttpClientErrorException.NotFound ex) {
-            log.warn("Booking {} not found in tenant {} — skipping budget check", bookingId, tenantId);
-            return Optional.empty();
+            log.warn("Booking {} not found in tenant {} — refusing submission", bookingId, tenantId);
+            throw new LinkedBookingNotFoundException(bookingId);
         } catch (Exception ex) {
             log.error("Failed to fetch budget for booking {} from travel service: {}", bookingId, ex.getMessage());
             throw new TravelServiceUnavailableException(bookingId, ex);

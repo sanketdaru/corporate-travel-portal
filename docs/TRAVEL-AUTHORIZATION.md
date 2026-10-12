@@ -106,7 +106,7 @@ Enforced only on expense submission (`ExpenseServiceImpl.submitExpense`):
 
 1. If the expense has a `bookingId`, expense-service calls `GET /api/bookings/{id}/budget?tenantId=<expense tenant>`.
 2. If **this expense's** `totalAmount` exceeds `budget` → `BudgetExceededException` → 422.
-3. If the booking does not exist in the expense's tenant (404), the check is skipped and submission proceeds.
+3. If the booking does not exist in the expense's tenant (404) → `LinkedBookingNotFoundException` → 422; the expense stays `DRAFT`.
 4. Any other failure (travel-service unreachable, token rejected, bad response) → `TravelServiceUnavailableException` → 503; the expense stays `DRAFT`.
 
 Not checked: booking status, other expenses against the same booking, or currency mismatch. On create, `totalAmount` is taken from the request body (the UI sends the sum of its items); only the item endpoints recalculate it. Booking create and status updates only validate `budget >= 0.01`.
