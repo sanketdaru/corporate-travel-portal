@@ -16,7 +16,7 @@ import java.util.Optional;
  * Aggregates data from travel-service and expense-service for the BFF dashboard endpoint.
  *
  * <p>Both service calls forward the delegation context when active, ensuring that
- * X-Delegated-Subject, X-Delegation-Id, and X-Actor-Token are threaded consistently
+ * the delegated token, X-Actor-Token and X-Delegation-Id are threaded consistently
  * on both calls (ADR-004, ADR-018).</p>
  */
 @Service

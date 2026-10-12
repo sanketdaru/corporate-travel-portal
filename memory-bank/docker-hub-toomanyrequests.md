@@ -1,3 +1,5 @@
+> **Status note (2026-10-08):** Historical troubleshooting record; the credential fix still applies. Less likely to trigger now: all images are pinned to exact versions (no floating `:latest` / `:community` tags to re-pull), and Keycloak comes from quay.io. Docker Hub is still used for `postgres`, `neo4j`, `openpolicyagent/opa`, `adorsys/keycloak-config-cli` and the Dockerfile bases (`gradle:9.8-jdk25-noble`, `eclipse-temurin:25-jre-noble`).
+
 ## Fixing Docker Hub "Too Many Requests" in Podman Compose## Problem: Pull Rate Limit Errors
 When running podman compose or building images, you may encounter the following error even if you have already run podman login:
 

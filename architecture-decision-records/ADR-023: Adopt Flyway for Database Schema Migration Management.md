@@ -1,19 +1,22 @@
 # ADR-023: Adopt Flyway for Database Schema Migration Management
 
 ## Status
-Accepted - Implementation In Progress
+Accepted - Implemented (status as of 2026-10-08)
 
 **Implementation Status**:
-- ✅ Travel Service: Flyway implemented (2026-02-18)
-- ✅ Expense Service: Flyway implemented (2026-02-20)
-- ⏳ Approval Service: Pending
-- ⏳ Consent Service: Pending
-- ⏳ Delegation Service: Pending
+- ✅ Travel Service: `travel` schema, V1–V4 (2026-02-18 onwards)
+- ✅ Expense Service: `expense` schema, V1–V2 (2026-02-20)
+- ✅ Consent Service: `consent` schema, V1 (2026-03-01)
+- ✅ Delegation Service: `delegation` schema, V1 (2026-03-01)
+- ✅ Employee BFF: `bff` schema, V1 delegation grant store (2026-10-08, ADR-024)
+- Approval Service: not built; approval logic lives in travel-service and expense-service
+
+Flyway is managed by the Spring Boot 4.1 BOM (12.4.0) via `spring-boot-starter-flyway` plus `flyway-database-postgresql`. The Postgres init script now only creates the `keycloak` schema.
 
 ## Context
 
-### Current State
-The platform currently uses manual SQL initialization scripts located in `infrastructure/databases/init-scripts/`:
+### Current State (at decision time; these scripts have since been removed)
+The platform used manual SQL initialization scripts located in `infrastructure/databases/init-scripts/`:
 - `01-create-schemas.sql` - Creates database schemas for each service
 - `02-create-tables.sql` - Creates initial table structures
 - `03-update-expense-schema.sql` - Schema evolution updates
@@ -138,12 +141,12 @@ spring:
 **build.gradle** (Each Service)
 ```gradle
 dependencies {
-    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
     implementation 'org.flywaydb:flyway-database-postgresql'
 }
 ```
 
-Spring Boot will auto-configure Flyway when dependencies are present.
+Spring Boot 4 moved Flyway auto-configuration into its own module, so the starter is required; `flyway-core` alone no longer configures it.
 
 ## Consequences
 
@@ -302,9 +305,10 @@ Spring Boot will auto-configure Flyway when dependencies are present.
    - Baseline migration created with 3 tables
    - Configuration complete
    - Documentation added
-3. ⏳ **Approval Service**: Implement with Flyway from start
-4. ⏳ **Consent Service**: Implement with Flyway from start
-5. ⏳ **Delegation Service**: Implement with Flyway from start
+3. **Approval Service**: not built
+4. ✅ **Consent Service**: Flyway from start (2026-03-01)
+5. ✅ **Delegation Service**: Flyway from start (2026-03-01)
+6. ✅ **Employee BFF**: `bff` schema (2026-10-08)
 
 ### Phase 3: Documentation (Week 2)
 1. Update developer onboarding guide

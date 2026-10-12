@@ -27,8 +27,8 @@ public class BookingBffController {
     @GetMapping
     @Operation(summary = "List bookings",
         description = "Lists bookings for the current user, or the delegation subject if delegation is active. " +
-                      "When delegation is active, X-Delegated-Subject, X-Delegation-Id, and X-Actor-Token " +
-                      "headers are threaded to travel-service (ADR-004, ADR-018).")
+                      "When delegation is active, the RFC 8693 delegated token (sub=subject, act=actor) plus X-Actor-Token " +
+                      "and X-Delegation-Id are sent to travel-service (ADR-004, ADR-018).")
     public ResponseEntity<JsonNode> getBookings(
             @AuthenticationPrincipal Jwt jwt,
             HttpSession session) {
@@ -39,8 +39,8 @@ public class BookingBffController {
 
     @PostMapping
     @Operation(summary = "Create booking",
-        description = "Creates a booking. If delegation is active, the audience-scoped delegation token " +
-                      "is used (sub=actor) and X-Delegated-Subject identifies the human principal, " +
+        description = "Creates a booking. If delegation is active, the audience-scoped RFC 8693 delegated token " +
+                      "is used (sub=subject, act.sub=actor), " +
                       "so the booking is attributed to the subject in audit records (ADR-011).")
     public ResponseEntity<JsonNode> createBooking(
             @RequestBody JsonNode requestBody,
@@ -78,7 +78,7 @@ public class BookingBffController {
     /**
      * Returns the active, non-expired delegation context from the session if one exists.
      * The full context — not just a token string — is required so that delegation headers
-     * (X-Delegated-Subject, X-Delegation-Id, X-Actor-Token) can be threaded on downstream calls.
+     * (delegated token, X-Actor-Token, X-Delegation-Id) can be threaded on downstream calls.
      */
     private Optional<DelegationContext> resolveDelegationContext(HttpSession session) {
         return delegationContextService.getActiveContext(session);

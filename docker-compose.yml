@@ -67,8 +67,8 @@ services:
       KC_DB_USERNAME: admin
       KC_DB_PASSWORD: admin123
       KC_DB_SCHEMA: keycloak
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin123
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin123}
       KC_HOSTNAME: localhost
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
@@ -104,8 +104,8 @@ services:
     container_name: corporate-travel-keycloak-config
     environment:
       KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_USER: admin
-      KEYCLOAK_PASSWORD: admin123
+      KEYCLOAK_USER: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KEYCLOAK_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin123}
       KEYCLOAK_AVAILABILITYCHECK_ENABLED: "true"
       KEYCLOAK_AVAILABILITYCHECK_TIMEOUT: 120s
       IMPORT_FILES_LOCATIONS: /config/*.json
@@ -137,8 +137,8 @@ services:
     entrypoint: ["/bin/bash", "/fgap/apply-delegation-permissions.sh"]
     environment:
       KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_USER: admin
-      KEYCLOAK_PASSWORD: admin123
+      KEYCLOAK_USER: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KEYCLOAK_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin123}
       REALM: corporate-travel
     volumes:
       - ./infrastructure/keycloak/fgap:/fgap:ro

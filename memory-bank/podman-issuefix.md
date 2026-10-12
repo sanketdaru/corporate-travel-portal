@@ -1,3 +1,5 @@
+> **Status note (2026-10-08):** Historical troubleshooting record. Still valid: the unified official Podman install, native `podman compose`, the Docker context (Fix 1) and `localhost/` image names (Fix 2). Obsolete: the Fix 3 remark that OPA keeps `platform: linux/amd64` — no service sets `platform:` any more; OPA 1.21.1 runs natively on arm64. All infrastructure images are now pinned (no `:latest`), and a fresh start also needs `./scripts/seed-data.sh` after `podman compose up -d`.
+
 ## Resolving Podman Installation Conflicts on macOS## Problem: Multiple Podman Instances Detected
 When Podman is installed via both the Official PKG/DMG installer (bundled with Podman Desktop) and Homebrew, it creates a conflict in the system $PATH.
 

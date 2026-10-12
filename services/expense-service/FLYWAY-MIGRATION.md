@@ -8,7 +8,8 @@ Expense Service now uses Flyway for database schema migration management. The sc
 
 ### Dependencies (build.gradle)
 ```gradle
-implementation 'org.flywaydb:flyway-core'
+// Boot 4 modular starter (Flyway 12, version from the Boot BOM)
+implementation 'org.springframework.boot:spring-boot-starter-flyway'
 implementation 'org.flywaydb:flyway-database-postgresql'
 ```
 
@@ -22,6 +23,7 @@ spring:
     validate-on-migrate: true
     locations: classpath:db/migration
     schemas: expense
+    create-schemas: true
 ```
 
 ## Migration Files
@@ -33,6 +35,10 @@ Migrations are located in: `src/main/resources/db/migration/`
 - **Description**: Initial schema with expenses, expense_items, and expense_audit tables
 - **Source**: Generated from Expense.java and ExpenseItem.java entities as source of truth
 - **Created**: 2026-02-20
+
+### V2: Delegation Audit Fields
+- **File**: `V2__add_delegation_fields_to_expense_audit.sql`
+- **Description**: Adds `delegation_id`, `consent_id`, `tenant_id` to `expense_audit`
 
 ## Schema Structure
 
@@ -55,7 +61,7 @@ Line items for expense reports:
 ### expense_audit table
 Audit trail for compliance:
 - Actor/subject tracking for delegation scenarios
-- Action types: CREATE, UPDATE, DELETE, SUBMIT, APPROVE, REJECT, PAY
+- Action types recorded: CREATE, UPDATE, DELETE, SUBMIT, APPROVE, REJECT
 - Additional context stored as JSONB
 
 ## Testing the Migration
@@ -66,7 +72,7 @@ Connect to PostgreSQL and drop the expense schema:
 
 ```sql
 -- Connect to database
-docker-compose exec postgres psql -U admin -d corporate_travel
+podman compose exec postgres psql -U admin -d corporate_travel
 
 -- Drop existing expense schema (clean start)
 DROP SCHEMA IF EXISTS expense CASCADE;
@@ -81,12 +87,12 @@ The service will automatically:
 1. Create the `expense` schema if it doesn't exist
 2. Run Flyway migrations
 3. Create `flyway_schema_history` table
-4. Execute V1__baseline_expenses_schema.sql
-5. Create `expenses`, `expense_items`, and `expense_audit` tables with indexes
+4. Execute V1 and V2 in order
+5. Leave `expenses`, `expense_items`, and `expense_audit` tables with indexes
 
 ```bash
 # Start with Docker
-docker-compose up -d expense-service
+podman compose up -d expense-service
 
 # Or run locally
 ./gradlew :services:expense-service:bootRun
@@ -98,7 +104,7 @@ Connect to PostgreSQL and verify:
 
 ```sql
 -- Connect to database
-docker-compose exec postgres psql -U admin -d corporate_travel
+podman compose exec postgres psql -U admin -d corporate_travel
 
 -- Switch to expense schema
 SET search_path TO expense;
@@ -109,6 +115,7 @@ SELECT * FROM flyway_schema_history;
 -- Expected output:
 -- installed_rank | version | description              | type | script                           | checksum    | installed_by | installed_on | execution_time | success
 -- 1              | 1       | baseline expenses schema | SQL  | V1__baseline_expenses_schema.sql | <checksum>  | admin        | <timestamp>  | <ms>          | true
+-- 2              | 2       | add delegation fields to expense audit | SQL | V2__add_delegation_fields_to_expense_audit.sql | ... | true
 
 -- Verify tables exist
 \dt
@@ -142,14 +149,13 @@ SELECT * FROM flyway_schema_history;
 
 1. Create a new migration file with next version number:
    ```
-   V2__add_reimbursement_date.sql
-   V3__add_expense_category_index.sql
-   V4__add_receipt_required_flag.sql
+   V3__add_reimbursement_date.sql
+   V4__add_expense_category_index.sql
    ```
 
 2. Write the SQL changes:
    ```sql
-   -- V2__add_reimbursement_date.sql
+   -- V3__add_reimbursement_date.sql
    ALTER TABLE expenses ADD COLUMN reimbursement_date TIMESTAMP;
    CREATE INDEX idx_expenses_reimbursement ON expenses(reimbursement_date);
    
@@ -162,11 +168,10 @@ SELECT * FROM flyway_schema_history;
 
 Format: `V{version}__{description}.sql`
 
-- **Version**: Sequential integer (V1, V2, V3, ...)
+- **Version**: Sequential integer (V1, V2, V3, ...); the next free version is V3
 - **Description**: Underscore-separated, lowercase
 - **Examples**:
-  - `V2__add_reimbursement_tracking.sql`
-  - `V3__create_expense_templates_table.sql`
+  - `V3__add_reimbursement_tracking.sql`
   - `V4__add_indexes_for_reporting.sql`
 
 ## Troubleshooting
@@ -182,13 +187,13 @@ If a migration fails:
 
 2. Fix the migration SQL file
 
-3. Repair Flyway:
-   ```bash
-   # Connect to service and run Flyway repair
-   docker-compose exec expense-service ./gradlew flywayRepair
+3. PostgreSQL runs each migration in a transaction, so a failed migration is normally rolled back without a history row. If a `success = false` row exists, delete it:
+   ```sql
+   DELETE FROM expense.flyway_schema_history WHERE success = false;
    ```
+   (The runtime image has no Gradle, so there is no `flywayRepair` task to run.)
 
-4. Restart the service
+4. Restart the service: `podman compose up -d --build expense-service`
 
 ### Schema Out of Sync
 
@@ -236,7 +241,7 @@ The expense status field tracks the approval workflow:
 - **SUBMITTED**: Submitted for approval
 - **APPROVED**: Approved by manager
 - **REJECTED**: Rejected by manager
-- **PAID**: Reimbursement completed
+- **PAID**: Reimbursement completed (defined; no endpoint sets it yet)
 
 ### Relationship to Bookings
 Expenses can optionally reference travel bookings via `booking_id` column, enabling tracking of travel-related expenses.
@@ -244,14 +249,14 @@ Expenses can optionally reference travel bookings via `booking_id` column, enabl
 ## Related Documentation
 
 - [ADR-023: Adopt Flyway for Database Schema Migration Management](../../architecture-decision-records/ADR-023:%20Adopt%20Flyway%20for%20Database%20Schema%20Migration%20Management.md)
-- [Flyway Documentation](https://flywaydb.org/documentation/)
-- [Spring Boot Flyway Integration](https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.data-initialization.migration-tool.flyway)
+- [Flyway Documentation](https://documentation.red-gate.com/flyway)
+- [Spring Boot Flyway Integration](https://docs.spring.io/spring-boot/how-to/data-initialization.html#howto.data-initialization.migration-tool.flyway)
 - [Travel Service Flyway Guide](../travel-service/FLYWAY-MIGRATION.md)
 
 ## Notes
 
 - **JPA ddl-auto**: Set to `validate` - Flyway is the source of truth
 - **Baseline Version**: Set to 0 to allow baselining
-- **Schema**: Each service manages its own schema (travel, expense, approval, etc.)
-- **Audit Table**: Structure created but logging not yet implemented in service layer
+- **Schema**: Each service manages its own schema (travel, expense, delegation, consent, bff)
+- **Audit Table**: Written by the service's audit layer on every mutation, in the same transaction
 - **Cascade Deletes**: expense_items and expense_audit use CASCADE delete when parent expense is deleted

@@ -1,21 +1,20 @@
 # API Gateway Service
 
-Spring Cloud Gateway providing centralized routing, JWT validation, and traffic management for the Corporate Travel & Expense Platform.
+Spring Cloud Gateway providing centralized routing and JWT validation for the Corporate Travel & Expense Platform.
 
 **Port**: 8000  
-**Spring Boot**: 3.2.2 / Java 17
+**Spring Boot**: 4.1.1 / Java 25 (Spring Cloud 2025.1.3, Gateway 5.0, WebFlux)
 
 ## Overview
 
 The API Gateway is the single entry point for external client requests. It:
 
-- Validates JWT tokens once at the gateway level
+- Validates JWT signature, issuer and audience at the gateway level
 - Routes requests to backend microservices by path
-- Applies circuit breakers (Resilience4j)
 - Injects security headers on all responses
 - Manages CORS centrally
 
-> The Employee BFF (port 8085) calls downstream services directly — it does **not** route through the gateway. The gateway is intended for direct API clients.
+> The Next.js frontend calls the gateway (via its `/api/bookings`, `/api/expenses`, `/api/delegations`, `/api/consents` rewrites) with the `employee-portal` token. The Employee BFF (port 8085) calls downstream services directly and does **not** route through the gateway.
 
 ## Architecture
 
@@ -23,14 +22,15 @@ The API Gateway is the single entry point for external client requests. It:
 External Client (curl / frontend)
     ↓ HTTP with JWT
 API Gateway (Port 8000)
-    ├─ JWT Validation (Spring Security OAuth2)
+    ├─ JWT Validation (Spring Security OAuth2, audience check)
     ├─ Route Matching
-    ├─ Filters (Logging, Security Headers)
-    └─ Circuit Breakers (Resilience4j)
+    └─ Filters (Logging, Security Headers)
     ↓
 Backend Services
-    ├─ Travel Service   (Port 8081)  ← /api/bookings/**
-    └─ Expense Service  (Port 8082)  ← /api/expenses/**
+    ├─ Travel Service     (Port 8081)  ← /api/bookings/**
+    ├─ Expense Service    (Port 8082)  ← /api/expenses/**
+    ├─ Delegation Service (Port 8083)  ← /api/delegations/**
+    └─ Consent Service    (Port 8084)  ← /api/consents/**
 ```
 
 ## Routes
@@ -39,28 +39,25 @@ Backend Services
 |------|----------------|------|
 | `/api/bookings/**` | travel-service | 8081 |
 | `/api/expenses/**` | expense-service | 8082 |
+| `/api/delegations/**` | delegation-service | 8083 |
+| `/api/consents/**` | consent-service | 8084 |
+| `/travel-service-docs/**`, `/expense-service-docs/**` | OpenAPI specs of travel / expense service | 8081 / 8082 |
 
-Routes to delegation-service (8083), consent-service (8084), and employee-bff (8085) are not yet wired through the gateway — access those services directly for now.
+The employee-bff (8085) is not routed through the gateway.
 
 ## Features
 
 ### JWT Authentication
 
-All requests (except `/actuator/health`) require a valid JWT from Keycloak:
+All requests except actuator and API-docs endpoints require a valid JWT from Keycloak whose `aud` contains at least one of `travel-service`, `expense-service`, `delegation-service`, `consent-service`. Each backend service then enforces its own audience.
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookings
 ```
 
-### Circuit Breakers
+### Fallbacks
 
-Each backend has a dedicated circuit breaker:
-
-- Sliding window: 10 requests
-- Failure threshold: 50%
-- Wait duration: 10 seconds
-
-Fallback endpoints: `/fallback/travel`, `/fallback/expenses`
+`FallbackController` serves `/fallback/{travel,expenses,approvals,delegations,consent}`. No circuit breaker filters are wired to the routes yet.
 
 ### Security Headers
 
@@ -68,12 +65,13 @@ All responses include:
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `X-XSS-Protection: 1; mode=block`
-- `Strict-Transport-Security: max-age=31536000`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Referrer-Policy: strict-origin-when-cross-origin`
 
 ### CORS
 
 Configured for:
-- Origins: `localhost:3000` (future frontend), `localhost:8085` (BFF)
+- Origins: `localhost:3000` (Next.js frontend), `localhost:3001`
 - Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
 - Credentials: enabled
 
@@ -86,9 +84,9 @@ Configured for:
 # Run locally
 ./gradlew :services:api-gateway:bootRun
 
-# Docker Compose
-docker-compose up -d
-docker-compose logs -f api-gateway
+# Compose
+podman compose up -d
+podman compose logs -f api-gateway
 ```
 
 ## Configuration
@@ -96,13 +94,15 @@ docker-compose logs -f api-gateway
 Routes are defined programmatically in `GatewayConfig.java`. The YAML configures JWT validation and server settings:
 
 ```yaml
-# application-docker.yml
+# application.yml + application-docker.yml (merged)
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          issuer-uri: http://localhost:8080/realms/corporate-travel   # token iss
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+          audiences: [travel-service, expense-service, delegation-service, consent-service]
 server:
   port: 8000
 ```
@@ -116,9 +116,10 @@ curl http://localhost:8000/actuator/health
 # List configured routes
 curl http://localhost:8000/actuator/gateway/routes | jq
 
-# Get token and test routing
+# Get token and test routing (employee-bff is the only client with direct access grants)
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token \
-  -d "client_id=employee-portal&username=alice.employee&password=password123&grant_type=password" \
+  -d "client_id=employee-bff&client_secret=bff-service-secret-change-in-production" \
+  -d "username=alice.employee&password=password123&grant_type=password" \
   | jq -r '.access_token')
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookings
@@ -136,9 +137,9 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/expenses
 
 ## Troubleshooting
 
-**401 Unauthorized** — verify token is valid and not expired; check issuer matches `http://keycloak:8080/realms/corporate-travel`
+**401 Unauthorized** — verify the token is valid and not expired, its `iss` is `http://localhost:8080/realms/corporate-travel`, and its `aud` contains a backend service
 
-**503 Service Unavailable** — check that the backend service is running (`docker-compose ps`); review circuit breaker status at `/actuator/health`
+**503 Service Unavailable** — check that the backend service is running (`podman compose ps`)
 
 **Gateway won't start** — Keycloak must be healthy first: `curl http://localhost:8080/realms/corporate-travel`
 

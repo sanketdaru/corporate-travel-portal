@@ -1,18 +1,19 @@
 # Travel Service
 
-Travel Service manages travel bookings (flights, hotels, car rentals) with multi-tenant support, OPA-based authorization, delegation-aware identity propagation, and a full audit trail.
+Travel Service manages travel authorizations (bookings: destination, dates, business purpose, approved budget) with multi-tenant support, OPA-based authorization, delegation-aware identity propagation, and a full audit trail.
 
 **Port**: 8081  
 **Database schema**: `travel`  
-**Spring Boot**: 3.2.2 / Java 17
+**Spring Boot**: 4.1.1 / Java 25
 
 ## Features
 
 - Bookings CRUD with multi-tenant data isolation
 - OPA authorization: tenant isolation, RBAC, resource ownership, delegation rules
-- Delegation-aware via `X-Delegated-Subject` / `X-Delegation-Id` / `X-Consent-Id` headers
+- Delegation-aware via RFC 8693 delegated tokens (`sub` = delegator, `act.sub` = actor) and a verified `X-Actor-Token` (ADR-024)
+- Accepts only tokens with `aud` containing `travel-service`
 - Audit trail on every mutation — `actorId`, `subjectId`, `delegationId`, `consentId`
-- Flyway-managed schema migrations (V1 baseline + V2 audit tables)
+- Flyway-managed schema migrations (V1–V4)
 - OpenAPI / Swagger UI
 
 ## API Endpoints
@@ -22,7 +23,9 @@ Travel Service manages travel bookings (flights, hotels, car rentals) with multi
 ```bash
 POST   /api/bookings                  Create booking
 GET    /api/bookings                  List my bookings
+GET    /api/bookings/all              List all tenant bookings (admin)
 GET    /api/bookings/{id}             Get booking
+GET    /api/bookings/{id}/budget      Budget and currency (used by expense-service)
 PUT    /api/bookings/{id}/status      Update booking status
 DELETE /api/bookings/{id}             Delete booking
 ```
@@ -33,21 +36,27 @@ curl -X POST http://localhost:8081/api/bookings \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "bookingType": "FLIGHT",
+    "tenantId": "placeholder",
+    "userId": "placeholder",
     "destination": "New York",
-    "startDate": "2026-06-01",
-    "endDate": "2026-06-05",
-    "totalAmount": 500.00
+    "startDate": "2026-12-01",
+    "endDate": "2026-12-05",
+    "businessPurpose": "Client meetings",
+    "budget": 120000,
+    "budgetCurrency": "INR",
+    "status": "DRAFT"
   }'
 ```
 
-#### Delegated Booking (via BFF)
-When the Employee BFF calls this endpoint on behalf of a delegate, it injects:
-- `X-Delegated-Subject: carol.executive` — the human principal the booking belongs to
-- `X-Delegation-Id: <uuid>` — the delegation record
-- `X-Consent-Id: <uuid>` — the consent record
+`tenantId` and `userId` are required by validation but overwritten from the token.
 
-The service records `actorId=dave.assistant` and `subjectId=carol.executive` in the booking and audit rows.
+#### Delegated Booking (via BFF)
+When the Employee BFF calls this endpoint for a delegate, it sends:
+- `Authorization: Bearer <delegated token>` — `sub` = carol.executive (delegator), `act.sub` = dave.assistant (actor), `aud` = travel-service
+- `X-Actor-Token: <Dave's own JWT>` — verified by `DelegatedActorFilter` against `act.sub`
+- `X-Delegation-Id`, `X-Consent-Id` — audit metadata
+
+The booking is owned by Carol (`userId`) and created by Dave (`createdBy`); the audit row records `actorId=dave.assistant`, `subjectId=carol.executive`. OPA authorizes with Dave's identity and roles. An `X-Delegated-Subject` header is ignored.
 
 ### Audit Trail
 
@@ -89,16 +98,16 @@ Recorded actions: `CREATE`, `STATUS_CHANGE`, `DELETE`
 ## Running
 
 ```bash
-# Start infrastructure first
-docker-compose up -d postgres neo4j keycloak opa
+# Start infrastructure first (keycloak-config applies the realm)
+podman compose up -d postgres keycloak keycloak-config opa
 
 # Run locally
 ./gradlew :services:travel-service:bootRun
 # Available at http://localhost:8081
 
-# Or via Docker Compose (all services)
-docker-compose up -d
-docker-compose logs -f travel-service
+# Or in compose (all services)
+podman compose up -d
+podman compose logs -f travel-service
 ```
 
 ## Configuration
@@ -112,7 +121,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://keycloak:8080/realms/corporate-travel
+          issuer-uri: http://localhost:8080/realms/corporate-travel   # token iss
+          jwk-set-uri: http://keycloak:8080/realms/corporate-travel/protocol/openid-connect/certs
+          audiences: [travel-service]   # from application.yml
 server:
   port: 8081
 opa:
@@ -128,18 +139,22 @@ opa:
 
 Managed by Flyway:
 
-- **V1** — `travel.bookings` table (CRUD fields, `user_id`, `created_by`, `tenant_id`)
-- **V2** — `travel.booking_audit` table (`actor_id`, `subject_id`, `delegation_id`, `consent_id`, `tenant_id`, `action`, `timestamp`, `details`)
+- **V1** — `travel.bookings` and `travel.booking_audit` tables
+- **V2** — `delegation_id`, `consent_id`, `tenant_id` on `booking_audit`
+- **V3** — booking becomes a travel authorization: drops `booking_type` / `total_amount`, adds `budget` / `budget_currency`
+- **V4** — `business_purpose`, `notes`
+
+See [FLYWAY-MIGRATION.md](./FLYWAY-MIGRATION.md).
 
 ## Security
 
-- JWT authentication via Keycloak (`realm_access.roles` required for `has_role("employee")` in OPA)
+- JWT authentication via Keycloak; `aud` must contain `travel-service` (`realm_access.roles` required for `has_role("employee")` in OPA)
 - OPA authorization checked before every operation:
   - `create_booking` — `has_role("employee")` + tenant match
   - `view_booking` — tenant isolation + ownership or delegation
   - `update_booking` — `is_resource_owner` or `is_active_delegate` with `book_travel` scope
   - `delete_booking` — same as update
-- Mutation endpoints (`PUT`, `DELETE`) use the header-aware `extractSecurityContext(jwt, httpRequest)` overload to pick up delegation headers
+- All endpoints use `extractSecurityContext(jwt, request)`, which resolves delegation from the token's `act` claim and the verified actor token
 
 ## API Documentation
 
@@ -155,7 +170,7 @@ curl http://localhost:8081/actuator/health
 ## Architecture
 
 ```
-BookingController (REST — extracts SecurityContext with delegation headers)
+BookingController (REST — extracts SecurityContext, delegation from act + X-Actor-Token)
     ↓
 BookingServiceImpl (OPA authorize → business logic → audit write, same @Transactional)
     ↓
@@ -172,7 +187,8 @@ PostgreSQL travel.bookings          PostgreSQL travel.booking_audit
 
 # Manual — get token then call API
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token \
-  -d "client_id=employee-portal&username=alice.employee&password=password123&grant_type=password" \
+  -d "client_id=employee-bff&client_secret=bff-service-secret-change-in-production" \
+  -d "username=alice.employee&password=password123&grant_type=password" \
   | jq -r '.access_token')
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/bookings
@@ -180,13 +196,14 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/bookings
 
 ## Related Services
 
-- **Employee BFF** (8085) — performs token exchange and injects delegation headers before calling this service
+- **Employee BFF** (8085) — performs the delegated token exchange and sends the delegated token + `X-Actor-Token`
 - **Delegation Service** (8083) — stores the delegation records referenced by `X-Delegation-Id`
 - **Consent Service** (8084) — stores the consent records referenced by `X-Consent-Id`
 - **API Gateway** (8000) — routes `/api/bookings/**` to this service
 
 ## Related Documentation
 
-- [DELEGATION-FLOW.md](../../DELEGATION-FLOW.md) — end-to-end delegation walkthrough
+- [DELEGATE-JOURNEY.md](../../docs/journeys/DELEGATE-JOURNEY.md) — delegation walkthrough
+- [ADR-024: Keycloak Native RFC 8693 Delegation](../../architecture-decision-records/ADR-024:%20Adopt%20Keycloak%20Native%20RFC%208693%20Delegation.md)
 - [ADR-011: Audit and Compliance Ledger](../../architecture-decision-records/ADR-011:%20Implement%20Comprehensive%20Audit%20and%20Compliance%20Ledger.md)
 - [ADR-004: OAuth 2.0 Token Exchange](../../architecture-decision-records/ADR-004:%20Adopt%20OAuth%202.0%20Token%20Exchange%20for%20Delegated%20Identity.md)

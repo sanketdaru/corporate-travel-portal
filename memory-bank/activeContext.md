@@ -1,191 +1,43 @@
 # Active Context
 
+**Last Updated**: 2026-10-08
+
 ## Current Work Focus
 
-**Phase**: Consent Service Implementation Complete + Docker Best Practices Standardized
+**Phase**: Platform upgrade complete (phases 0–6); Phase 7 docs and ADR sync in progress on branch `upgrade/phase-7-docs`.
 
-Both Travel Service and Expense Service are now fully implemented with comprehensive features:
-- Complete CRUD operations with OPA authorization
-- Multi-tenant isolation enforced
-- Delegation support built-in
-- Approval workflow (Expense Service)
-- OpenAPI/Swagger documentation
-- Docker containerization ready
-- **Unit testing framework established** (Expense Service)
+Plan and per-phase results: `docs/UPGRADE-PLAN.md`. Delegation design: ADR-024.
 
-**NEW**: Comprehensive unit testing patterns documented and 68+ tests completed for Expense Service.
+## Recent Changes (Upgrade, 2026-10-08)
 
-## Recent Changes
+| Phase | Result |
+|---|---|
+| 0 Baseline | GitHub Actions CI; images pinned; `get-token.sh` and `setup-local.sh` fixed; e2e 71/71 baseline |
+| 1 Infrastructure | Keycloak 26.5.6 → 26.8.0 (in-place DB migration); `KC_BOOTSTRAP_ADMIN_*`; health on port 9000; Neo4j `server.memory.*`; OPA native arm64; Rego v1 style |
+| 2 Realm-as-code | `keycloak-config` one-shot (keycloak-config-cli) applies `infrastructure/keycloak/config/corporate-travel.json` on every `up`; `realm-export.json` deleted; user profile declares `employee_id`, `reports_to`, `assists`; standard scopes restored; Admin API patching removed from `seed-data.sh`; `validate-realm-config.sh` in CI |
+| 3 Backend platform | Java 25, Gradle 9.8.1, Boot 4.1.1, Spring Cloud 2025.1.3; Jackson 3 (`tools.jackson`), Flyway 12.4 via BOM, modular starters; fixed Jackson 3 creator-detection and trailing-token breaks |
+| 4 Token hardening | `aud` validation in every service; one exchanged token per downstream audience; Spring Security 7 token exchange client; RestClient instead of WebClient + `.block()`; tokens no longer returned by the activate endpoint; BFF passes 4xx through, 5xx → 502 |
+| 5 RFC 8693 delegation | Spike, then adoption (ADR-024 option B): grant ceremony via `delegation-grant` client, encrypted offline-token store (schema `bff`, AES-256-GCM), delegated exchange with `actor_token`, FGAP v2 via `keycloak-fgap`, `DelegatedActorFilter`, `X-Delegated-Subject` removed; fixed silent Neo4j write failure (missing `Neo4jTransactionManager`) |
+| 6 Frontend | Next 16.4, React 19.3, next-auth 5 beta.32, TS 6.0, Tailwind 4.3; ESLint stays on 9; React Compiler lint violations fixed, not suppressed |
+| 7 Docs | README, GETTING-STARTED, IMPLEMENTATION, memory-bank, ADR statuses (in progress) |
 
-### Completed (Current Session - 2026-01-03)
+Verified at the end of Phase 5: 262 unit tests, `validate-realm-config.sh` 14/14, e2e 73/73, OPA 5/5.
 
-1. **Consent Service - Docker Configuration** ✅
-   - ✅ Added consent-service entry to docker-compose.yml
-   - ✅ Configured port mapping (8084:8084)
-   - ✅ Added platform specification (linux/amd64)
-   - ✅ Added OPA_URL environment variable
-   - ✅ Configured health checks with 60s start period
-   - ✅ Set proper service dependencies (postgres, keycloak, opa)
-   - ✅ Fixed settings-docker.gradle to match working services pattern
-   - **Issue**: Build was failing due to incomplete settings-docker.gradle
-   - **Resolution**: Updated to include multi-project structure with shared dependencies
+## Next Steps
 
-### Completed (Previous Session - 2026-03-01)
+- Finish Phase 7 and merge the upgrade branches.
+- Manual click-through of dashboard, travel, expense, admin and delegation pages (Phase 6 refactors are covered by typecheck/build only).
+- Follow-ups from `docs/UPGRADE-PLAN.md` §8: Testcontainers + `testcontainers-keycloak` integration tests, Organizations (ADR-003), OTel (ADR-020), OpenBao (ADR-021), DPoP and client secret rotation.
 
-1. **Consent Service - Complete Implementation** ✅
-   - ✅ Database schema with Flyway migrations (consent.consents, consent.consent_audit)
-   - ✅ JPA entities (Consent, ConsentAudit, ConsentStatus)
-   - ✅ Complete DTOs (Create, Response, Validate, Audit)
-   - ✅ Repositories with tenant-aware queries
-   - ✅ Service layer with OPA authorization
-   - ✅ REST API with 8 endpoints + OpenAPI documentation
-   - ✅ Exception handling (RFC 7807 Problem Details)
-   - ✅ Security configuration (JWT + non-root user)
-   - ✅ Test infrastructure (builders + utilities)
-   - ✅ Comprehensive README documentation
+## Active Decisions
 
-2. **Docker Best Practices Standardization** ✅
-   - ✅ Fixed consent-service Dockerfile to match established patterns
-   - ✅ Implemented 3-stage multi-stage build (dependencies → builder → runtime)
-   - ✅ Changed base image from alpine to eclipse-temurin:17-jre-jammy
-   - ✅ Added non-root user (spring:spring) for security
-   - ✅ Added JVM optimization flags for container environments
-   - ✅ Added metadata labels for tracking
-   - ✅ Increased health check start period from 40s to 60s
-   - ✅ Documented Docker best practices in systemPatterns.md
-   - ✅ Updated techContext.md with Docker build instructions
+- Delegation identity comes from Keycloak RFC 8693 tokens (`sub` = delegator, `act.sub` = actor), a **preview** feature; delegation-service and consent-service remain the business policy layer.
+- Realm changes go into `corporate-travel.json`, never the admin console.
+- Tenancy stays on groups + `tenant_id` (Organizations deferred).
+- Frontend stays on next-auth 5 beta and TypeScript 6.
 
-3. **Memory Bank Updates** ✅
-   - ✅ Added comprehensive Docker Best Practices section to systemPatterns.md
-   - ✅ Documented 3-stage build pattern with rationale
-   - ✅ Documented security practices (non-root user, image labels)
-   - ✅ Documented JVM optimization flags with explanations
-   - ✅ Documented health check configuration standards
-   - ✅ Added complete Dockerfile template for future services
-   - ✅ Updated techContext.md with Docker build commands
-   - ✅ Updated activeContext.md with current work status
+## Earlier History (condensed)
 
-### Completed (Previous Session - 2026-02-28)
-
-1. **Unit Testing Status Verified and Documented** ✅
-   - **Travel Service**: 20 tests complete (5/5 operations - 100%) ✅
-     - BookingServiceImplTest with all CRUD operations covered
-     - Create Booking: 4 tests ✅
-     - Get Booking: 3 tests ✅
-     - Get User Bookings: 3 tests ✅
-     - Update Booking Status: 3 tests (+ parameterized) ✅
-     - Delete Booking: 3 tests ✅
-   - **Expense Service**: 68+ tests complete (6/11 operations - ~55%)
-     - ExpenseServiceImplTest partially complete
-     - Create (8), Get (5), GetUserExpenses (5), Update (11), Delete (9), AddItem (11) ✅
-     - Remaining: UpdateItem, DeleteItem, Submit, Approve, Reject (TODO)
-   - **Total**: 88+ unit tests across both services
-   - All tests passing with BUILD SUCCESSFUL
-   - **Framework**: JUnit 5 + Mockito + AssertJ
-   - **Target**: 80%+ line coverage, 100% branch coverage
-
-2. **Testing Patterns Documented** ✅
-   - Comprehensive testing section added to systemPatterns.md
-   - Test organization using @Nested classes
-   - Naming convention: should_expectedBehavior_when_condition
-   - AAA pattern (Given-When-Then) with comments
-   - Test utilities: TestDataBuilder, TestFixtures, SecurityContextTestUtil
-   - Parameterized tests for enum coverage (@ParameterizedTest + @EnumSource)
-   - Security testing pattern for OPA integration
-   - Mock strategy and verification patterns
-   - Examples and code snippets for future reference
-   - Updated memory bank with comprehensive testing documentation
-
-### Completed (Previous Session - 2026-02-18)
-
-1. **ADR-023: Database Schema Migration Strategy** ✅
-   - Identified gaps in architecture from data storage perspective
-   - Analyzed current manual SQL script limitations
-   - Created comprehensive ADR for Flyway adoption
-   - Defined schema-per-service migration strategy
-   - Documented baseline approach for existing databases
-   - Outlined implementation roadmap
-   - **Gap Addressed**: No version control or audit trail for schema changes
-
-2. **Memory Bank Synchronization** ✅
-   - Analyzed complete implementation state
-   - Updated progress.md with Expense Service completion
-   - Updated activeContext.md with current status
-   - Documented all implemented features
-   - Verified code statistics and metrics
-
-### Completed (Previous Session - 2026-02-08)
-
-1. **Expense Service Implementation** ✅
-   - Created complete Spring Boot microservice with 12+ Java classes
-   - Implemented Expense and ExpenseItem entities with JPA
-   - Created repositories with tenant-aware queries
-   - Implemented ExpenseService with comprehensive OPA authorization
-   - Built REST API with 14+ endpoints (CRUD + workflow operations)
-   - Added expense workflow: DRAFT → SUBMITTED → APPROVED/REJECTED → PAID
-   - Expense items management (add, update, delete)
-   - Global exception handler with custom exceptions
-   - OpenAPI/Swagger documentation with detailed annotations
-   - Configured for both local and Docker environments
-   - **BUILD SUCCESSFUL** - JAR ready
-
-2. **Travel Service - OpenAPI/Swagger Integration** ✅
-   - Added springdoc-openapi-starter-webmvc-ui dependency (2.3.0)
-   - Created OpenApiConfig with comprehensive API documentation
-   - Added detailed @Operation and @ApiResponse annotations to all endpoints
-   - Configured Swagger UI at `/swagger-ui.html`
-   - Exposed OpenAPI spec at `/api-docs`
-   - Updated application.yml with springdoc configuration
-   - Updated README with Swagger usage instructions
-   - **BUILD SUCCESSFUL** - Service ready with full API documentation
-
-### Completed (Previous Session - 2026-02-07)
-
-1. **Travel Service Implementation** ✅
-   - Created complete Spring Boot microservice with 9 Java classes
-   - Implemented Booking entity with JPA (multi-tenant, delegation-aware)
-   - Created BookingRepository with tenant-aware queries
-   - Implemented BookingService with OPA authorization for all operations
-   - Built REST API with 5 endpoints (Create, List, Get, Update Status, Delete)
-   - Added global exception handler with RFC 7807 Problem Details
-   - Configured for both local and Docker environments
-   - Created comprehensive README documentation
-   - **BUILD SUCCESSFUL** - JAR ready at `build/libs/travel-service.jar`
-
-2. **Build System Fixes**
-   - Upgraded Gradle wrapper from 4.4.1 to 8.5 (required for Java 17)
-   - Fixed Lombok annotation processor in security-commons
-   - Fixed SecurityConfig Bean initialization pattern
-   - Added PENDING status to BookingStatus enum
-   - Created gradle.properties for JVM configuration
-
-3. **Shared Library Enhancements**
-   - Enabled Lombok annotation processor in security-commons build.gradle
-   - Fixed SecurityConfig to properly create JwtAuthenticationConverter bean
-   - Validated all shared library compilation
-
-### Completed (Previous Session - 2024-02-07)
-
-1. **Infrastructure Setup**
-   - Created Docker Compose with Keycloak, PostgreSQL, Neo4j, OPA
-   - Configured database schemas for all services
-   - Set up Keycloak realm with 5 test users across 2 tenants
-   - Implemented OPA authorization policies in Rego
-
-2. **Build System**
-   - Established Gradle multi-project monorepo structure
-   - Created build configurations for all planned services
-   - Set up Gradle wrapper for consistent builds
-
-3. **Shared Libraries**
-   - **security-commons**: Core security infrastructure
-     - `SecurityContext`: Token claims extraction (user, tenant, delegation, consent)
-     - `JwtAuthenticationConverter`: Spring Security integration
-     - `OpaClient`: OPA policy decision integration
-     - `SecurityConfig`: Base security configuration
-   - **domain-models**: Shared enums and value objects
-     - BookingStatus, ExpenseStatus, ApprovalStatus
-
-4. **Documentation**
-   - **README.md**: Complete system overview with architecture diagrams
-   -
+- 2026-02 to 2026-04: travel, expense, consent and delegation services, BFF with Standard Token Exchange V2 and header-based delegation (now replaced), audit trail (ADR-011), Flyway (ADR-023), unit-test patterns, e2e script.
+- 2026-04-10 to 2026-04-17: Next.js frontend (dashboard, travel, expense, admin, delegation pages).
+- Details of those sessions are in git history.

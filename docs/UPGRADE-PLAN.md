@@ -440,6 +440,19 @@ Exit: `npm run build` and lint clean; manual login, refresh, logout and delegati
 4. New ADR: realm-as-code tool choice (D1).
 5. ADRs 008, 009, 012, 020, 021, 022: change status to "Proposed" or "Deferred" so they match reality, and note the new Keycloak capabilities each could use (§8).
 
+**Phase 7 result (2026-10-12):**
+
+- Rewritten for the current system, shorter: `README.md`, `GETTING-STARTED.md`, `IMPLEMENTATION.md`, service READMEs, Flyway guides, `docs/AUTH-AND-SESSION.md`, `docs/AUTHORIZATION-GUIDE.md`, `docs/TRAVEL-AUTHORIZATION.md`, `docs/journeys/*` (≈3,000 → ≈1,200 lines), memory-bank. New `frontend/nextjs/README.md` and `frontend/nextjs/.env.example`.
+- `DELEGATION-FLOW.md` removed (described the header model; superseded by `docs/journeys/DELEGATE-JOURNEY.md` and ADR-024).
+- ADRs 008, 009, 012, 020, 021, 022 → "Proposed — not implemented", each with current options. ADR-011, 018, 023 corrected. `ADR-IMPLEMENTATION-PLAN.md` and `frontend/FRONTEND-IMPLEMENTATION-PLAN.md` marked historical.
+- Defects found while documenting, fixed:
+  - `setup-local.sh` never started `keycloak-config`, so a fresh setup never got the realm.
+  - travel-service / expense-service base `application.yml` expected `iss=http://keycloak:8080`; tokens carry `http://localhost:8080`, so local `bootRun` rejected them.
+  - Compose ignored `KC_BOOTSTRAP_ADMIN_*` from `.env`; now read with the same defaults.
+  - Stale `X-Delegated-Subject` text in BFF OpenAPI descriptions and Javadoc.
+  - Root `.env.example` carried unused `NEXT_PUBLIC_*` values (one pointing at a non-existent port 3001).
+- Noted, not changed: the realm still defines an `approval-service` client although no such service exists; expense-service calls travel-service's budget endpoint without a token (network trust, see ADR-009); gateway CORS still allows `localhost:3001`.
+
 ---
 
 ## 6. Risks

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
- * Response from Keycloak Standard Token Exchange V2 (RFC 8693).
+ * Token response from Keycloak's RFC 8693 token exchange endpoint.
  */
 @Data
 public class TokenExchangeResponse {

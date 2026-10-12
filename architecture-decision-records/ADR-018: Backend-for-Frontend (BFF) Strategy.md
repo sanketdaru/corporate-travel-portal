@@ -1,16 +1,16 @@
 # ADR-018: Backend-for-Frontend (BFF) Strategy
 
 ## Status
-Accepted — Updated 2026-03-29
+Accepted — Updated 2026-10-08 (RFC 8693 delegation, ADR-024)
 
 ## Context
 Different clients require different token handling, aggregation logic, and authorization contexts.
 
 More specifically, the Employee BFF is the **delegation gateway** for the platform. It is the only component that holds the actor's full token and is trusted to:
 
-1. Perform OAuth 2.0 Standard Token Exchange V2 to obtain audience-scoped tokens
+1. Perform OAuth 2.0 token exchange (RFC 8693, with `actor_token` when delegating) to obtain audience-scoped tokens
 2. Validate active delegation relationships against the delegation-service
-3. Thread the full delegation identity context to downstream services as validated headers
+3. Hold the delegator's encrypted offline token (grant store) and forward the actor's token for verification
 4. Support **multi-agent AI chains** — where an AI agent client authenticates and acts on behalf of a human under explicit, consent-backed delegation
 
 ## Decision
@@ -32,23 +32,27 @@ Before any delegated call, the BFF:
 1. Receives a `delegationId` from the caller (e.g. "act as Carol under delegation X")
 2. Fetches the delegation record from the delegation-service and validates it is active
 3. Validates consent exists for the requested action/scope via the consent-service
-4. Caches the resolved `DelegationContext` for the request lifetime
+4. Verifies the caller is the delegate and that a Keycloak grant exists (409 otherwise)
+5. Stores the resolved `DelegationContext` (with per-audience tokens) in the server-side session
 
-**3. Token Exchange (Standard V2)**
-For each downstream service call, the BFF performs a Keycloak Standard Token Exchange V2:
-- `subject_token` = actor's current access token (chain of trust, mandatory)
+**3. Delegated Token Exchange (RFC 8693, ADR-024)**
+On activation, once per downstream audience (`delegation.audiences`, default travel + expense):
+- `subject_token` = delegator's (Carol's) access token, refreshed from the offline token stored at grant time
+- `actor_token` = actor's (Dave's) access token
 - `audience` = target service client ID (e.g. `travel-service`)
-- Result: audience-scoped token where `sub` = actor (Dave or AI agent)
+- Result: token with `sub` = Carol, `act.sub` = Dave, `aud` = one service. Tokens stay in the server-side session.
 
-**4. Delegation Header Threading**
-Every downstream call carries the full delegation context as validated headers:
+**4. Delegation Headers**
+Every delegated downstream call carries:
 
 ```
-Authorization: Bearer <audience-scoped token>   # actor identity + auth proof
-X-Delegated-Subject: <carol-user-id>             # human principal being acted for
-X-Delegation-Id: <delegation-record-uuid>        # validated delegation record
-X-Actor-Token: <actor-original-token>            # for audit chain reconstruction
+Authorization: Bearer <delegated token>         # sub = delegator, act.sub = actor
+X-Actor-Token: <actor's own token>              # verified by the service against act.sub
+X-Delegation-Id: <delegation-record-uuid>       # audit metadata
+X-Consent-Id, X-Delegation-Purpose              # audit metadata, when known
 ```
+
+`X-Delegated-Subject` is no longer sent or read.
 
 **5. Multi-Agent Chain Support**
 An AI agent client (registered as a confidential Keycloak client) follows the same flow as a human actor. The BFF does not distinguish between human and agent callers — the delegation-service graph models the chain:
@@ -58,14 +62,17 @@ Carol (User) --[CAN_ACT_AS]--> TravelPlannerAgent (Agent)
 TravelPlannerAgent (Agent) --[CAN_ACT_AS]--> BookingAgent (Agent)
 ```
 
-Each agent in the chain has its own Keycloak identity, its own audience-scoped token, and its own delegation record. The graph traversal in the delegation-service validates the full chain at each hop.
+Each agent in the chain has its own Keycloak identity and its own delegation record. The graph traversal in the delegation-service validates the full chain at each hop. (Agent chains are modelled in delegation-service; the RFC 8693 token path is exercised for human delegation only.)
 
 ### BFF API Surface
 
 ```
-# Authentication & Delegation Context
-POST   /api/bff/auth/login                    - Human login, returns session token
-POST   /api/bff/delegation/activate/{id}      - Activate a delegation context
+# Delegation grant and context (login is handled by the frontend via Keycloak PKCE)
+POST   /api/bff/delegation/{id}/grant         - Delegator starts the Keycloak grant (consent, offline token)
+GET    /api/bff/delegation/grant/callback     - Grant callback; stores the encrypted offline token
+GET    /api/bff/delegation/{id}/grant         - Grant status
+DELETE /api/bff/delegation/{id}               - Revoke (delegator only; revokes the offline session)
+POST   /api/bff/delegation/activate/{id}      - Activate a delegation context (delegate only)
 DELETE /api/bff/delegation/deactivate         - Exit delegation mode
 GET    /api/bff/delegation/context            - Get current active context
 
@@ -81,12 +88,12 @@ GET    /api/bff/dashboard                     - Aggregated dashboard
 
 ### Positive
 - Single point of responsibility for delegation context validation
-- Downstream services receive pre-validated, trusted headers — no need to re-resolve delegation records
+- Downstream services get the subject from a Keycloak-signed token — no need to re-resolve delegation records or trust a subject header
 - AI agent clients use identical flow to human users — no special-casing
 - BFF failure surface is isolated — if delegation is misconfigured, it fails at the gateway, not deep in a service call
-- Forward-compatible: when Keycloak ships `act` claim support, header threading is replaced by JWT claims transparently
 
 ### Negative
-- BFF is a trust boundary — downstream services must not accept `X-Delegated-Subject` from external callers directly
+- The BFF stores long-lived delegator credentials (encrypted offline tokens); the encryption key must be protected
+- Depends on a Keycloak preview feature (`token-exchange-delegation`)
 - Additional latency from delegation-service and consent-service lookups on each delegated request
 - Additional services to maintain per client channel

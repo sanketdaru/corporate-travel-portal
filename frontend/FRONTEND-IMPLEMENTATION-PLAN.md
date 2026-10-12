@@ -1,5 +1,7 @@
 # Next.js Frontend — Corporate Travel Portal: Phased Implementation Plan
 
+> **Historical record.** This plan predates the 2026-10 upgrade (Next 16.4, React 19.3, RFC 8693 delegation with a Keycloak grant step). For the current frontend see `frontend/nextjs/README.md`; for what changed see `docs/UPGRADE-PLAN.md` and ADR-024.
+
 ## Context
 
 The backend for this corporate travel portal is fully built (Spring Boot microservices, 71/71 E2E tests passing). This plan covers building the React frontend from scratch, translating 13 static HTML mockups (at `frontend/mockups/`) into a production-grade Next.js 14 application with real API integration, Keycloak OIDC authentication, and a complex delegation/identity flow (RFC 8693 Token Exchange V2).

@@ -2,147 +2,162 @@
 
 This quick start guide will help you get the platform up and running in minutes.
 
-## ⚡ Quick Start (5 Minutes)
+## ⚡ Quick Start
 
 ### Step 1: Prerequisites Check
 
 Ensure you have the following installed:
 
 ```bash
-# Check Docker
-docker --version
-# Should output: Docker version 24.0+ or higher
+# Podman with the compose subcommand (Docker with `docker compose` also works)
+podman --version
+podman compose version
 
-# Check Docker Compose
-docker-compose --version
-# Should output: Docker Compose version 2.0+ or higher
+# Tools used by the scripts
+curl --version
+jq --version
 
-# Check Java (optional, for local development)
-java -version
-# Should output: Java 17 or higher
+# Node.js 22+ (only for the frontend)
+node --version
 ```
 
-### Step 2: Clone and Setup
+Java is optional. The Gradle build uses a Java 25 toolchain and downloads it automatically if no local JDK 25 is found. The container images build inside `gradle:9.8-jdk25-noble`.
+
+> The commands below use `podman compose`. With Docker, replace it with `docker compose`.
+
+### Step 2: Configure and Start
 
 ```bash
-# Clone the repository (if not already done)
 cd corporate-travel-portal
 
-# Run the setup script
-./scripts/setup-local.sh
+# Demo secrets (Keycloak admin, client secrets, demo user password, BFF grant encryption key)
+cp .env.example .env
+
+# Build and start everything
+podman compose up -d --build
 ```
 
-The setup script will:
-- ✅ Create environment configuration
-- ✅ Start infrastructure services (PostgreSQL, Neo4j, Keycloak, OPA)
-- ✅ Wait for all services to be healthy
-- ✅ Display service URLs and test credentials
+Compose starts the stack in this order:
 
-**Expected time**: 1-2 minutes
+1. `postgres`, `neo4j`, `opa`, `keycloak` (Keycloak 26.8 with the `token-exchange-delegation` and `parameterized-scopes` preview features)
+2. `keycloak-config` (one-shot): applies the realm definition `infrastructure/keycloak/config/corporate-travel.json`
+3. `keycloak-fgap` (one-shot): applies the FGAP v2 delegation permissions
+4. The six Spring Boot services
+
+**Expected time**: about 5 minutes on the first build, under a minute afterwards.
+
+> `./scripts/setup-local.sh` starts only the infrastructure containers. It waits for the `corporate-travel` realm, which exists only after `keycloak-config` has run, so on a fresh volume use `podman compose up -d` instead.
 
 ### Step 3: Verify Infrastructure
 
-Once setup completes, verify services are running:
-
 ```bash
-# Check service status
-docker-compose ps
-
-# All services should show "healthy" status
+podman compose ps
+# Long-running services show "healthy"; keycloak-config and keycloak-fgap show "Exited (0)"
 ```
-
-Access the admin consoles:
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | Keycloak Admin | http://localhost:8080/admin | admin / admin123 |
 | Neo4j Browser | http://localhost:7474 | neo4j / password123 |
 | OPA Health | http://localhost:8181/health | N/A |
+| API Gateway | http://localhost:8000 | Bearer token |
+| Services | travel 8081, expense 8082, delegation 8083, consent 8084, BFF 8085 | Bearer token |
 
 ### Step 4: Test Authentication
 
-Get an access token to verify Keycloak is configured correctly:
-
 ```bash
-# Get token for Alice (employee)
+# Get a token for Alice (employee); uses the employee-bff client's password grant
 ./scripts/get-token.sh alice.employee password123
 
 # You should see: ✅ Access Token obtained successfully!
 ```
 
-### Step 5: Test Authorization Policies
-
-Verify OPA policies are working:
+### Step 5: Seed Demo Data and Run the Regression Test
 
 ```bash
-# Run policy tests
+# Bookings and expenses for all users, plus the Carol → Dave delegation
+./scripts/seed-data.sh
+
+# End-to-end delegation regression (Keycloak grant, delegated booking, audit, revocation)
+./scripts/end-to-end-test/run-delegation-flow.sh
+```
+
+`seed-data.sh` also performs Carol's Keycloak authorization of the delegation (see [Testing delegation](#4-test-delegation-dave-for-carol)), so Dave can activate it straight away.
+
+### Step 6: Test Authorization Policies
+
+```bash
 ./scripts/test-opa-policy.sh
 
 # You should see: ✅ PASS for all tests
+```
+
+### Step 7: Start the Frontend (optional)
+
+```bash
+cd frontend/nextjs
+cp .env.example .env.local
+npm install
+npm run dev
+# http://localhost:3000 — sign in as any demo user
 ```
 
 ## 🎯 What's Next?
 
 ### Option A: Explore the Architecture
 
-Read through the documentation to understand the system:
-
 1. **README.md** - System overview and architecture
 2. **IMPLEMENTATION.md** - Implementation patterns and guides
-3. **architecture-decision-records/** - Detailed ADRs
+3. **docs/** - Authentication, authorization and user journey guides
+4. **architecture-decision-records/** - Detailed ADRs (delegation: ADR-024)
 
-### Option B: Implement Services
+### Option B: Change or Add a Service
 
-Follow the implementation guide to build services:
-
-```bash
-# The foundation is complete. Start with:
-# 1. Travel Service - See IMPLEMENTATION.md for step-by-step guide
-# 2. Expense Service - Similar pattern to Travel Service
-# 3. Other services as needed
-```
+Follow the patterns and the "Building a New Service" checklist in IMPLEMENTATION.md.
 
 ### Option C: Test the Identity Flows
-
-Experiment with the identity patterns:
 
 **1. Get tokens for different users:**
 
 ```bash
-# Employee
-./scripts/get-token.sh alice.employee
-
-# Manager
-./scripts/get-token.sh bob.manager
-
-# Executive
-./scripts/get-token.sh carol.executive
-
-# Assistant
-./scripts/get-token.sh dave.assistant
+./scripts/get-token.sh alice.employee     # Employee
+./scripts/get-token.sh bob.manager        # Manager
+./scripts/get-token.sh carol.executive    # Executive
+./scripts/get-token.sh dave.assistant     # Assistant
 ```
 
 **2. Examine token claims:**
 
-The script will decode and display the JWT claims, showing:
-- User ID and username
-- Tenant ID
-- Roles
-- Custom attributes
+The script decodes the JWT and saves it to `/tmp/keycloak-token.txt`. Claims include:
+- `sub`, `preferred_username`, `email`, `name`
+- `tenant_id`, `employee_id`
+- `realm_access.roles`
+- `aud`: the four backend services and `employee-bff`
 
 **3. Test OPA authorization:**
 
 Modify `scripts/test-opa-policy.sh` to test your own scenarios.
+
+#### 4. Test delegation (Dave for Carol)
+
+Delegation uses Keycloak's RFC 8693 delegation (ADR-024), a preview feature in Keycloak 26.8:
+
+1. Carol creates a delegation to Dave (Delegation page, or `POST /api/delegations`).
+2. Carol authorizes it in Keycloak. The frontend sends her to Keycloak's consent screen; the API call is `POST /api/bff/delegation/{id}/grant`. The BFF stores her offline token encrypted.
+3. Dave activates it: `POST /api/bff/delegation/activate/{id}`. This returns 409 until Carol has authorized it.
+4. Dave's BFF calls now use tokens with `sub` = Carol and `act.sub` = Dave. Bookings are owned by Carol and record Dave as the creator.
+
+`seed-data.sh` and `run-delegation-flow.sh` perform step 2 with `scripts/lib/delegation-grant.sh`.
 
 ## 🧪 Development Workflow
 
 ### Building Services
 
 ```bash
-# Build all projects (when services are implemented)
+# Build and test all modules
 ./gradlew build
 
-# Build specific service
+# Build a specific service
 ./gradlew :services:travel-service:build
 
 # Run tests
@@ -152,29 +167,28 @@ Modify `scripts/test-opa-policy.sh` to test your own scenarios.
 ### Running Services Locally
 
 ```bash
-# Option 1: Run with Gradle (for development)
+# Option 1: Run with Gradle (infrastructure from compose)
 ./gradlew :services:travel-service:bootRun
 
-# Option 2: Run with Docker Compose
-docker-compose up -d travel-service
+# Option 2: Run in compose
+podman compose up -d travel-service
 
 # View logs
-docker-compose logs -f travel-service
+podman compose logs -f travel-service
 ```
 
 ### Making Changes
 
+The images build from source, so rebuild the image rather than restarting the container:
+
 ```bash
 # 1. Make code changes
 
-# 2. Rebuild
-./gradlew :services:travel-service:build
+# 2. Rebuild and restart the service
+podman compose up -d --build travel-service
 
-# 3. Restart service
-docker-compose restart travel-service
-
-# 4. View logs
-docker-compose logs -f travel-service
+# 3. View logs
+podman compose logs -f travel-service
 ```
 
 ## 📋 Common Commands
@@ -182,28 +196,22 @@ docker-compose logs -f travel-service
 ### Service Management
 
 ```bash
-# Start all infrastructure
-./scripts/setup-local.sh
+# Start everything
+podman compose up -d
 
-# Start all services
-docker-compose up -d
+# Stop everything
+podman compose down
 
-# Stop all services
-docker-compose down
-
-# View logs for specific service
-docker-compose logs -f [service-name]
-
-# View logs for all services
-docker-compose logs -f
+# View logs for a specific service
+podman compose logs -f [service-name]
 
 # Restart a service
-docker-compose restart [service-name]
+podman compose restart [service-name]
 
 # Clean up everything
 ./scripts/cleanup.sh
 
-# Clean up including data volumes
+# Clean up including data volumes (deletes all data)
 ./scripts/cleanup.sh --volumes
 ```
 
@@ -211,16 +219,10 @@ docker-compose restart [service-name]
 
 ```bash
 # Connect to PostgreSQL
-docker-compose exec postgres psql -U admin -d corporate_travel
+podman compose exec postgres psql -U admin -d corporate_travel
 
-# List schemas
+# List schemas (travel, expense, delegation, consent, bff, keycloak)
 \dn
-
-# Connect to specific schema
-SET search_path TO travel;
-
-# List tables
-\dt
 
 # Query data
 SELECT * FROM travel.bookings;
@@ -233,7 +235,7 @@ SELECT * FROM travel.bookings;
 open http://localhost:7474
 
 # Or use Cypher from command line
-docker-compose exec neo4j cypher-shell -u neo4j -p password123
+podman compose exec neo4j cypher-shell -u neo4j -p password123
 
 # Example query
 MATCH (n) RETURN n LIMIT 10;
@@ -241,38 +243,42 @@ MATCH (n) RETURN n LIMIT 10;
 
 ### Keycloak Management
 
+The realm is defined as code in `infrastructure/keycloak/config/corporate-travel.json` and applied on every `up`. Changes made in the admin console are not kept in the file.
+
 ```bash
+# Re-apply the realm and FGAP permissions after editing the definition
+podman compose up keycloak-config keycloak-fgap
+
+# Validate the realm definition against a throwaway Keycloak (same check as CI)
+./scripts/keycloak-realm-test/validate-realm-config.sh
+
 # Access admin console
 open http://localhost:8080/admin
-
-# View realm configuration
-open http://localhost:8080/realms/corporate-travel
 ```
 
 ## 🔧 Troubleshooting
 
 ### Services Won't Start
 
-**Problem**: Docker Compose fails to start services
+**Problem**: Compose fails to start services
 
 **Solutions**:
-1. Check Docker is running: `docker ps`
-2. Check ports aren't in use: `lsof -i :8080,5432,7474,7687,8181`
+1. Check Podman is running: `podman ps` (on macOS: `podman machine start`)
+2. Check ports aren't in use: `lsof -i :8000,8080,8081,8082,8083,8084,8085,5432,7474,7687,8181`
 3. Try cleanup and restart:
    ```bash
    ./scripts/cleanup.sh --volumes
-   ./scripts/setup-local.sh
+   podman compose up -d --build
    ```
 
 ### Keycloak Not Ready
 
-**Problem**: Keycloak takes too long to start or realm not imported
+**Problem**: Keycloak takes too long to start, or the `corporate-travel` realm is missing
 
 **Solutions**:
-1. Check Keycloak logs: `docker-compose logs keycloak`
-2. Verify realm file exists: `ls -la infrastructure/keycloak/realm-export.json`
-3. Restart Keycloak: `docker-compose restart keycloak`
-4. Import realm manually via admin console
+1. Check logs: `podman compose logs keycloak keycloak-config keycloak-fgap`
+2. Check the one-shots exited with 0: `podman compose ps -a`
+3. Re-apply the realm: `podman compose up keycloak-config keycloak-fgap`
 
 ### Cannot Get Token
 
@@ -280,8 +286,12 @@ open http://localhost:8080/realms/corporate-travel
 
 **Solutions**:
 1. Verify Keycloak is running: `podman inspect --format '{{.State.Health.Status}}' corporate-travel-keycloak` (health endpoints are on the unpublished management port 9000), or `curl -f http://localhost:8080/realms/corporate-travel`
-2. Check username/password are correct
-3. Verify realm is configured: `open http://localhost:8080/admin`
+2. Check username/password are correct (demo password: `KC_DEMO_USER_PASSWORD`, default `password123`)
+3. Check the `employee-bff` secret matches `KC_CLIENT_SECRET_EMPLOYEE_BFF` in `.env`
+
+### Delegation Activation Returns 409
+
+The delegator has not authorized the delegation in Keycloak yet. Sign in as Carol and choose "Authorize" on the Delegation page, or run `./scripts/seed-data.sh`.
 
 ### OPA Policies Fail
 
@@ -289,7 +299,7 @@ open http://localhost:8080/realms/corporate-travel
 
 **Solutions**:
 1. Check OPA is running: `curl http://localhost:8181/health`
-2. Verify policies are loaded: `docker-compose logs opa`
+2. Verify policies are loaded: `podman compose logs opa`
 3. Test OPA directly:
    ```bash
    curl -X POST http://localhost:8181/v1/data/corporate/travel/authorization
@@ -300,14 +310,14 @@ open http://localhost:8080/realms/corporate-travel
 **Problem**: Services can't connect to PostgreSQL
 
 **Solutions**:
-1. Verify PostgreSQL is healthy: `docker-compose ps postgres`
+1. Verify PostgreSQL is healthy: `podman compose ps postgres`
 2. Check connection:
    ```bash
-   docker-compose exec postgres pg_isready -U admin
+   podman compose exec postgres pg_isready -U admin
    ```
 3. Verify schemas exist:
    ```bash
-   docker-compose exec postgres psql -U admin -d corporate_travel -c "\dn"
+   podman compose exec postgres psql -U admin -d corporate_travel -c "\dn"
    ```
 
 ## 💡 Tips and Best Practices
@@ -316,13 +326,12 @@ open http://localhost:8080/realms/corporate-travel
 
 1. **Use Local Profiles**: Create `application-local.yml` for local development settings
 2. **Enable Debug Logging**: Set `logging.level.com.corporate.travel=DEBUG`
-3. **Hot Reload**: Use Spring DevTools for faster development cycles
-4. **Database Changes**: Use Flyway or Liquibase for schema migrations
+3. **Database Changes**: Add a Flyway migration under `src/main/resources/db/migration/`
 
 ### Security Tips
 
 1. **Never commit credentials**: Use `.env` file and keep it in `.gitignore`
-2. **Change default passwords**: Update passwords for production environments
+2. **Change default secrets**: The values in `.env.example` are demo values, including `BFF_GRANT_ENCRYPTION_KEY` (generate with `openssl rand -base64 32`)
 3. **Use HTTPS**: Enable TLS for all services in production
 4. **Rotate secrets**: Implement secret rotation for service credentials
 
@@ -353,19 +362,19 @@ open http://localhost:8080/realms/corporate-travel
 ### Common Questions
 
 **Q: How do I add a new user?**
-A: Edit `infrastructure/keycloak/realm-export.json` and restart Keycloak, or add via admin console.
+A: Add the user to `infrastructure/keycloak/config/corporate-travel.json` and run `podman compose up keycloak-config`. The demo password is set only when a user is created.
 
 **Q: How do I add a new service?**
 A: Follow the pattern in IMPLEMENTATION.md, starting with the Travel Service example.
 
 **Q: How do I test delegation?**
-A: Use Dave (assistant) to act on behalf of Carol (executive) - see demo scenarios in README.md.
+A: Use Dave (assistant) to act on behalf of Carol (executive) — see [Test delegation](#4-test-delegation-dave-for-carol) above and `docs/journeys/DELEGATE-JOURNEY.md`.
 
 **Q: How do I modify authorization policies?**
-A: Edit `infrastructure/opa/policies/authorization.rego` and restart OPA.
+A: Edit `infrastructure/opa/policies/authorization.rego`. OPA runs with `--watch` and reloads it automatically.
 
 ## ✨ You're Ready!
 
-The foundation is complete and ready for development. Start building services following the patterns in IMPLEMENTATION.md.
+The stack is running with demo data. See IMPLEMENTATION.md for the patterns used across the services.
 
 **Happy coding! 🚀**

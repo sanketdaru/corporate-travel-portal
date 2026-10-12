@@ -39,7 +39,8 @@ Carol (Executive) → Grant Delegation to Dave (Assistant)
 Dave → Switch to "Act as Carol" → Book Travel for Carol
 System → Records Actor=Dave, Subject=Carol
 ```
-- OAuth 2.0 Token Exchange
+- Carol authorizes the delegation once in Keycloak (consent screen, offline token stored encrypted by the BFF)
+- RFC 8693 delegated token exchange (`sub` = Carol, `act.sub` = Dave)
 - Consent validation
 - Delegation audit trail
 
@@ -103,8 +104,8 @@ These are real business needs, not artificial identity scenarios.
 ### Domain Entities
 
 **Primary:**
-- **Bookings** - Travel reservations (flights, hotels, cars)
-- **Expenses** - Expense claims linked to bookings
+- **Bookings** - Travel authorizations (trip, budget, business purpose; see `docs/TRAVEL-AUTHORIZATION.md`)
+- **Expenses** - Expense claims linked to bookings, checked against the booking budget
 - **Approvals** - Workflow states for booking/expense approval
 
 **Identity:**

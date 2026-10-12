@@ -1,427 +1,305 @@
 # Technical Context
 
+**Last Updated**: 2026-10-08 (after upgrade phases 0–7, see `docs/UPGRADE-PLAN.md`)
+
 ## Technology Stack
 
 ### Backend Services
-- **Framework**: Spring Boot 3.2.2
-- **Language**: Java 17
-- **Build Tool**: Gradle 8.5 (multi-project build)
-- **Security**: Spring Security OAuth2 Resource Server
-- **ORM**: Spring Data JPA with Hibernate
+- **Framework**: Spring Boot 4.1.1 (Framework 7, Security 7.1, Jackson 3, Hibernate 7), Spring Cloud 2025.1.3 (Gateway 5.0)
+- **Language**: Java 25 (Gradle toolchain; foojay resolver downloads it if missing)
+- **Build Tool**: Gradle 9.8.1 wrapper (multi-project build)
+- **Security**: Spring Security OAuth2 Resource Server with `aud` validation in every service
+- **ORM**: Spring Data JPA with Hibernate 7; Spring Data Neo4j 8.1 (driver 6.1) in delegation-service
+- **Migrations**: Flyway 12.4 (Boot BOM), one schema per service
+- **API docs**: springdoc 3.1.1
 
-### Frontend
-- **Framework**: Next.js 14 (planned)
-- **Language**: TypeScript
-- **UI Library**: React 18
-- **Design System**: shadcn/ui with Tailwind CSS
-- **Auth**: NextAuth.js with Keycloak provider
+### Frontend (`frontend/nextjs`)
+- **Framework**: Next.js 16.4, React 19.3
+- **Language**: TypeScript 6.0
+- **Design System**: shadcn/ui, Tailwind CSS 4.3
+- **Auth**: next-auth 5.0.0-beta.32 (`@auth/core` 0.41.3), Keycloak PKCE on the public `employee-portal` client
+- **Lint**: ESLint 9 (eslint-config-next 16.4 peers stop at ESLint 9)
+- **Node**: `engines.node >=22`; CI uses Node 24
 
-### Infrastructure
-- **IAM**: Keycloak 23.0
-- **Relational DB**: PostgreSQL 15
-- **Graph DB**: Neo4j 5.15 Community
-- **Policy Engine**: Open Policy Agent (latest)
-- **Container**: Docker + Docker Compose
-- **Orchestration** (future): Kubernetes
+### Infrastructure (all images pinned)
+- **IAM**: Keycloak 26.8.0, `start-dev`, preview features `token-exchange-delegation,parameterized-scopes`
+- **Realm-as-code**: `adorsys/keycloak-config-cli:6.5.1-26.5.5` one-shot (`keycloak-config`) applies `infrastructure/keycloak/config/corporate-travel.json`; `keycloak-fgap` one-shot (`kcadm.sh`) applies FGAP v2 delegation permissions
+- **Relational DB**: PostgreSQL 18.6
+- **Graph DB**: Neo4j 2026.09.0-community
+- **Policy Engine**: OPA 1.21.1 (Rego v1, `--watch`)
+- **Container**: Podman with `podman compose` (`docker-compose.yml`)
+- **CI**: GitHub Actions `.github/workflows/ci.yml` (Gradle build + tests, frontend lint + build, realm-as-code validation, `bash -n` on scripts)
+- **Orchestration**: none (Kubernetes is ADR-012, not implemented)
 
 ## Development Setup
 
 ### Prerequisites
 ```bash
-- Docker 24.0+
-- Docker Compose 2.0+
-- Java 17+ (for local development)
-- Node.js 18+ (for frontend)
-- Gradle 8.0+ (wrapper provided)
+- Podman with `podman compose`
+- Java 25 (or let the Gradle toolchain download it)
+- Node.js 22+ (24 recommended) for the frontend
+- Gradle: use the wrapper (9.8.1)
 ```
 
 ### Repository Structure
 ```
 corporate-travel-portal/           # Monorepo root
-├── build.gradle                    # Root Gradle config
+├── build.gradle                    # Root Gradle config (Boot 4.1.1 + Cloud 2025.1.3 BOMs)
 ├── settings.gradle                 # Multi-project setup
-├── gradlew                         # Gradle wrapper
-├── docker-compose.yml              # All services
-├── .env.example                    # Environment template
+├── docker-compose.yml              # All services (podman compose)
+├── .env.example                    # Environment template (secrets, demo password, encryption key)
+├── .github/workflows/ci.yml        # CI
 │
-├── infrastructure/                 # Infrastructure configs
-│   ├── databases/
-│   │   └── init-scripts/          # SQL initialization
+├── infrastructure/
+│   ├── databases/init.sql          # Creates the keycloak schema only; services use Flyway
 │   ├── keycloak/
-│   │   └── realm-export.json      # Keycloak config
-│   └── opa/
-│       └── policies/              # Rego policies
+│   │   ├── config/corporate-travel.json        # Realm-as-code (keycloak-config-cli)
+│   │   └── fgap/apply-delegation-permissions.sh # FGAP v2 permissions (kcadm.sh)
+│   └── opa/policies/               # Rego policies
 │
-├── services/                       # All microservices
-│   ├── shared/                    # Shared libraries
-│   │   ├── security-commons/     # Security utils
-│   │   └── domain-models/        # Shared models
-│   ├── api-gateway/              # Spring Cloud Gateway
-│   ├── travel-service/           # Domain service
-│   ├── expense-service/          # Domain service
-│   ├── approval-service/         # Workflow service
-│   ├── consent-service/          # Consent management
-│   ├── delegation-service/       # Delegation graph
-│   └── employee-bff/             # Backend-for-Frontend
+├── services/
+│   ├── shared/
+│   │   ├── security-commons/       # JWT converter, DelegatedActorFilter, OpaClient, SecurityConfig
+│   │   └── domain-models/          # Shared enums
+│   ├── api-gateway/                # Spring Cloud Gateway (8000)
+│   ├── travel-service/             # 8081
+│   ├── expense-service/            # 8082
+│   ├── delegation-service/         # 8083 (Postgres + Neo4j)
+│   ├── consent-service/            # 8084
+│   └── employee-bff/               # 8085 (grant store in schema bff)
 │
-├── frontend/
-│   └── employee-portal/          # Next.js app
+├── frontend/nextjs/                # Next.js employee portal (3000, run outside compose)
 │
-├── scripts/                       # Utility scripts
-│   ├── setup-local.sh            # Environment setup
-│   ├── get-token.sh              # Token retrieval
-│   ├── test-opa-policy.sh        # Policy testing
-│   └── cleanup.sh                # Cleanup
+├── scripts/
+│   ├── setup-local.sh, cleanup.sh, get-token.sh, seed-data.sh, test-opa-policy.sh
+│   ├── end-to-end-test/run-delegation-flow.sh       # Regression gate
+│   ├── keycloak-realm-test/validate-realm-config.sh # Apply twice, idempotency, claims, delegation
+│   └── spikes/keycloak-delegation-spike.sh          # ADR-024 spike
 │
-└── docs/                          # Documentation
-    ├── README.md                  # Main docs
-    ├── IMPLEMENTATION.md          # Implementation guide
-    └── GETTING-STARTED.md         # Quick start
+├── docs/                           # UPGRADE-PLAN, AUTH-AND-SESSION, AUTHORIZATION-GUIDE, ...
+└── architecture-decision-records/  # ADR-001 – ADR-024
 ```
+
+There is no approval-service. The realm still defines an `approval-service` client.
 
 ## Key Dependencies
 
-### Spring Boot Services
+### Spring Boot Services (Boot 4 modular starters)
 ```gradle
 dependencies {
-    // Shared
     implementation project(':services:shared:security-commons')
     implementation project(':services:shared:domain-models')
-    
-    // Spring Boot
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    
-    // Database
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
-    
-    // JWT & Auth
-    implementation 'org.springframework.security:spring-security-oauth2-jose'
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    
-    // HTTP Client for OPA
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    
-    // Utils
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
 }
 ```
 
+- HTTP clients use `RestClient` (no WebClient, no `.block()`); `InternalHttpClientConfig` pins internal clients to HTTP/1.1.
+- Jackson 3 packages: `tools.jackson.databind`.
+- Versions come from the Boot BOM; no pinned Flyway, Mockito or OpenTelemetry versions.
+
 ### Neo4j Integration (Delegation Service)
 ```gradle
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-data-neo4j'
-}
+implementation 'org.springframework.boot:spring-boot-starter-data-neo4j'
 ```
+`Neo4jConfig` declares both a JPA and a `Neo4jTransactionManager`; SDN 8's `Neo4jTemplate` needs the latter.
 
 ## Configuration Management
 
 ### Application Profiles
 
-**application.yml** (Base):
+**application.yml** (resource server, per service):
 ```yaml
 spring:
-  application:
-    name: ${SERVICE_NAME}
-  
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        default_schema: ${DB_SCHEMA}
-  
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_URL}/realms/corporate-travel
-
-server:
-  port: 8080
+          issuer-uri: http://localhost:8080/realms/corporate-travel
+          audiences:
+            - travel-service        # the service's own client ID
+  flyway:
+    schemas: travel
+    locations: classpath:db/migration
 
 opa:
-  url: ${OPA_URL:http://localhost:8181}
+  url: http://localhost:8181
 ```
 
-**application-docker.yml** (Docker environment):
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://postgres:5432/corporate_travel
-    username: admin
-    password: admin123
+**application-docker.yml** overrides hosts (`postgres`, `keycloak`, `opa`) for the compose network.
 
-keycloak:
-  url: http://keycloak:8080
-  
-opa:
-  url: http://opa:8181
-```
-
-### Environment Variables
+### Environment Variables (`.env.example`)
 ```bash
-# Database
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=admin123
 POSTGRES_DB=corporate_travel
-
-# Neo4j
 NEO4J_AUTH=neo4j/password123
 
-# Keycloak
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=admin123
+KC_BOOTSTRAP_ADMIN_USERNAME=admin
+KC_BOOTSTRAP_ADMIN_PASSWORD=admin123
 
-# Application
+# Substituted into the realm-as-code JSON by keycloak-config
+KC_DEMO_USER_PASSWORD=password123
+KC_CLIENT_SECRET_EMPLOYEE_BFF=bff-service-secret-change-in-production
+KC_CLIENT_SECRET_DELEGATION_GRANT=delegation-grant-secret-change-in-production
+# ... one KC_CLIENT_SECRET_* per confidential client
+
+# AES-256-GCM key for delegators' offline tokens (demo key; generate with openssl rand -base64 32)
+BFF_GRANT_ENCRYPTION_KEY=...
+
 SPRING_PROFILES_ACTIVE=docker
 ```
 
 ## Technical Constraints
 
 ### Database
-- **PostgreSQL**: Each service uses separate schema for isolation
-- **Neo4j**: Single database for delegation graph
-- **Transactions**: JPA transactions at service level
-- **Migrations**: SQL init scripts (Flyway/Liquibase for production)
+- **PostgreSQL**: one schema per service (`travel`, `expense`, `consent`, `delegation`, `bff`) plus `keycloak`
+- **Neo4j**: single database for the delegation graph
+- **Migrations**: Flyway per service (ADR-023)
 
 ### Authentication & Authorization
-- **Token Format**: JWT (RS256 signed by Keycloak)
-- **Token Lifetime**: 5 minutes (configurable)
-- **Refresh Tokens**: 30 minutes
-- **Session**: Stateless (JWT only)
-- **Authorization**: External (OPA), not embedded in Keycloak
+- **Token Format**: JWT (RS256, Keycloak)
+- **Access token lifetime**: 5 minutes; SSO session idle 30 min, max 10 h
+- **Audience**: every service accepts only tokens with its own client ID in `aud`; the gateway accepts any of the four services it routes to
+- **Delegation**: RFC 8693 tokens with `sub` = delegator, `act.sub` = actor; actor verified via `X-Actor-Token` (ADR-024)
+- **Sessions**: frontend uses an encrypted next-auth JWT cookie; the BFF keeps delegation context in a server-side session (JSESSIONID)
+- **Authorization**: external (OPA), not Keycloak Authorization Services
 
 ### API Design
-- **Style**: RESTful with JSON
-- **Versioning**: URL-based (/api/v1/...)
-- **Error Format**: RFC 7807 Problem Details
-- **CORS**: Configured per service
-
-### Performance Targets
-- **API Response**: < 200ms (p95)
-- **OPA Evaluation**: < 10ms (p95)
-- **Database Query**: < 50ms (p95)
-- **Token Validation**: < 5ms (cached public key)
+- **Style**: REST + JSON, unversioned paths (`/api/bookings`, `/api/expenses`, `/api/bff/...`)
+- **Errors**: `GlobalExceptionHandler` per service; the BFF passes downstream 4xx through and maps 5xx to 502
 
 ## Development Workflow
 
 ### Local Development
 ```bash
-# 1. Start infrastructure
-./scripts/setup-local.sh
+# 1. Start the stack (realm and FGAP applied automatically)
+./scripts/setup-local.sh          # or: podman compose up -d
+./scripts/seed-data.sh
 
-# 2. Run service locally
+# 2. Run a service locally
 ./gradlew :services:travel-service:bootRun
 
-# 3. Test with token
-./scripts/get-token.sh alice.employee
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/bookings
+# 3. Get a token (password grant on the confidential employee-bff client)
+./scripts/get-token.sh alice.employee password123   # prints claims and an export TOKEN=... line
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookings
+
+# 4. Frontend
+cd frontend/nextjs && npm ci && npm run dev
 ```
 
 ### Building Services
 ```bash
-# Build all
-./gradlew build
-
-# Build specific service
+./gradlew build                                   # build + tests
 ./gradlew :services:travel-service:build
-
-# Run tests
-./gradlew test
-
-# Build Docker image
-docker build -t travel-service -f services/travel-service/Dockerfile .
+podman compose up -d --build travel-service      # rebuild one image
 ```
 
 ### Testing Strategy
-- **Unit Tests**: JUnit 5, Mockito
-- **Integration Tests**: Spring Boot Test with Testcontainers
-- **Security Tests**: Spring Security Test
-- **OPA Tests**: Direct policy testing with curl
-- **E2E Tests**: Postman/Newman collections (planned)
+- **Unit Tests**: JUnit (Boot 4.1 BOM), Mockito, WireMock 3.13 for the Keycloak exchange; H2 in tests (no Testcontainers yet)
+- **Realm**: `scripts/keycloak-realm-test/validate-realm-config.sh` (throwaway Keycloak; idempotency, claims, delegation, revocation; in CI)
+- **OPA**: `scripts/test-opa-policy.sh`
+- **E2E**: `scripts/end-to-end-test/run-delegation-flow.sh` (73 checks, live stack)
 
 ## Tool Usage Patterns
 
 ### Gradle Commands
 ```bash
-# List projects
 ./gradlew projects
-
-# Build without tests
 ./gradlew build -x test
-
-# Clean and rebuild
 ./gradlew clean build
-
-# Run specific test
 ./gradlew :services:travel-service:test --tests BookingServiceTest
 ```
 
-### Docker Build Commands
+### Image Builds
 
-**Standard build pattern for all services** (from repository root):
+Dockerfiles build from the repository root (they need `services/shared`). Stages:
+1. **dependencies** — `gradle:9.8-jdk25-noble`, caches Gradle dependencies
+2. **builder** — `gradle:9.8-jdk25-noble`, compiles the service
+3. **runtime** — `eclipse-temurin:25-jre-noble`
 
 ```bash
-# Build service image (3-stage multi-stage build)
-docker build -t consent-service -f services/consent-service/Dockerfile .
-docker build -t travel-service -f services/travel-service/Dockerfile .
-docker build -t delegation-service -f services/delegation-service/Dockerfile .
-
-# Build with cache optimization (dependencies layer cached)
-docker build --target dependencies -t consent-service:deps \
-    -f services/consent-service/Dockerfile .
-docker build --target builder -t consent-service:builder \
-    -f services/consent-service/Dockerfile .
-docker build -t consent-service -f services/consent-service/Dockerfile .
-
-# Build without cache (clean build)
-docker build --no-cache -t consent-service -f services/consent-service/Dockerfile .
-
-# Run built image locally
-docker run -p 8084:8084 \
-    -e SPRING_PROFILES_ACTIVE=docker \
-    -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/corporate_travel \
-    consent-service
+podman build -t travel-service -f services/travel-service/Dockerfile .
 ```
 
-**Why build from root?**
-- Multi-stage build needs access to `services/shared` libraries
-- Context includes all dependencies for proper compilation
-- Dockerfile COPY commands reference files from root
-
-**Build stages**:
-1. **dependencies** - Download and cache Gradle dependencies (~300MB, cached)
-2. **builder** - Compile source code (~500MB, not cached in final image)
-3. **runtime** - Minimal JRE image with application (~200MB, production image)
-
-### Docker Compose Commands
+### Compose Commands
 ```bash
-# Start all services
-docker-compose up -d
-
-# Start specific service
-docker-compose up -d postgres keycloak
-
-# View logs
-docker-compose logs -f travel-service
-
-# Restart service
-docker-compose restart travel-service
-
-# Stop all
-docker-compose down
-
-# Stop and remove volumes
-docker-compose down -v
-
-# Rebuild and restart a service
-docker-compose up -d --build travel-service
+podman compose up -d
+podman compose up -d postgres keycloak
+podman compose logs -f travel-service
+podman compose restart travel-service
+podman compose down
+podman compose down -v          # deletes all local data
 ```
 
 ### Database Access
 ```bash
-# PostgreSQL
-docker-compose exec postgres psql -U admin -d corporate_travel
-
-# Neo4j
-docker-compose exec neo4j cypher-shell -u neo4j -p password123
+podman compose exec postgres psql -U admin -d corporate_travel
+podman compose exec neo4j cypher-shell -u neo4j -p password123
 ```
 
 ### Keycloak Management
 ```bash
-# Access admin console
+# Admin console (admin / admin123)
 http://localhost:8080/admin
 
-# Get token
-./scripts/get-token.sh [username] [password]
+# Realm changes: edit infrastructure/keycloak/config/corporate-travel.json, then
+podman compose up -d keycloak-config
 
-# Test token exchange (manual)
+# Health: /health/ready on management port 9000 (not published to the host; used by the compose healthcheck)
+
+# Standard token exchange (audience scoping) with the employee-bff client
 curl -X POST http://localhost:8080/realms/corporate-travel/protocol/openid-connect/token \
   -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
-  -d "subject_token=$ORIGINAL_TOKEN" \
-  -d "requested_token_type=urn:ietf:params:oauth:token-type:access_token" \
+  -d "subject_token=$TOKEN" \
+  -d "subject_token_type=urn:ietf:params:oauth:token-type:access_token" \
+  -d "audience=travel-service" \
   -d "client_id=employee-bff" \
-  -d "client_secret=bff-service-secret"
+  -d "client_secret=bff-service-secret-change-in-production"
 ```
+
+A delegated exchange additionally sends `actor_token` / `actor_token_type` and needs a subject token carrying `may_act` (see ADR-024 and `scripts/lib/delegation-grant.sh`).
 
 ### OPA Testing
 ```bash
-# Test policy
 ./scripts/test-opa-policy.sh
-
-# Check OPA health
-curl http://localhost:8181/health
-
-# Query specific policy
 curl -X POST http://localhost:8181/v1/data/corporate/travel/authorization/allow \
-  -H "Content-Type: application/json" \
-  -d @test-input.json
+  -H "Content-Type: application/json" -d @test-input.json
 ```
 
 ## Integration Points
 
 ### Service-to-Service Communication
-- **Style**: Synchronous REST over HTTP
-- **Auth**: OAuth2 client credentials (service accounts)
-- **Discovery**: Direct DNS (Docker Compose), Kubernetes Service (K8s)
-- **Circuit Breaker**: Resilience4j (planned)
-- **Retry**: Spring Retry with exponential backoff
+- **Style**: synchronous REST over HTTP/1.1 (`RestClient`)
+- **Auth**: user tokens or BFF token-exchange results; no client-credentials calls. expense-service → travel-service budget lookup sends no token (network trust)
+- **Discovery**: compose DNS names
+- **Resilience**: none (no circuit breaker or retry library)
 
 ### External Systems
-- **Keycloak**: OIDC endpoints for token operations
+- **Keycloak**: OIDC, token exchange, offline tokens, RFC 7009 revocation
 - **OPA**: REST API for policy decisions
-- **PostgreSQL**: JDBC connections
-- **Neo4j**: Bolt protocol connections
+- **PostgreSQL**: JDBC; **Neo4j**: Bolt
 
 ## Security Considerations
 
 ### Secrets Management
-- **Current**: Environment variables and .env file
-- **Production**: HashiCorp Vault (ADR-021, deferred)
-- **Rotation**: Manual (automated in production)
+- **Current**: `.env` and `application.yml` defaults (`*-secret-change-in-production`); committed demo `BFF_GRANT_ENCRYPTION_KEY`
+- **Planned**: ADR-021 (Vault or OpenBao), not implemented
 
 ### Network Security
-- **Current**: Docker internal network
-- **Production**: Service mesh (Istio) with mTLS
-- **Firewall**: iptables (production)
-
-### Data Protection
-- **At Rest**: PostgreSQL encryption (production)
-- **In Transit**: TLS 1.3 (production)
-- **PII**: Encrypted columns (planned)
+- Compose internal network; plain HTTP; no mTLS (ADR-009 not implemented)
 
 ## Observability
-
-### Logging
-- **Format**: Structured JSON (Logstash format)
-- **Level**: INFO (production), DEBUG (development)
-- **Aggregation**: ELK stack (planned)
-
-### Metrics
-- **Actuator**: Spring Boot Actuator endpoints
-- **Prometheus**: /actuator/prometheus (planned)
-- **Dashboards**: Grafana (planned)
-
-### Tracing
-- **OpenTelemetry**: Planned (ADR-020)
-- **Backend**: Jaeger (planned)
-- **Correlation**: Trace ID in logs
+- **Logging**: plain Spring Boot console logs
+- **Metrics**: Actuator `health,info,metrics`
+- **Tracing**: none (ADR-020 not implemented; candidates: Keycloak OTel tracing, Spring Boot 4 OTel, `grafana/otel-lgtm`)
 
 ## Deployment
-
-### Current (Docker Compose)
-```bash
-docker-compose up -d
-```
-
-### Future (Kubernetes)
-- Helm charts for each service
-- ConfigMaps for configuration
-- Secrets for credentials
-- Ingress for routing
-- HPA for scaling
+- **Current**: `podman compose up -d`
+- **Kubernetes**: not implemented (ADR-012)

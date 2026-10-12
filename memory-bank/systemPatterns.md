@@ -3,35 +3,33 @@
 ## Architecture Overview
 
 ```
-┌─────────────────┐
-│  Employee Portal│ (Next.js + React)
-└────────┬────────┘
-         │
-    ┌────▼─────┐
-    │ Employee │
-    │   BFF    │ (Token Exchange, API Aggregation)
-    └────┬─────┘
-         │
-    ┌────▼─────────────────────────────────┐
-    │         API Gateway                   │ (JWT Validation, Routing)
-    └────┬─────────────────────────────────┘
-         │
-    ┌────┴──────┬──────────┬──────────┬────────────┐
-┌───▼───┐  ┌───▼───┐  ┌───▼────┐ ┌──▼──────┐ ┌──▼────────┐
-│Travel │  │Expense│  │Approval│ │Consent  │ │Delegation │
-└───┬───┘  └───┬───┘  └───┬────┘ └──┬──────┘ └──┬────────┘
-    │          │          │         │            │
-    └──────────┴──────────┴─────────┴────────────┘
-                     │                    │
-              ┌──────▼──────┐      ┌─────▼─────┐
-              │  PostgreSQL │      │   Neo4j   │
-              └─────────────┘      └───────────┘
+              ┌──────────────────────────┐
+              │ Employee Portal (Next.js) │  PKCE login via Keycloak
+              └─────┬──────────────┬─────┘
+       /api/bff/*   │              │  /api/bookings|expenses|delegations|consents
+              ┌─────▼─────┐  ┌─────▼──────┐
+              │ Employee  │  │ API Gateway│ (JWT + aud validation, routing)
+              │   BFF     │  └─────┬──────┘
+              └─────┬─────┘        │
+   (delegation grant, RFC 8693     │
+    exchange, aggregation)         │
+         ┌──────────┴──────┬───────┴──────┬────────────┐
+     ┌───▼───┐        ┌────▼───┐     ┌────▼───┐   ┌────▼──────┐
+     │Travel │        │Expense │     │Consent │   │Delegation │
+     └───┬───┘        └────┬───┘     └────┬───┘   └──┬─────┬──┘
+         └─────────────────┴──────────────┴──────────┘     │
+                     │                                     │
+              ┌──────▼──────┐                        ┌─────▼─────┐
+              │  PostgreSQL │ (+ bff grant store)    │   Neo4j   │
+              └─────────────┘                        └───────────┘
 
          ┌──────────┐          ┌──────────┐
          │ Keycloak │          │   OPA    │
          │   IAM    │          │  Policy  │
          └──────────┘          └──────────┘
 ```
+
+The BFF calls services directly (not through the gateway). There is no approval service; approvals are part of travel-service and expense-service.
 
 ## Key Architectural Decisions
 
@@ -45,9 +43,9 @@
 - Simplified client security logic
 
 **Implementation**:
-- Employee BFF handles token exchange for delegation
+- Employee BFF runs the delegation grant ceremony and the RFC 8693 delegated exchange
 - BFF aggregates data from multiple services
-- BFF provides session management
+- BFF keeps the delegation context in a server-side session
 
 ### 2. External Authorization with OPA (ADR-007, ADR-019)
 
@@ -90,7 +88,7 @@ boolean allowed = opaClient.authorize(
 
 ### 4. OAuth 2.0 Token Exchange (ADR-004)
 
-**Pattern**: RFC 8693 token exchange for delegation
+**Pattern**: RFC 8693 token exchange with Keycloak native delegation (ADR-024, preview feature)
 
 **Why**:
 - Industry standard
@@ -99,16 +97,16 @@ boolean allowed = opaClient.authorize(
 
 **Implementation**:
 ```
-Original Token (Alice) 
-    ↓ Token Exchange
-Delegated Token (Actor=Dave, Subject=Alice)
+Carol's offline token (stored at grant time, carries may_act) + Dave's token
+    ↓ Token Exchange (subject_token + actor_token, one per audience)
+Delegated Token (sub=Carol, act.sub=Dave, aud=travel-service)
 ```
 
-**Token Claims**:
-- `sub`: Original subject (Alice)
-- `act.sub`: Actor performing action (Dave)
-- `consent_id`: Link to consent record
-- `purpose`: Why delegation was granted
+**Token Claims and Headers**:
+- `sub`: subject (Carol)
+- `act.sub`: actor (Dave's Keycloak UUID)
+- `X-Actor-Token` header: Dave's own token; services verify it matches `act.sub` (`DelegatedActorFilter`)
+- `X-Delegation-Id`, `X-Consent-Id`, `X-Delegation-Purpose` headers: audit metadata (not token claims)
 
 ### 5. Graph-Based Delegation (ADR-010)
 
@@ -162,17 +160,21 @@ OPA evaluates policies → Allow/Deny
 ### Delegation Flow
 
 ```
-Carol grants delegation to Dave
+Carol creates delegation + consent
     ↓
-Delegation stored in Neo4j + metadata in PostgreSQL
+Delegation stored in Neo4j + PostgreSQL; consent in consent-service
     ↓
-Dave logs in → Gets regular token
+Carol authorizes in Keycloak (delegation-grant client, consent screen)
     ↓
-Dave requests delegation → BFF calls token exchange
+BFF stores Carol's offline token, AES-256-GCM encrypted (schema bff)
     ↓
-Keycloak issues token with actor/subject claims
+Dave activates the delegation → BFF checks delegate, delegation, consent
     ↓
-Services see Actor=Dave, Subject=Carol
+BFF refreshes Carol's token and exchanges it with Dave's (actor_token)
+    ↓
+Keycloak issues sub=Carol, act.sub=Dave per audience
+    ↓
+Services verify X-Actor-Token; context = actor Dave, subject Carol
     ↓
 Audit logs record both identities
 ```
@@ -204,7 +206,9 @@ Every service includes:
 
 **security-commons**: Common security infrastructure
 - `SecurityContext`: User/tenant/delegation context
-- `JwtAuthenticationConverter`: JWT → Spring Security
+- `JwtAuthenticationConverter`: JWT → Spring Security; reads the `act` claim
+- `DelegatedActorFilter`: verifies `X-Actor-Token` against `act.sub`
+- `InternalHttpClientConfig`: HTTP/1.1 `RestClient` factory
 - `OpaClient`: OPA integration
 - `SecurityConfig`: Base Spring Security config
 
@@ -247,9 +251,9 @@ CREATE TABLE booking_audit (
 ### Path 1: Creating a Booking (with Delegation)
 
 1. Dave requests booking on behalf of Carol
-2. BFF performs token exchange → Gets delegated token
-3. BFF calls Travel Service with delegated token
-4. Travel Service extracts SecurityContext (actor=Dave, subject=Carol)
+2. BFF uses the delegated token from the active delegation context (`sub`=Carol, `act.sub`=Dave)
+3. BFF calls Travel Service with that token and `X-Actor-Token`
+4. Travel Service verifies the actor token and builds SecurityContext (actor=Dave with Dave's roles, subject=Carol)
 5. Travel Service calls OPA with delegation context
 6. OPA validates: delegation active + consent valid + same tenant
 7. Travel Service creates booking (user_id=Carol, created_by=Dave)
@@ -272,15 +276,14 @@ CREATE TABLE booking_audit (
 2. OPA validates: has role "manager"
 3. Bob selects Alice's expense
 4. OPA validates: Alice reports to Bob (manager chain)
-5. Service updates approval workflow
-6. Approval Service triggers state transition
-7. Expense status updates to "APPROVED"
+5. Expense service applies the state transition
+6. Expense status updates to "APPROVED"
 
 ## Testing Patterns
 
 ### Unit Testing Strategy
 
-**Framework**: JUnit 5 + Mockito + AssertJ
+**Framework**: JUnit Jupiter (Boot 4.1 BOM) + Mockito + AssertJ; WireMock for HTTP clients
 
 **Coverage Goals**:
 - 80%+ line coverage
@@ -531,7 +534,7 @@ void should_throwAccessDenied_when_opaReturnsFalse() {
 1. **Security by Default**: Deny unless explicitly allowed
 2. **Fail Closed**: Authorization failures block access
 3. **Explicit Audit**: Log all identity-sensitive operations
-4. **Stateless Services**: JWT carries all context
+4. **Stateless Services**: JWT carries identity (the BFF is the exception: it holds delegation context in a session)
 5. **Policy as Code**: OPA policies versioned in git
 6. **Idempotent Operations**: Safe to retry
 7. **Clear Boundaries**: Tenant isolation strictly enforced
@@ -544,30 +547,29 @@ All services follow this standardized pattern for optimal image size, security, 
 
 #### **Stage 1: Dependencies (Cached Layer)**
 - **Purpose**: Download and cache Gradle dependencies separately from source code
-- **Base Image**: `gradle:9.3-jdk17`
+- **Base Image**: `gradle:9.8-jdk25-noble`
 - **Benefits**: Fast rebuilds when only source code changes (dependencies layer cached)
 - **Pattern**: 
   ```dockerfile
-  FROM gradle:9.3-jdk17 AS dependencies
+  FROM gradle:9.8-jdk25-noble AS dependencies
   COPY build files → Download dependencies → Cache in /home/gradle/.gradle
   ```
 
 #### **Stage 2: Builder (Source Compilation)**
 - **Purpose**: Compile application from source inside Docker
-- **Base Image**: `gradle:9.3-jdk17`
+- **Base Image**: `gradle:9.8-jdk25-noble`
 - **Benefits**: Reproducible builds, eliminates "works on my machine" issues
 - **Pattern**: 
   ```dockerfile
-  FROM gradle:9.3-jdk17 AS builder
+  FROM gradle:9.8-jdk25-noble AS builder
   Copy cached deps → Copy shared libs → Copy service source → Build JAR
   ```
 
 #### **Stage 3: Runtime (Production Image)**
 - **Purpose**: Minimal, secure production image
-- **Base Image**: `eclipse-temurin:17-jre-jammy` (Ubuntu-based)
-- **Why Jammy, not Alpine**: 
-  - Better compatibility with Spring Boot native libraries
-  - More stable for production workloads
+- **Base Image**: `eclipse-temurin:25-jre-noble` (Ubuntu-based)
+- **Why Ubuntu (Noble), not Alpine**: 
+  - glibc compatibility for the JVM and native libraries
   - Standard base for all services
 - **Benefits**: Small size (~200MB), security hardened, optimized
 
@@ -616,7 +618,7 @@ LABEL org.opencontainers.image.source="https://github.com/corporate-travel-porta
 ```bash
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
-    -XX:InitialRAMPercentage=50.0 \
+    -XX:InitialRAMPercentage=25.0 \
     -XX:+ExitOnOutOfMemoryError \
     -XX:+UseG1GC \
     -XX:+UseStringDeduplication \
@@ -630,7 +632,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
 |------|---------|---------|
 | `UseContainerSupport` | JVM respects container memory/CPU limits | Prevents OOM in Kubernetes |
 | `MaxRAMPercentage=75.0` | Uses 75% of available RAM | Leaves 25% for OS and buffers |
-| `InitialRAMPercentage=50.0` | Starts with 50% of max heap | Faster startup, gradual growth |
+| `InitialRAMPercentage=25.0` | Starts with 25% of RAM as heap | Faster startup, gradual growth |
 | `ExitOnOutOfMemoryError` | Terminates JVM on OOM | Orchestrator can restart clean |
 | `UseG1GC` | G1 garbage collector | Better for heap >4GB and low-latency |
 | `UseStringDeduplication` | Deduplicates strings in heap | Reduces memory footprint 10-20% |
@@ -667,7 +669,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
 # Best practices: multi-platform support, layer caching, minimal image size, security
 
 # Stage 1: Build dependencies (cached layer)
-FROM gradle:9.3-jdk17 AS dependencies
+FROM gradle:9.8-jdk25-noble AS dependencies
 WORKDIR /app
 COPY services/[service-name]/settings-docker.gradle settings.gradle
 COPY build.gradle gradle.properties ./
@@ -677,7 +679,7 @@ COPY services/[service-name]/build.gradle services/[service-name]/build.gradle
 RUN gradle dependencies --no-daemon || return 0
 
 # Stage 2: Build application
-FROM gradle:9.3-jdk17 AS builder
+FROM gradle:9.8-jdk25-noble AS builder
 WORKDIR /app
 COPY --from=dependencies /home/gradle/.gradle /home/gradle/.gradle
 COPY services/[service-name]/settings-docker.gradle settings.gradle
@@ -687,7 +689,7 @@ COPY services/[service-name] ./services/[service-name]
 RUN gradle :services:[service-name]:build -x test --no-daemon
 
 # Stage 3: Runtime (minimal multi-platform image)
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:25-jre-noble
 LABEL maintainer="corporate-travel-platform"
 LABEL service="[service-name]"
 LABEL version="1.0.0"
@@ -707,7 +709,7 @@ EXPOSE [port]
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
-    -XX:InitialRAMPercentage=50.0 \
+    -XX:InitialRAMPercentage=25.0 \
     -XX:+ExitOnOutOfMemoryError \
     -XX:+UseG1GC \
     -XX:+UseStringDeduplication \
@@ -727,11 +729,11 @@ ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
 ```bash
 # ✅ CORRECT - Build from root
 cd /path/to/corporate-travel-portal
-docker build -t consent-service -f services/consent-service/Dockerfile .
+podman build -t consent-service -f services/consent-service/Dockerfile .
 
 # ❌ WRONG - Will fail (missing shared libraries)
 cd /path/to/corporate-travel-portal/services/consent-service
-docker build -t consent-service .
+podman build -t consent-service .
 ```
 
 **Why?** Multi-stage build needs:

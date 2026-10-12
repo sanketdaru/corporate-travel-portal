@@ -49,7 +49,7 @@ public class TokenExchangeService {
     private final DelegationGrantService delegationGrantService;
 
     /**
-     * Performs Standard Token Exchange V2 for the given delegation, once per configured audience.
+     * Performs the RFC 8693 delegated exchange for the given delegation, once per configured audience.
      *
      * @param delegationId   ID of the delegation record in delegation-service
      * @param actorToken     The actor's current access token (Dave's JWT) — mandatory chain of trust;

@@ -16,7 +16,6 @@ Manages consent records with purpose binding for delegated access in the Corpora
 
 ```
 POST   /api/consents                 - Grant consent
-GET    /api/consents                 - List my consents  
 GET    /api/consents/{id}            - Get consent details
 DELETE /api/consents/{id}            - Revoke consent
 POST   /api/consents/validate        - Validate consent
@@ -43,6 +42,14 @@ spring:
     properties:
       hibernate:
         default_schema: consent
+  flyway:
+    schemas: consent
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/corporate-travel
+          audiences: [consent-service]   # rejects tokens not issued for this service
 ```
 
 **application-docker.yml** (Docker):
@@ -65,14 +72,11 @@ spring:
 ./gradlew :services:consent-service:test
 ```
 
-### Running with Docker
+### Running in Compose
 
 ```bash
-# Build image
-docker build -t consent-service -f services/consent-service/Dockerfile .
-
-# Run container
-docker run -p 8084:8084 consent-service
+podman compose up -d --build consent-service
+podman compose logs -f consent-service
 ```
 
 ### OpenAPI Documentation
@@ -91,7 +95,8 @@ Once running, access Swagger UI at:
 
 - **Delegation Service**: Links consents to delegation records via `delegation_id`
 - **OPA**: Authorizes all consent operations
-- **Keycloak**: Validates JWT tokens for authentication
+- **Keycloak**: Issues the JWTs; `aud` must contain `consent-service`
+- **Employee BFF**: Validates consent during delegation activation and records the `consentId` for audit
 
 ### Example Usage
 
@@ -125,7 +130,7 @@ curl -X POST http://localhost:8084/api/consents/validate \
 ### Architecture
 
 Following microservices patterns established in the platform:
-- **Spring Boot 3.2.2** with Java 17
+- **Spring Boot 4.1.1** with Java 25
 - **PostgreSQL** for consent storage
 - **Flyway** for database migrations
 - **OPA** for authorization
@@ -135,6 +140,6 @@ Following microservices patterns established in the platform:
 ### Testing
 
 Unit tests follow established patterns:
-- **JUnit 5** + **Mockito** + **AssertJ**
+- **JUnit 6** + **Mockito** + **AssertJ**
 - **Target**: 80%+ line coverage, 100% branch coverage
 - **Patterns**: AAA (Given-When-Then), test builders, security mocking

@@ -18,6 +18,8 @@ The Delegation Service implements a dual-database architecture:
 - ✅ Async sync between PostgreSQL and Neo4j
 - ✅ Comprehensive OpenAPI/Swagger documentation
 
+Delegation-service is the business source of truth (validity window, purpose, scopes). Since ADR-024 the delegator must also authorize each delegation in Keycloak before the delegate can activate it; that grant is handled by the Employee BFF.
+
 ## Architecture
 
 ```
@@ -39,7 +41,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "delegateId": "dave-assistant",
+  "delegateId": "dave.assistant",
   "purpose": "book_travel",
   "scopes": ["view_bookings", "create_bookings"],
   "expiresAt": "2026-12-31T23:59:59"
@@ -70,15 +72,17 @@ DELETE /api/delegations/{id}
 Authorization: Bearer <token>
 ```
 
+To also remove the delegator's Keycloak grant (offline session), revoke through the BFF instead: `DELETE /api/bff/delegation/{id}`.
+
 ### Get Delegation Chain
 ```http
-GET /api/delegations/chain?userId=dave-assistant
+GET /api/delegations/chain?userId=dave.assistant
 Authorization: Bearer <token>
 ```
 
 ### Check Delegation Exists
 ```http
-GET /api/delegations/check?delegatorId=carol&delegateId=dave
+GET /api/delegations/check?delegatorId=carol.executive&delegateId=dave.assistant
 Authorization: Bearer <token>
 ```
 
@@ -103,6 +107,7 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:8080/realms/corporate-travel
+          audiences: [delegation-service]   # rejects tokens not issued for this service
 
 server:
   port: 8083
@@ -154,14 +159,13 @@ CREATE TABLE delegation.delegations (
 ## Running Locally
 
 ### Prerequisites
-- Java 17+
-- Docker (for PostgreSQL and Neo4j)
-- Gradle 8.5+
+- Podman or Docker with compose (for PostgreSQL, Neo4j, Keycloak, OPA)
+- The Gradle wrapper (9.8.1) provisions the Java 25 toolchain
 
 ### Start Infrastructure
 ```bash
-# From project root
-docker-compose up -d postgres neo4j keycloak opa
+# From project root (keycloak-config applies the realm)
+podman compose up -d postgres neo4j keycloak keycloak-config opa
 ```
 
 ### Run Service
@@ -187,27 +191,18 @@ http://localhost:8083/swagger-ui.html
 open services/delegation-service/build/reports/jacoco/test/html/index.html
 ```
 
-## Docker Deployment
+## Compose Deployment
 
-### Build Image
 ```bash
-docker build -t delegation-service -f services/delegation-service/Dockerfile .
-```
-
-### Run Container
-```bash
-docker run -p 8083:8083 \
-  -e SPRING_PROFILES_ACTIVE=docker \
-  -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/corporate_travel \
-  -e SPRING_NEO4J_URI=bolt://neo4j:7687 \
-  delegation-service
+podman compose up -d --build delegation-service
+podman compose logs -f delegation-service
 ```
 
 ## Key Design Patterns
 
 ### Dual-Database Sync Pattern
 1. **Write**: Save to PostgreSQL first (transactional)
-2. **Sync**: Async sync to Neo4j (best effort)
+2. **Sync**: Async sync to Neo4j (best effort; failures are logged, not returned to the caller)
 3. **Read**: Query from most appropriate source
 4. **Fallback**: Use PostgreSQL if Neo4j fails
 
@@ -225,9 +220,9 @@ Every operation checks OPA:
 
 ## Dependencies
 
-- Spring Boot 3.2.2
-- Spring Data JPA
-- Spring Data Neo4j
+- Spring Boot 4.1.1 (Java 25)
+- Spring Data JPA (Hibernate 7)
+- Spring Data Neo4j 8 — `Neo4jConfig` declares both the JPA and the Neo4j transaction manager; Boot does not create the Neo4j one when JPA is present
 - Spring Security OAuth2 Resource Server
 - PostgreSQL Driver
 - Flyway (database migrations)
@@ -251,31 +246,31 @@ GET /actuator/metrics
 ### Neo4j Connection Issues
 ```bash
 # Check Neo4j is running
-docker-compose ps neo4j
+podman compose ps neo4j
 
 # Check logs
-docker-compose logs neo4j
+podman compose logs neo4j
 
 # Test connection
-docker-compose exec neo4j cypher-shell -u neo4j -p password123
+podman compose exec neo4j cypher-shell -u neo4j -p password123
 ```
 
 ### PostgreSQL Connection Issues
 ```bash
 # Check PostgreSQL is running
-docker-compose ps postgres
+podman compose ps postgres
 
 # Check schema exists
-docker-compose exec postgres psql -U admin -d corporate_travel -c "\dn"
+podman compose exec postgres psql -U admin -d corporate_travel -c "\dn"
 
 # Check tables
-docker-compose exec postgres psql -U admin -d corporate_travel -c "\dt delegation.*"
+podman compose exec postgres psql -U admin -d corporate_travel -c "\dt delegation.*"
 ```
 
 ### Flyway Migration Issues
 ```bash
 # Check migration history
-docker-compose exec postgres psql -U admin -d corporate_travel -c "SELECT * FROM flyway_schema_history;"
+podman compose exec postgres psql -U admin -d corporate_travel -c "SELECT * FROM delegation.flyway_schema_history;"
 ```
 
 ## Related Services
@@ -283,7 +278,7 @@ docker-compose exec postgres psql -U admin -d corporate_travel -c "SELECT * FROM
 - **Travel Service**: Uses delegations for booking operations
 - **Expense Service**: Uses delegations for expense submission
 - **Consent Service**: Links consent records to delegations
-- **Employee BFF**: Performs token exchange using delegations
+- **Employee BFF**: Checks the delegation (caller must be the delegate) before the RFC 8693 delegated token exchange
 
 ## License
 

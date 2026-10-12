@@ -30,7 +30,7 @@ public class DashboardBffController {
     @Operation(summary = "Aggregated dashboard",
         description = "Returns bookings and expenses in a single response. When delegation is active, " +
                       "both downstream calls carry the full delegation context headers " +
-                      "(X-Delegated-Subject, X-Delegation-Id, X-Actor-Token) so data is scoped " +
+                      "(delegated token, X-Actor-Token, X-Delegation-Id) so data is scoped " +
                       "to the delegation subject and fully auditable (ADR-004, ADR-011, ADR-018).")
     public ResponseEntity<JsonNode> getDashboard(
             @AuthenticationPrincipal Jwt jwt,

@@ -1,5 +1,7 @@
 # ADR Implementation Plan & Gap Analysis
 
+> **Historical record (as of 2026-04-04).** This documents the original MVP implementation and is not maintained. The platform has since been upgraded (Keycloak 26.8.0, realm-as-code, Java 25, Spring Boot 4.1, RFC 8693 delegation replacing the `X-Delegated-Subject` header model). Versions, file paths and delegation details below are outdated. Current state: [docs/UPGRADE-PLAN.md](docs/UPGRADE-PLAN.md) and [ADR-024](architecture-decision-records/ADR-024:%20Adopt%20Keycloak%20Native%20RFC%208693%20Delegation.md).
+
 **Created**: 2026-02-28  
 **Last Updated**: 2026-04-04  
 **Status**: Phase 4 Complete — MVP Fully Implemented (71/71 E2E tests passing)  

@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Employee Portal (Next.js)
 
-## Getting Started
+Frontend of the Corporate Travel & Expense platform. Next.js 16.4 (App Router), React 19.3, next-auth 5 (Keycloak, PKCE), Tailwind 4, shadcn/ui.
 
-First, run the development server:
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local     # set AUTH_SECRET / NEXTAUTH_SECRET
+npm ci
+npm run dev                    # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Needs the backend from the repository root (`podman compose up -d`). Node 22+.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it talks to the backend
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`next.config.ts` rewrites, so the browser only ever calls `localhost:3000`:
 
-## Learn More
+| Path | Goes to | Used for |
+|---|---|---|
+| `/api/auth/*` | next-auth | Keycloak login, refresh, logout |
+| `/api/bff/*` | Employee BFF (8085) | dashboard, bookings, expenses, delegation mode, delegation grants |
+| `/api/{bookings,expenses,delegations,consents}/*` | API Gateway (8000) | direct service calls |
 
-To learn more about Next.js, take a look at the following resources:
+The BFF keeps delegation state in its session cookie; delegation tokens never reach the browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Checks
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run lint        # ESLint 9 + eslint-config-next (React Compiler rules)
+npx tsc --noEmit
+npm run build
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`proxy.ts` (Next 16's replacement for `middleware.ts`) guards the app routes and sends expired sessions to `/session-expired`.

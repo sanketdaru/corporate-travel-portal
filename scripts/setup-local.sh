@@ -33,7 +33,7 @@ echo ""
 
 # Start infrastructure services
 echo "🏗️  Starting infrastructure services (Postgres, Neo4j, Keycloak, OPA)..."
-$COMPOSE up -d postgres neo4j keycloak opa
+$COMPOSE up -d postgres neo4j keycloak keycloak-config keycloak-fgap opa
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."

@@ -1,24 +1,24 @@
 # ADR-011: Implement Comprehensive Audit and Compliance Ledger
 
 ## Status
-Accepted — Updated 2026-03-29
+Accepted — Updated 2026-10-08 (identity chain now from RFC 8693 tokens, ADR-024)
 
 ## Context
 Travel and expense systems require strict audit tracking. Delegated and federated identities must be traceable.
 
 In this platform, identities include both humans and AI agents. A booking may be created by an AI agent acting on behalf of a human under a multi-hop delegation chain. The audit ledger must capture the **full identity chain** at every action, not just the immediate caller.
 
-Because Keycloak Standard Token Exchange V2 does not yet emit the RFC 8693 `act` claim, actor identity is carried in the `X-Actor-Token` and `X-Delegation-Id` request headers validated and threaded by the BFF. Services extract the full chain from these headers and their `SecurityContext`.
+Delegated requests carry a Keycloak RFC 8693 token (`sub` = delegator, `act.sub` = actor; ADR-024). Services verify the actor's own token from `X-Actor-Token` (`DelegatedActorFilter`) and read audit metadata from `X-Delegation-Id`, `X-Consent-Id` and `X-Delegation-Purpose`. `security-commons` builds the `SecurityContext` from these.
 
 ## Decision
 All identity-sensitive actions will produce audit events capturing the full delegation chain:
 
 | Audit Field | Source | Description |
 |-------------|--------|-------------|
-| `actor_id` | `SecurityContext.actorId` (from JWT `sub`) | The identity that performed the action (Dave, or AI agent) |
-| `subject_id` | `SecurityContext.subjectId` (from `X-Delegated-Subject`) | The human principal on whose behalf the action was taken |
+| `actor_id` | `SecurityContext.actorId` (verified `X-Actor-Token`, matching `act.sub`; else JWT user) | The identity that performed the action (Dave, or AI agent) |
+| `subject_id` | `SecurityContext.subjectId` (delegated token's `sub`; else JWT user) | The human principal on whose behalf the action was taken |
 | `delegation_id` | `SecurityContext.delegationId` (from `X-Delegation-Id`) | Links to the full delegation record and chain |
-| `consent_id` | Resolved from consent-service during validation | Links to the consent record authorising the action |
+| `consent_id` | `SecurityContext.consentId` (from `X-Consent-Id`, set by the BFF after consent-service validation) | Links to the consent record authorising the action |
 | `tenant_id` | `SecurityContext.tenantId` (from JWT `tenant_id` claim) | Tenant scope of the action |
 | `action` | Service layer constant | Verb: CREATED, UPDATED, DELETED, STATUS_CHANGED |
 | `timestamp` | `NOW()` | Wall-clock time of the action |
@@ -64,7 +64,7 @@ Immutable PostgreSQL tables per service. No updates or deletes permitted on audi
 - Actor and subject always explicit — no ambiguity about who acted vs. who was acted for
 
 ### Negative
-- Services must read and validate delegation headers — cannot rely on JWT alone for audit completeness
+- `delegation_id` and `consent_id` still come from BFF-set headers, not signed claims
 - Increased storage overhead per action
 - Requires event schema standardisation across all services
-- `X-Actor-Token` header trust boundary must be enforced — only the BFF may set it; API gateway must strip it from external requests
+- Services must verify `X-Actor-Token` against `act.sub` on every delegated request (done in `DelegatedActorFilter`)
