@@ -59,6 +59,10 @@ public class SecurityConfig {
                     "/expense-service-docs/**"
                 ).permitAll()
 
+                // Internal service-to-service endpoint: expense-service calls travel-service
+                // directly over the compose network (ADR-009); never exposed through the gateway
+                .pathMatchers("/api/bookings/*/budget").denyAll()
+
                 // All other requests require authentication
                 .anyExchange().authenticated()
             )

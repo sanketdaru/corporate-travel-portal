@@ -78,7 +78,7 @@ Response: 200 with the updated booking.
 GET /api/bookings/{id}/budget?tenantId=…  →  { "id": "…", "budget": 120000.00, "budgetCurrency": "INR" }
 ```
 
-Called by expense-service over the compose network with its service-account token (client credentials, ADR-009). The shared `SecurityConfig` requires realm role `budget_reader`, which only `service-account-expense-service` holds; user tokens get 403, no token 401. The token carries no tenant, so the caller passes the expense's tenant; a booking in another tenant is 404, a missing `tenantId` 400. No OPA check.
+Called by expense-service over the compose network with its service-account token (client credentials, ADR-009). The shared `SecurityConfig` requires realm role `budget_reader`, which only `service-account-expense-service` holds; user tokens get 403, no token 401. The token carries no tenant, so the caller passes the expense's tenant; a booking in another tenant is 404, a missing `tenantId` 400. No OPA check. The gateway denies this path, so only the compose network reaches it.
 
 ## Delete Booking
 

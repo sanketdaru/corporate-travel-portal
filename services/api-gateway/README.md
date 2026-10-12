@@ -43,7 +43,7 @@ Backend Services
 | `/api/consents/**` | consent-service | 8084 |
 | `/travel-service-docs/**`, `/expense-service-docs/**` | OpenAPI specs of travel / expense service | 8081 / 8082 |
 
-The employee-bff (8085) is not routed through the gateway.
+The employee-bff (8085) is not routed through the gateway. `/api/bookings/*/budget` is internal (expense-service → travel-service, ADR-009) and denied at the gateway (401 without a token, 403 with one).
 
 ## Features
 
